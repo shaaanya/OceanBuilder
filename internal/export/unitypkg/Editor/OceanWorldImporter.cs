@@ -7,7 +7,7 @@
 // Addressables registration is done by OceanCompiler.World.Editor.Addressables when that package is installed.
 //
 // Batchmode:  Unity -batchmode -projectPath <p> -executeMethod OceanWorldImporter.ImportFromCommandLine -quit
-// Screenshot (needs a GPU; do not pass -nographics):  ... -oceanShot <path.png>
+// Screenshot (needs a GPU; do not pass -nographics):  ... -oceanShot <path.png> [-oceanHideSea]
 // Import verifies orientation against manifest checkpoints and exits non-zero on mismatch.
 using System;
 using System.Collections.Generic;
@@ -317,6 +317,11 @@ public static class OceanWorldImporter
         cam.transform.LookAt(b.center + new Vector3(0, -b.size.y * 0.5f, b.size.z * 0.05f));
         var light = UnityEngine.Object.FindFirstObjectByType<Light>();
         if (light != null) { light.transform.rotation = Quaternion.Euler(40, 300, 0); light.intensity = 1.3f; }
+        if (Array.IndexOf(Environment.GetCommandLineArgs(), "-oceanHideSea") >= 0)
+        {
+            var sea = GameObject.Find("SeaLevel");
+            if (sea != null) sea.SetActive(false);
+        }
         var rt = new RenderTexture(1920, 1080, 24);
         cam.targetTexture = rt;
         var pipe = UnityEngine.Rendering.GraphicsSettings.currentRenderPipeline;
