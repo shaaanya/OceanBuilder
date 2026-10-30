@@ -8,20 +8,24 @@ Context: Ocean Compiler is a Go CLI that shells out to GDAL, uses GMRT GridServe
 
 ## 1. LibreTerrain
 
-**Finding: no standalone project found.** Things tried:
-- `gh search repos LibreTerrain`: 0 results. GitHub API repo search (`libre terrain in:name,description`): only unrelated hits (`sebatt90/libretopia_terrain_gen_godot`, a Valheim terraforming mod, French sports-ground apps).
-- `gh search code LibreTerrain`: only `cismet/carma` (MIT, 2 stars, pushed 2026-10-29), file `libraries/mapping/addons/src/addons/LibreTerrain.tsx`. I read it: it is a React MapLibre UI control that toggles map terrain/exaggeration for a Wuppertal geoportal. It is not a terrain generator or data tool.
-- `npm view libreterrain`: 404. `WebSearch "LibreTerrain terrain generator open source"`: no match; nearest were unrelated (libterrain on SourceForge, open-terra/terra, TerrainLib, `terr` crate).
-- Source: https://github.com/cismet/carma
+**Correction (2026-10-30, later):** web/GitHub searches found nothing, but the user has LibreTerrain locally at `../LibreTerrain/` (a macOS app bundle plus `libreterrain-mcp`, dual MIT/Apache-2.0: `LICENSE-MIT`, `LICENSE-APACHE`). The agent's "no standalone project" finding (searches: `gh search repos/code`, `npm view`, WebSearch; only an unrelated `cismet/carma` map widget) was about public availability only. No source tree is present, so the facts below come from the binary's embedded strings and the bundle layout, **not from running it or reading docs**; treat them as unverified until exercised.
+
+What the binary indicates:
+- Rust node-graph terrain editor (`crates/terrain-core`, `terrain-nodes`); project file `.lterrain` with world size and `height_range_m`; CPU builds; GPU preview.
+- Procedural nodes (fBm, ridged, canyon, dunes, plateau, terrace...), hydrology (`data.flow`, wetness), snow, polygons for flat areas (sea floor height outside polygons).
+- **Heightmap import** node `primitive.file`: EXR or 8/16-bit PNG stretched over the whole world; values either metres (EXR) or 0..1 mapped to the world height range or to `low_m`/`high_m`; `flip_y` option. Also `colour.image` for aerial imagery.
+- **Exports**: PNG16 (0..65535 = height range), EXR32, tiles with `{name}_x{x}_y{y}` patterns, masks (slope, flow, snow...), point files for vegetation, and `build.json` with world size and height range. Prompts mention import helpers for Unreal, Godot and Blender (Unreal helper noted as untested inside Unreal). No Unity helper mentioned.
+- `libreterrain-mcp` is an MCP bridge (`--project file.lterrain` serves a project without the editor; tools such as `get_graph`, `edit_graph`, `mark_export`, `start_build`, `get_build_status`). Not a plain batch CLI.
 
 | Item | Answer |
 |---|---|
-| Solves | Nothing relevant. The only hit is a MapLibre terrain toggle widget. |
-| Reuse | None. |
-| Cannot do | Everything in our scope. |
-| Integration | None. |
-| License | carma is MIT, irrelevant to us. |
-| Verdict | **Drop.** If the name came from a specific blog/video, the user should supply a URL; unverified that any other project of that name exists. |
+| Solves | Land shaping and erosion/hydrology on heightfields; fills in procedural detail where DEM data is coarse; exports engine-friendly heightmaps and masks. |
+| Reuse | File exchange: (a) we emit a GeoTIFF/PNG16 plus metres range that a `primitive.file` node can ingest, so users refine land in LibreTerrain; (b) we ingest its exported PNG16/EXR as a "user-provided DEM" through our `local` source. |
+| Cannot do | Real-world CRS, bathymetry merging, provenance, tile-edge validation across georeferenced tiles, coastline data. It stretches an image over the world, so georeferencing stays on our side. |
+| Integration | File exchange first. Driving it automatically needs the MCP protocol (stdio JSON-RPC), a later experiment. |
+| License | MIT or Apache-2.0: safe as an optional external tool; do not bundle the binary without checking redistribution of the app bundle. |
+| Verdict | **Optional complementary tool via files; keep out of the core.** Next step: hand-build one Falmouth `.lterrain` project that imports our heightmap and check the PNG16 round trip against our checkpoints. |
+
 
 ---
 

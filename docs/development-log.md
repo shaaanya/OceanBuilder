@@ -15,7 +15,7 @@ Findings:
 
 - GMRT `topo-mask` is NaN, not a byte mask (my first reading of it as bytes gave 0% surveyed; fixed after reading the GridServer docs).
 - Overpass returned HTTP 406 without a User-Agent. It is reachable from Go; some sandboxed tools had no network.
-- No repository named LibreTerrain turned up in web searches; see ecosystem.md.
+- LibreTerrain: not found on the public web, but later found installed locally in ../LibreTerrain; see ecosystem.md §1.
 - Falmouth: OSM coastline is a median 101 m from the DEM shoreline (p90 268 m). Mindelo: 142 m / 331 m. The DEM is 39–58 m resolution and includes a tidal range, so this is expected order of magnitude, but not yet separated into datum vs. horizontal causes.
 
 Known problems: see [roadmap](roadmap.md).
@@ -28,3 +28,7 @@ Known problems: see [roadmap](roadmap.md).
 - Importer: shader fallback, translucent sea, in-engine screenshot (`docs/img/falmouth-unity.png`).
 - Manifest no longer contains local absolute paths.
 - Local git history re-authored to the configured user identity.
+
+## 2026-10-30: project moved to Tools/OceanBuilder
+
+Repo moved to `GameDev/Tools/OceanBuilder` next to `Tools/LibreTerrain`. Git history intact, `go vet` and `go test ./...` pass from the new location (no absolute paths in the repo).
