@@ -16,10 +16,10 @@ func floatingSeamark(t string) bool {
 	return strings.HasPrefix(t, "buoy_") || t == "light_float" || t == "light_vessel"
 }
 
-// seamarks fetches OSM seamarks for the configured bbox, writes seamarks.geojson (WGS84 points
+// seamarks fetches OSM seamarks for bbox (W,S,E,N: the tile grid's envelope), writes seamarks.geojson (WGS84 points
 // with grid coordinates and the DEM elevation under each) and returns summary stats.
-func seamarks(cfg *Config, srs string, dem *gdal.Raster, g *Grid, W, H int, opt Options) (*fetch.Provenance, *SeamarkStats, error) {
-	prov, sm, err := osm.FetchSeamarks(opt.CacheDir, cfg.BBox[0], cfg.BBox[1], cfg.BBox[2], cfg.BBox[3])
+func seamarks(bbox [4]float64, srs string, dem *gdal.Raster, g *Grid, W, H int, opt Options) (*fetch.Provenance, *SeamarkStats, error) {
+	prov, sm, err := osm.FetchSeamarks(opt.CacheDir, bbox[0], bbox[1], bbox[2], bbox[3])
 	if err != nil {
 		return nil, nil, err
 	}

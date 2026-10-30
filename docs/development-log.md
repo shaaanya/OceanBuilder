@@ -65,3 +65,5 @@ Ran LibreTerrain's headless MCP bridge and measured it (`docs/research/libreterr
 - Seamarks: Overpass `nwr[seamark:type]` (needs the tool User-Agent, plain curl gets 406), parsed to points, projected to UTM, DEM elevation sampled, `seamarks.geojson` + manifest stats. Falmouth 58 features. Cross-check found 8/30 buoys on DEM land, all in intertidal creeks; reported, not corrected. Unit-tested parse (ways use centre, untagged/centreless dropped, stable order); the build integration was verified by a live Falmouth build only (needs network).
 
 - Unity seamarks: index `seamarks[]`, `Seamarks` marker objects, export copies/removes `seamarks.geojson`. URP demo: import ok, 58 seamarks read back from the built bundles in the PlayMode test (pass), Go export test covers copy and stale removal.
+
+- Seamark query now uses the tile grid's WGS84 envelope instead of the config bbox (advisor catch): Falmouth 58 -> 60 features, buoys on DEM land 8 of 31. Earlier 58/30 numbers in this log are from the bbox query.

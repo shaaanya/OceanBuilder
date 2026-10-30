@@ -310,7 +310,12 @@ func Build(cfg *Config, opt Options) (*Manifest, error) {
 	// 5b. Seamarks (optional): OpenSeaMap points, projected to the grid and cross-checked against the DEM.
 	if cfg.Seamarks {
 		opt.logf("fetching OSM seamarks")
-		prov, ss, err := seamarks(cfg, srs, dem, g, W, H, opt)
+		// The rendered grid reaches up to a tile span beyond the configured bbox: cover all of it.
+		bb := [4]float64{math.Inf(1), math.Inf(1), math.Inf(-1), math.Inf(-1)}
+		for _, t := range m.Tiles {
+			bb = [4]float64{math.Min(bb[0], t.BoundsWGS[0]), math.Min(bb[1], t.BoundsWGS[1]), math.Max(bb[2], t.BoundsWGS[2]), math.Max(bb[3], t.BoundsWGS[3])}
+		}
+		prov, ss, err := seamarks(bb, srs, dem, g, W, H, opt)
 		if err != nil {
 			st.Seamarks = &SeamarkStats{Note: "OSM seamarks unavailable: " + err.Error()}
 			opt.logf("WARNING: %s", st.Seamarks.Note)
