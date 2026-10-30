@@ -13,30 +13,52 @@ import (
 // is refused when that offset is implausible or cannot be measured.
 
 const (
-	regionalMinOverlap   = 200  // flat shared survey cells needed to trust the offset estimate
-	regionalMaxSlope     = 0.05 // a cell is flat when no 4-neighbour of either grid differs by more than this (m per m)
-	regionalMaxShiftGain = 0.75 // refuse when a one-cell shift cuts the rms below this share of the aligned rms
-	regionalMaxRelOffset = 0.05 // median |regional - GMRT| / depth above this: units or sign problem, whatever the slope
-	regionalMaxOffsetM   = 5.0  // median |regional - GMRT| above this means datum, unit or alignment trouble
-	regionalBlendCells   = 8    // replacement ramps in over this many cells from the nearest kept (GMRT or uncovered) water cell
-	regionalCoastMarginM = 2.0  // cells shallower than this are skipped everywhere: the shoreline is not bathymetry
+	regionalMinOverlap    = 200   // flat shared survey cells needed to trust the offset estimate
+	regionalMaxSlope      = 0.05  // a cell is flat when no 4-neighbour of either grid differs by more than this (m per m)
+	regionalMaxShiftGain  = 0.75  // refuse when a one-cell shift cuts the rms below this share of the aligned rms
+	regionalMaxRelOffset  = 0.05  // median |regional - GMRT| / depth above this: units or sign problem, whatever the slope
+	regionalMaxOffsetM    = 5.0   // median |regional - GMRT| above this means datum, unit or alignment trouble
+	regionalBlendCells    = 8     // replacement ramps in over this many cells from the nearest kept (GMRT or uncovered) water cell
+	regionalShallowCheckM = 100.0 // offsets measured on flat cells deeper than this say nothing about the shallow-water datum
+	regionalBigChangeM    = 100.0 // a replaced cell moved by more than this deserves a look
+	regionalBigShare      = 0.5   // replacing more than this share of the water means the result is mostly regional data
+	regionalCoastMarginM  = 2.0   // cells shallower than this are skipped everywhere: the shoreline is not bathymetry
 )
 
 // RegionalStats are written to the manifest.
 type RegionalStats struct {
-	Source           string  `json:"source"`
-	OverlapCells     int     `json:"overlap_cells"`   // flat GMRT survey-backed water cells also covered by the regional grid
-	MedianOffsetM    float64 `json:"median_offset_m"` // regional minus GMRT on the overlap (negative: regional is deeper)
-	RMSOffsetM       float64 `json:"rms_offset_m"`
-	CellsReplaced    int     `json:"cells_replaced"`  // GEBCO-fill water cells now taken from the regional grid
-	FillCellsLeft    int     `json:"fill_cells_left"` // non-survey water cells the regional grid did not cover
-	MaxChangeM       float64 `json:"max_abs_change_m"`
-	BlendCells       int     `json:"blend_cells"`
-	FlatMedianDepthM float64 `json:"flat_cells_median_depth_m"`    // how deep the cells are that the offset was measured on
-	RelOffset        float64 `json:"median_relative_offset"`       // median of (regional - GMRT) / depth over all shared survey cells
-	AlignRMS0        float64 `json:"align_rms_at_zero_shift_m"`    // rms over all shared survey cells, aligned
-	AlignRMSShift    float64 `json:"align_rms_best_1cell_shift_m"` // lowest rms with the regional grid moved one cell in any direction
-	Note             string  `json:"note"`
+	Source           string   `json:"source"`
+	OverlapCells     int      `json:"overlap_cells"`   // flat GMRT survey-backed water cells also covered by the regional grid
+	MedianOffsetM    float64  `json:"median_offset_m"` // regional minus GMRT on the overlap (negative: regional is deeper)
+	RMSOffsetM       float64  `json:"rms_offset_m"`
+	CellsReplaced    int      `json:"cells_replaced"`  // GEBCO-fill water cells now taken from the regional grid
+	FillCellsLeft    int      `json:"fill_cells_left"` // non-survey water cells the regional grid did not cover
+	MaxChangeM       float64  `json:"max_abs_change_m"`
+	BlendCells       int      `json:"blend_cells"`
+	FlatMedianDepthM float64  `json:"flat_cells_median_depth_m"`    // how deep the cells are that the offset was measured on
+	RelOffset        float64  `json:"median_relative_offset"`       // median of (regional - GMRT) / depth over all shared survey cells
+	AlignRMS0        float64  `json:"align_rms_at_zero_shift_m"`    // rms over all shared survey cells, aligned
+	AlignRMSShift    float64  `json:"align_rms_best_1cell_shift_m"` // lowest rms with the regional grid moved one cell in any direction
+	Status           string   `json:"status"`                       // "accepted" or "accepted_with_caveats"; a refused fill is a build error
+	Caveats          []string `json:"caveats,omitempty"`            // why the accepted fill is not fully justified by the evidence
+	Note             string   `json:"note"`
+}
+
+// caveats lists what the evidence does not support, so acceptance is never read as validation.
+func (st *RegionalStats) setStatus(waterCells int) {
+	if st.FlatMedianDepthM > regionalShallowCheckM {
+		st.Caveats = append(st.Caveats, fmt.Sprintf("vertical offset measured on flat cells at median depth %.0f m (> %.0f m): shallow-water datum not verified", st.FlatMedianDepthM, regionalShallowCheckM))
+	}
+	if waterCells > 0 && float64(st.CellsReplaced)/float64(waterCells) > regionalBigShare {
+		st.Caveats = append(st.Caveats, fmt.Sprintf("%.0f%% of water cells replaced: output is mostly regional data", 100*float64(st.CellsReplaced)/float64(waterCells)))
+	}
+	if st.MaxChangeM > regionalBigChangeM {
+		st.Caveats = append(st.Caveats, fmt.Sprintf("a cell changed by %.0f m (> %.0f m): GEBCO fill and regional grid disagree strongly there", st.MaxChangeM, regionalBigChangeM))
+	}
+	st.Status = "accepted"
+	if len(st.Caveats) > 0 {
+		st.Status = "accepted_with_caveats"
+	}
 }
 
 // fillRegional edits dem in place. meas marks GMRT survey-backed cells (1) and is not changed:
@@ -181,6 +203,12 @@ func fillRegional(dem, regional []float32, meas []uint8, W, H int, cellM float64
 		}
 	}
 	st.BlendCells = regionalBlendCells
+	water := 0
+	for i := range dem {
+		if valid(i) && dem[i] < -regionalCoastMarginM {
+			water++
+		}
+	}
 	for i := range dem {
 		if !replace[i] {
 			continue
@@ -196,6 +224,7 @@ func fillRegional(dem, regional []float32, meas []uint8, W, H int, cellM float64
 		dem[i] = nv
 		st.CellsReplaced++
 	}
+	st.setStatus(water)
 	st.Note = "Offset measured on flat shared survey cells and NOT applied: no vertical datum conversion. Replaced cells are interpolated regional values (ramped in over blend_cells from kept cells), not flagged survey-backed."
 	return st, nil
 }

@@ -204,7 +204,7 @@ func Build(cfg *Config, opt Options) (*Manifest, error) {
 		if err != nil {
 			return nil, fmt.Errorf("regional_bathymetry emodnet: %w", err)
 		}
-		rs.Source = emodnet.Coverage
+		rs.Source, _ = emodnet.CoverageID(cfg.RegionalRelease)
 		m.Stats.Regional = &rs
 		m.Sources = append(m.Sources, *regionalSrc)
 		opt.logf("regional bathymetry: %d fill cells replaced (max change %.1f m), %d left; offset vs GMRT survey cells median %.2f m, rms %.2f m over %d cells",

@@ -152,3 +152,16 @@ func TestFillRegionalRefusesMisregisteredGrid(t *testing.T) {
 		t.Fatalf("feet-for-metres must be refused: %v", err)
 	}
 }
+
+func TestRegionalCaveats(t *testing.T) {
+	ok := RegionalStats{FlatMedianDepthM: 40, CellsReplaced: 10, MaxChangeM: 15}
+	ok.setStatus(100)
+	if ok.Status != "accepted" || len(ok.Caveats) != 0 {
+		t.Fatalf("%+v", ok)
+	}
+	deep := RegionalStats{FlatMedianDepthM: 370, CellsReplaced: 63, MaxChangeM: 574} // Mindelo
+	deep.setStatus(100)
+	if deep.Status != "accepted_with_caveats" || len(deep.Caveats) != 3 {
+		t.Fatalf("%+v", deep)
+	}
+}
