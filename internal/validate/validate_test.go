@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/ocean-compiler/ocean/internal/world"
@@ -227,5 +228,23 @@ func TestManifestLeaksNoLocalPaths(t *testing.T) {
 	abs, _ := filepath.Abs("../../testdata")
 	if bytes.Contains(b, []byte(abs)) || bytes.Contains(b, []byte("/Users/")) || bytes.Contains(b, []byte(os.TempDir())) {
 		t.Fatal("manifest contains absolute local paths")
+	}
+}
+
+func TestSourceLock(t *testing.T) {
+	lock := filepath.Join(t.TempDir(), "w.lock.json")
+	opt := func(update bool) world.Options {
+		return world.Options{CacheDir: t.TempDir(), OutDir: t.TempDir(), LockPath: lock, UpdateLock: update}
+	}
+	if _, err := world.Build(fixtureCfg(insideBBox), opt(true)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := world.Build(fixtureCfg(insideBBox), opt(false)); err != nil {
+		t.Fatalf("same sources must match their lock: %v", err)
+	}
+	b, _ := os.ReadFile(lock)
+	os.WriteFile(lock, bytes.Replace(b, []byte(`"sha256": "`), []byte(`"sha256": "00`), 1), 0o644)
+	if _, err := world.Build(fixtureCfg(insideBBox), opt(false)); err == nil || !strings.Contains(err.Error(), "content changed") {
+		t.Fatalf("tampered lock must fail the build, got %v", err)
 	}
 }

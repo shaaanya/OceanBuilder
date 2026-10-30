@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/ocean-compiler/ocean/internal/world"
 )
@@ -78,6 +79,8 @@ func cmdBuild(args []string) error {
 	out := fs.String("out", "", "output directory (default output/<name>)")
 	cache := fs.String("cache", defaultCache(), "download cache directory")
 	asJSON := fs.Bool("json", false, "print the manifest summary as JSON")
+	lock := fs.String("lock", "", "source lock file (default <world>.lock.json beside the config; \"off\" disables)")
+	updLock := fs.Bool("update-lock", false, "write the lock from this build's sources instead of checking it")
 	fs.Parse(reorder(args))
 	if fs.NArg() != 1 {
 		return fmt.Errorf("usage: ocean build <world.json> [-out dir] [-cache dir] [-json]")
@@ -92,8 +95,13 @@ func cmdBuild(args []string) error {
 	if err := os.MkdirAll(*cache, 0o755); err != nil {
 		return err
 	}
+	if *lock == "" {
+		*lock = strings.TrimSuffix(fs.Arg(0), ".json") + ".lock.json"
+	} else if *lock == "off" {
+		*lock = ""
+	}
 	logf := func(f string, a ...any) { fmt.Fprintf(os.Stderr, f+"\n", a...) }
-	m, err := world.Build(cfg, world.Options{CacheDir: *cache, OutDir: *out, Log: logf})
+	m, err := world.Build(cfg, world.Options{CacheDir: *cache, OutDir: *out, LockPath: *lock, UpdateLock: *updLock, Log: logf})
 	if err != nil {
 		return err
 	}
@@ -131,4 +139,6 @@ func hasEq(s string) bool {
 	return false
 }
 
-func isBool(s string) bool { return s == "-json" || s == "--json" }
+func isBool(s string) bool {
+	return s == "-json" || s == "--json" || s == "-update-lock" || s == "--update-lock"
+}

@@ -22,6 +22,8 @@ bin/ocean preview output/falmouth      # preview.png + preview.html
 bin/ocean export output/falmouth -target unity -dest path/to/UnityProject
 ```
 
+**Source lock.** `ocean build w.world.json -update-lock` writes `w.lock.json` (URL → sha256, bytes, retrieval time) beside the config; commit it. Later builds fail with the list of differences if any resolved source (including after a cache eviction and re-download) has different bytes, a source is new, or a locked one is unused; `-lock off` disables, `-lock path` relocates. Cache hits are re-hashed: a corrupt cache file is re-downloaded, never reused. Locking detects changes, it cannot recover old upstream data (keep the cache or the lock's sources if you need the bytes back).
+
 Everything is non-interactive and scriptable: `build -json` and `validate -json` print machine-readable output, `validate` exits 1 on errors, downloads are cached in `.ocean-cache` (`ocean cache stats|clean`).
 
 ### Validation output (real, Falmouth)

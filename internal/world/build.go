@@ -34,7 +34,11 @@ const (
 type Options struct {
 	CacheDir string
 	OutDir   string
-	Log      func(format string, a ...any)
+	// LockPath, when set, pins sources: an existing lock must match what was resolved (error otherwise);
+	// UpdateLock rewrites it from this build.
+	LockPath   string
+	UpdateLock bool
+	Log        func(format string, a ...any)
 }
 
 func (o *Options) logf(f string, a ...any) {
@@ -102,6 +106,9 @@ func Build(cfg *Config, opt Options) (*Manifest, error) {
 	m.Sources = append([]fetch.Provenance{*topo}, m.Sources...)
 	if mask != nil {
 		m.Sources = append(m.Sources[:1], append([]fetch.Provenance{*mask}, m.Sources[1:]...)...)
+	}
+	if err := applyLock(&opt, m.Sources); err != nil {
+		return nil, err
 	}
 	nativeRes, err := nativeResolution(topo.File, clat)
 	if err != nil {
@@ -868,4 +875,28 @@ func baseBuildID(m *Manifest, baseName string) string {
 		}
 	}
 	return buildID(&b)
+}
+
+// applyLock enforces or writes the source lock (see fetch.Lock).
+func applyLock(opt *Options, srcs []fetch.Provenance) error {
+	if opt.LockPath == "" {
+		return nil
+	}
+	l, err := fetch.ReadLock(opt.LockPath)
+	if err != nil {
+		return err
+	}
+	if l != nil && !opt.UpdateLock {
+		if bad := l.Check(srcs); len(bad) > 0 {
+			return fmt.Errorf("sources differ from %s (rebuild with -update-lock to accept):\n  %s", opt.LockPath, strings.Join(bad, "\n  "))
+		}
+		opt.logf("sources match %s", opt.LockPath)
+		return nil
+	}
+	if l == nil && !opt.UpdateLock {
+		opt.logf("no source lock at %s; run with -update-lock to pin these sources", opt.LockPath)
+		return nil
+	}
+	opt.logf("writing %s", opt.LockPath)
+	return fetch.NewLock(srcs).Write(opt.LockPath)
 }

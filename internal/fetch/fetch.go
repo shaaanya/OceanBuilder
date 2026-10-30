@@ -42,7 +42,8 @@ func Get(cacheDir, source, rawURL string, form url.Values, name, license, attrib
 	if b, err := os.ReadFile(meta); err == nil {
 		var p Provenance
 		if json.Unmarshal(b, &p) == nil {
-			if _, err := os.Stat(file); err == nil {
+			// A cached file that no longer matches its recorded hash is corrupt or was replaced: refetch, never reuse.
+			if sum, err := SHA256File(file); err == nil && sum == p.SHA256 {
 				p.License, p.Attribution = license, attribution // terms may have been corrected since the download
 				p.File = file                                   // the stored path was relative to the cwd of the original run
 				return &p, nil

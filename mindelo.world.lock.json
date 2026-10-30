@@ -1,0 +1,19 @@
+{
+  "sources": {
+    "https://overpass-api.de/api/interpreter (POST data=%5Bout%3Ajson%5D%5Btimeout%3A60%5D%3Bway%5B%22natural%22%3D%22coastline%22%5D%2816.753322%2C-25.149215%2C17.016678%2C-24.790785%29%3Bout+geom%3B)": {
+      "sha256": "2f1b215c417872587da3e88a61f4be12cd4b77808c1bd6c07f9bf40467718979",
+      "bytes": 247383,
+      "retrieved_at": "2026-10-30T05:19:00Z"
+    },
+    "https://www.gmrt.org/services/GridServer?format=geotiff\u0026layer=topo\u0026maxlatitude=17.016678\u0026maxlongitude=-24.790785\u0026minlatitude=16.753322\u0026minlongitude=-25.149215\u0026resolution=max": {
+      "sha256": "2b41c588bc184d85d25ddf81e85ca4c189c40c9ddcd07ce5e4a4acb984f5f804",
+      "bytes": 1317558,
+      "retrieved_at": "2026-10-30T05:18:24Z"
+    },
+    "https://www.gmrt.org/services/GridServer?format=geotiff\u0026layer=topo-mask\u0026maxlatitude=17.016678\u0026maxlongitude=-24.790785\u0026minlatitude=16.753322\u0026minlongitude=-25.149215\u0026resolution=max": {
+      "sha256": "6de4969685ab46090c746d193ad7c47edd8502814f222545de213acbe91e9ebc",
+      "bytes": 1317558,
+      "retrieved_at": "2026-10-30T05:18:26Z"
+    }
+  }
+}
