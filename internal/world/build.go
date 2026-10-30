@@ -505,6 +505,15 @@ func buildID(m *Manifest) string {
 	cfg, _ := json.Marshal(m.Config)
 	h.Write(cfg)
 	h.Write([]byte(ToolVersion))
+	if m.Config.CoastConform != "" {
+		fmt.Fprintf(h, "conform-algo=%d", ConformAlgo)
+	}
+	if m.Config.Seamarks {
+		fmt.Fprintf(h, "seamarks-algo=%d", SeamarksAlgo)
+	}
+	if m.Refinement != nil {
+		fmt.Fprintf(h, "refinement-algo=%d", RefinementAlgo)
+	}
 	for _, s := range m.Sources {
 		h.Write([]byte(s.SHA256))
 	}

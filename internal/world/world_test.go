@@ -1,7 +1,10 @@
 package world
 
 import (
+	"encoding/json"
 	"math"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -78,5 +81,80 @@ func TestDepthClasses(t *testing.T) {
 	}
 	if cs[len(cs)-1].ID != ClassNoData {
 		t.Fatal("last class must be the nodata id")
+	}
+}
+
+func reverseCoast(t *testing.T) string {
+	t.Helper()
+	b, err := os.ReadFile("../../testdata/falmouth/coast.geojson")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fc map[string]any
+	if err := json.Unmarshal(b, &fc); err != nil {
+		t.Fatal(err)
+	}
+	rev := func(c []any) {
+		for a, z := 0, len(c)-1; a < z; a, z = a+1, z-1 {
+			c[a], c[z] = c[z], c[a]
+		}
+	}
+	for _, f := range fc["features"].([]any) {
+		g := f.(map[string]any)["geometry"].(map[string]any)
+		switch g["type"] {
+		case "LineString":
+			rev(g["coordinates"].([]any))
+		case "MultiLineString":
+			for _, ln := range g["coordinates"].([]any) {
+				rev(ln.([]any))
+			}
+		}
+	}
+	out, _ := json.Marshal(fc)
+	p := filepath.Join(t.TempDir(), "reversed.geojson")
+	if err := os.WriteFile(p, out, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return p
+}
+
+// Real OSM coastline, real GMRT: the forward direction conforms, the reversed one is refused and builds nothing.
+func TestConformGuardOnRealFixtureBothDirections(t *testing.T) {
+	fx := "../../testdata/falmouth/"
+	for _, bb := range [][4]float64{{-5.135, 50.16, -5.06, 50.18}, {-5.12, 50.155, -5.085, 50.185}} {
+		mk := func(coast string) *Config {
+			return &Config{Name: "fixture", BBox: bb, CellM: 100, TileCells: 16, Resampling: "average", CoastConform: "osm", CoastConformMaxM: 600,
+				Local: &Local{Topo: fx + "topo.tif", Mask: fx + "mask.tif", Coastline: coast, License: "t", Attribution: "t"}}
+		}
+		m, err := Build(mk(fx+"coast.geojson"), Options{CacheDir: t.TempDir(), OutDir: t.TempDir()})
+		if err != nil {
+			t.Fatalf("forward %v: %v", bb, err)
+		}
+		cc := m.Stats.CoastConform
+		if cc == nil || cc.Agreement <= 0.5 {
+			t.Fatalf("forward %v: agreement must clear the guard, got %+v", bb, cc)
+		}
+		t.Logf("%v forward agreement %.2f over %d cells", bb, cc.Agreement, cc.Labelled)
+		_, err = Build(mk(reverseCoast(t)), Options{CacheDir: t.TempDir(), OutDir: t.TempDir()})
+		if err == nil || !strings.Contains(err.Error(), "way direction") {
+			t.Fatalf("reversed %v must be refused by the guard, got %v", bb, err)
+		}
+	}
+}
+
+func TestBuildIDTracksAlgorithmVersionsOnlyWhenStepIsActive(t *testing.T) {
+	base := &Manifest{Config: Config{Name: "t"}}
+	id0 := buildID(base)
+	if id0 != buildID(&Manifest{Config: Config{Name: "t"}}) {
+		t.Fatal("build id must be deterministic")
+	}
+	for name, m := range map[string]*Manifest{
+		"conform":    {Config: Config{Name: "t", CoastConform: "osm"}},
+		"seamarks":   {Config: Config{Name: "t", Seamarks: true}},
+		"refinement": {Config: Config{Name: "t"}, Refinement: &RefineStats{}},
+	} {
+		if buildID(m) == id0 {
+			t.Errorf("%s: an active optional step must change the build id", name)
+		}
 	}
 }

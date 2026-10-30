@@ -17,6 +17,14 @@ const (
 	ManifestFile  = "world.manifest.json"
 )
 
+// Algorithm versions of the optional steps that change output. They are hashed into the build id only when
+// the step is active (so worlds without them keep their ids). Bump one whenever its logic changes the output.
+const (
+	ConformAlgo    = 2 // 1 was the discarded flood-fill labelling; 2 is nearest-coastline-sample sides
+	SeamarksAlgo   = 1
+	RefinementAlgo = 1
+)
+
 // Config is the user-facing world description (world.json).
 type Config struct {
 	Name       string     `json:"name"`

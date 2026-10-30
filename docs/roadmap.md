@@ -25,7 +25,7 @@
 ## Open questions
 
 - gen-map: no repo found; ask the user for a URL.
-- ODbL treatment of built worlds containing OSM-derived masks.
+- ODbL treatment of built worlds containing OSM-derived data: now also OSM-derived heights at coast-conformed cells (`coast_conform`) and seamark points, not only masks.
 - Vertical datum for GMRT land vs. multibeam: how to quantify per region.
 
 ## Known problems
@@ -33,4 +33,4 @@
 - Unity: URP only by decision (Built-in and HDRP are not supported). Verified on URP 17.4.
 - Coastline-to-DEM offset is reported but not corrected.
 - Preview colours are a fixed ramp; not meant as a chart.
-- `-nographics` Unity batchmode cannot take screenshots; Unity visuals still need a manual or MCP capture.
+- Unity screenshots work in batchmode without `-nographics` (needs a GPU session); with `-nographics` there is no rendering. URP's far-LOD terrain base map never generates in batchmode, so the screenshot code raises `basemapDistance` in memory.

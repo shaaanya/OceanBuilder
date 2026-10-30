@@ -1,7 +1,8 @@
 // Loads and unloads tile prefabs through Addressables around a target (the ship or the camera).
 // Put it on an object at the world origin, assign the index and the target. Needs the world's
 // Addressables groups to be built (Ocean > Addressables > Build And Check).
-// Limitation: no floating-origin handling; far from the origin Unity float precision degrades.
+// Limitations: no floating-origin handling (far from the origin Unity float precision degrades); terrains that
+// were linked to a tile keep a stale neighbour reference after it unloads (Unity treats it as missing).
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -32,7 +33,11 @@ namespace OceanCompiler.World
             public bool loading = true, cancelled;
         }
 
+        [Tooltip("Seconds before a tile whose load failed is tried again.")]
+        public float retryAfterSeconds = 10;
+
         readonly Dictionary<string, Slot> slots = new Dictionary<string, Slot>();
+        readonly Dictionary<string, float> retryAt = new Dictionary<string, float>();
         readonly List<OceanTileEntry> toLoad = new List<OceanTileEntry>();
         readonly List<string> toUnload = new List<string>();
         int inFlight;
@@ -56,6 +61,7 @@ namespace OceanCompiler.World
             foreach (var e in toLoad)
             {
                 if (inFlight >= maxInFlight) break;
+                if (retryAt.TryGetValue(e.id, out var when) && Time.unscaledTime < when) continue;
                 Load(e);
             }
         }
@@ -77,8 +83,10 @@ namespace OceanCompiler.World
             {
                 Debug.LogError("OceanTileStreamer: loading " + slot.entry.address + " failed: " + h.OperationException);
                 slots.Remove(slot.entry.id);
+                retryAt[slot.entry.id] = Time.unscaledTime + retryAfterSeconds;
                 return;
             }
+            retryAt.Remove(slot.entry.id);
             if (slot.cancelled || this == null)
             {
                 Addressables.ReleaseInstance(h.Result);

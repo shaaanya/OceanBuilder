@@ -16,7 +16,7 @@ const (
 	conformFlipM      = 0.5  // elevation given to a flipped cell, in metres
 	conformMaxDeepM   = 10.0 // water deeper than this is never turned into land
 	conformMaxHighM   = 30.0 // land higher than this is never turned into water
-	conformMinAgree   = 0.3  // below this DEM/OSM agreement the way direction is assumed wrong (see conformGrid)
+	conformMinAgree   = 0.5  // at or below this DEM/OSM agreement the way direction is assumed wrong (see conformGrid)
 	conformSampleStep = 0.25 // cells between samples along a line
 )
 
@@ -129,8 +129,9 @@ func conformGrid(data []float32, W, H int, cellM, maxShiftM float64, lines [][][
 		return 0
 	}
 
-	// Agreement guard: with the way direction reversed (or a wrong CRS) the DEM would contradict most labels.
-	// The threshold is low on purpose: drowned valleys the DEM calls land legitimately disagree.
+	// Agreement guard. Reversing every way flips every side, so the reversed agreement is exactly 1 - a:
+	// requiring a > 0.5 refuses precisely the cases where the reversed reading fits the DEM better.
+	// (Real data: Falmouth a = 0.81, Mindelo a = 0.69; a lower threshold would let Mindelo's reversed 0.31 through.)
 	agree := 0
 	for i := range data {
 		if d := side(i); d != 0 && valid(i) {
@@ -144,7 +145,7 @@ func conformGrid(data []float32, W, H int, cellM, maxShiftM float64, lines [][][
 		return st, nil, nil
 	}
 	st.Agreement = float64(agree) / float64(st.Labelled)
-	if st.Agreement < conformMinAgree {
+	if st.Agreement <= conformMinAgree {
 		return st, nil, fmt.Errorf("DEM agrees with the OSM land/water sides on only %.0f%% of %d cells near the coast: way direction or CRS looks wrong, not conforming", 100*st.Agreement, st.Labelled)
 	}
 
