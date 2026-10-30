@@ -44,6 +44,7 @@ func Get(cacheDir, source, rawURL string, form url.Values, name, license, attrib
 		if json.Unmarshal(b, &p) == nil {
 			if _, err := os.Stat(file); err == nil {
 				p.License, p.Attribution = license, attribution // terms may have been corrected since the download
+				p.File = file                                   // the stored path was relative to the cwd of the original run
 				return &p, nil
 			}
 		}

@@ -40,7 +40,7 @@ Ran LibreTerrain's headless MCP bridge and measured it (`docs/research/libreterr
 - Falmouth 513², EXR32, unedited: max |error| 0 m, 6/6 checkpoints exact, 16/16 tiles byte-identical after rebuild.
 - Real edit (LibreTerrain `adjust.blur`) on a non-square fixture: land edited, 83 water edits ignored, shoreline cells unchanged, validator clean.
 - Findings that shaped the design: LibreTerrain is vertex-registered like us; non-square worlds are stretched (so we pad to a square); EXR is unclipped metres, PNG16 clips; project files are MessagePack (we let LibreTerrain write them through the bridge); a build larger than the project resolution silently never runs.
-- Gotcha: cached provenance stores relative file paths, so `ocean build` must run from the directory that holds `.ocean-cache` (not fixed yet).
+- Gotcha (fixed): cached provenance stored cwd-relative file paths, so `ocean build` had to run from the directory holding `.ocean-cache`. A cache hit now takes the real path; a build from another directory with `-cache <abs>` gives 16/16 identical Falmouth tiles.
 
 ## 2026-10-30 (session 3, later): Unity package, Addressables
 
