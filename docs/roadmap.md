@@ -4,7 +4,7 @@
 
 0. ~~LibreTerrain round trip~~ done 2026-10-30 (`ocean libreterrain ...`, ADR 0003, numbers in research/libreterrain.md). Remaining: open the exported `.lterrain` in the GUI app; masks/tiles exchange not attempted.
 1. Regional high-resolution bathymetry as an additional source (EMODnet for Europe, NOAA CUDEM for the US) merged over GMRT with per-cell source id and confidence. Needs a merge step with explicit vertical-datum handling.
-2. Coastline-driven land/water mask: use OSM coast polygons (not DEM zero) for the shore mask, keep DEM zero as a cross-check.
+2. ~~Coastline-driven land/water mask~~ done as opt-in `coast_conform` (README). Remaining: apply on the 20-tile Mindelo world, decide default, handle sub-cell creeks, tidal range.
 3. Remaining build time on small worlds is the GDAL subprocesses (2× gdalwarp, ogr2ogr); profile before optimising further. Tile-corner transforms are already batched (fixture build 1.97 s → 1.60 s).
 4. Windowed processing so global-scale areas do not need the full grid in memory.
 5. LOD pyramid (levels > 0) with deterministic ids and tests that levels agree at shared vertices.

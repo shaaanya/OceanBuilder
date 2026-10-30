@@ -173,6 +173,35 @@ func Build(cfg *Config, opt Options) (*Manifest, error) {
 		}
 	}
 
+	// 2a. Optional coastline conforming: runs before the refinement so edits see the final land/water split.
+	var conform *ConformStats
+	if cfg.CoastConform == "osm" {
+		if coastGeoJSON == "" {
+			return nil, fmt.Errorf("coast_conform is set but no OSM coastline is available: %s", m.Stats.CoastlineNote)
+		}
+		lines, err := projectedLines(coastGeoJSON, srs, work, g)
+		if err != nil {
+			return nil, err
+		}
+		validNow := func(i int) bool { return dem.Data[i] > noData+1 }
+		raw, err := coastCheck(coastGeoJSON, srs, work, dem, shoreMask(dem.Data, W, H, validNow), g, W, H)
+		if err != nil {
+			return nil, err
+		}
+		cs, changed, err := conformGrid(dem.Data, W, H, cfg.CellM, cfg.CoastConformMaxM, lines, validNow)
+		if err != nil {
+			return nil, err
+		}
+		for _, i := range changed {
+			meas[i] = 0 // synthetic cells are not survey-backed
+		}
+		cs.RawOffset = raw
+		cs.Note = "Flipped cells get +-0.5 m. offset_before is the independent figure; offset_after compares the OSM line with a DEM built from it."
+		conform = &cs
+		opt.logf("coast conform: %d cells to land, %d to water, %d skipped (deep/high); DEM agreed on %.0f%% of %d labelled cells before",
+			cs.ToLand, cs.ToWater, cs.SkippedGuard, 100*cs.Agreement, cs.Labelled)
+	}
+
 	// 2b. Optional land-elevation edit layer (e.g. from LibreTerrain). Applied on the whole
 	// world grid, before masks and tiles, so edits cannot open cracks between tiles.
 	if cfg.Refinement != "" {
@@ -305,7 +334,13 @@ func Build(cfg *Config, opt Options) (*Manifest, error) {
 			return nil, err
 		}
 		st.CoastlineCheck = cc
+		if conform != nil {
+			conform.AfterOffset = cc
+			st.CoastlineCheck = conform.RawOffset // headline stays the pre-conform measurement
+		}
 	}
+
+	st.CoastConform = conform
 
 	// 5b. Seamarks (optional): OpenSeaMap points, projected to the grid and cross-checked against the DEM.
 	if cfg.Seamarks {
@@ -686,4 +721,81 @@ func checkpoints(dem *gdal.Raster, g *Grid, zmin, zmax float64, W, H int) []Chec
 		}
 	}
 	return out
+}
+
+// shoreMask marks land cells that touch water (4-neighbourhood), as the world build does.
+func shoreMask(data []float32, W, H int, valid func(int) bool) []uint8 {
+	shore := make([]uint8, W*H)
+	water := func(i int) bool { return valid(i) && data[i] < 0 }
+	for r := 0; r < H; r++ {
+		for c := 0; c < W; c++ {
+			i := r*W + c
+			if !valid(i) || data[i] < 0 {
+				continue
+			}
+			for _, d := range [4][2]int{{-1, 0}, {1, 0}, {0, -1}, {0, 1}} {
+				rr, cc := r+d[0], c+d[1]
+				if rr >= 0 && rr < H && cc >= 0 && cc < W && water(rr*W+cc) {
+					shore[i] = 255
+					break
+				}
+			}
+		}
+	}
+	return shore
+}
+
+// projectedLines reads GeoJSON LineStrings (EPSG:4326) and returns them in grid coordinates (col, row).
+func projectedLines(geojson, srs, work string, g *Grid) ([][][2]float64, error) {
+	proj := filepath.Join(work, "coast.conform.utm.geojson")
+	if _, err := gdal.Run("ogr2ogr", "-f", "GeoJSON", "-t_srs", srs, proj, geojson); err != nil {
+		return nil, err
+	}
+	b, err := os.ReadFile(proj)
+	if err != nil {
+		return nil, err
+	}
+	var fc struct {
+		Features []struct {
+			Geometry struct {
+				Type        string          `json:"type"`
+				Coordinates json.RawMessage `json:"coordinates"`
+			} `json:"geometry"`
+		} `json:"features"`
+	}
+	if err := json.Unmarshal(b, &fc); err != nil {
+		return nil, fmt.Errorf("coastline geojson: %w", err)
+	}
+	var out [][][2]float64
+	add := func(pts [][]float64) {
+		if len(pts) < 2 {
+			return
+		}
+		ln := make([][2]float64, 0, len(pts))
+		for _, p := range pts {
+			if len(p) >= 2 {
+				ln = append(ln, [2]float64{(p[0] - g.OriginE) / g.CellM, (g.OriginN - p[1]) / g.CellM})
+			}
+		}
+		out = append(out, ln)
+	}
+	for _, f := range fc.Features {
+		switch f.Geometry.Type {
+		case "LineString":
+			var pts [][]float64
+			if err := json.Unmarshal(f.Geometry.Coordinates, &pts); err != nil {
+				return nil, fmt.Errorf("coastline LineString: %w", err)
+			}
+			add(pts)
+		case "MultiLineString":
+			var parts [][][]float64
+			if err := json.Unmarshal(f.Geometry.Coordinates, &parts); err != nil {
+				return nil, fmt.Errorf("coastline MultiLineString: %w", err)
+			}
+			for _, pts := range parts {
+				add(pts)
+			}
+		}
+	}
+	return out, nil
 }

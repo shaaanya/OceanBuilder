@@ -264,7 +264,11 @@ public static class OceanWorldImporter
         sea.transform.position = new Vector3(width / 2, 0, depth / 2);
         sea.transform.localScale = new Vector3(width / 10, 1, depth / 10);
         var mat = AssetDatabase.LoadAssetAtPath<Material>(gen + "/Sea.mat");
-        if (mat == null) { mat = TransparentMaterial(new Color(0.05f, 0.3f, 0.5f, 0.45f)); AssetDatabase.CreateAsset(mat, gen + "/Sea.mat"); }
+        // Rebuilt every import and copied into the existing asset (GUID stays): a material made by an older
+        // importer or another pipeline would otherwise keep a shader URP cannot draw (pink sea).
+        var fresh = TransparentMaterial(new Color(0.05f, 0.3f, 0.5f, 0.45f));
+        if (mat == null) { mat = fresh; AssetDatabase.CreateAsset(mat, gen + "/Sea.mat"); }
+        else { EditorUtility.CopySerialized(fresh, mat); EditorUtility.SetDirty(mat); }
         sea.GetComponent<Renderer>().sharedMaterial = mat;
 
         double maxErr = Verify(m, loaded, index, span);

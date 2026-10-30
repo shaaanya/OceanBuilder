@@ -217,7 +217,9 @@ func Run(dir string) (*Report, error) {
 		r.Metrics["coastline_offset_p90_m"] = cc.OffsetP90M
 		r.Metrics["coastline_unmatched"] = cc.NoShoreWithin
 		r.Metrics["coastline_median_elev_m"] = cc.MedianM
-		if cc.OffsetMedianM > 2*m.Grid.CellM || cc.NoShoreWithin > 0.25 {
+		if cf := m.Stats.CoastConform; cf != nil {
+			r.add(Info, "coast-conformed", "land/water follows the OSM coastline within %.0f m: %d cells to land, %d to water (+-0.5 m), %d left alone (deep/high). Offset before: %.0f m median / %.0f m p90; the post-conform figure compares OSM with itself and is not evidence", cf.MaxShiftM, cf.ToLand, cf.ToWater, cf.SkippedGuard, cc.OffsetMedianM, cc.OffsetP90M)
+		} else if cc.OffsetMedianM > 2*m.Grid.CellM || cc.NoShoreWithin > 0.25 {
 			r.add(Warn, "coast-misaligned", "OSM coastline is %.0f m (median) / %.0f m (p90) from the nearest DEM shoreline; %.0f%% of points have none within %.0f m. DEM elevation at the coastline: median %.1f m (p10 %.1f, p90 %.1f). Horizontal offset or vertical datum differs between sources", cc.OffsetMedianM, cc.OffsetP90M, 100*cc.NoShoreWithin, cc.SearchRadiusM, cc.MedianM, cc.P10M, cc.P90M)
 		}
 		if cc.Outside > 0 {

@@ -71,7 +71,11 @@ func fakeLTOutput(t *testing.T, x *Exchange, data []float32, mut func(*LTBuild))
 }
 
 func exportFixture(t *testing.T) (string, *world.Manifest, string, *Exchange, []float32) {
-	wdir, m := buildWorld(t, fixtureCfg(wideBBox))
+	return exportFixtureCfg(t, fixtureCfg(wideBBox))
+}
+
+func exportFixtureCfg(t *testing.T, cfg *world.Config) (string, *world.Manifest, string, *Exchange, []float32) {
+	wdir, m := buildWorld(t, cfg)
 	xdir := filepath.Join(t.TempDir(), "x")
 	x, err := Export(wdir, xdir, ExportOptions{})
 	if err != nil {
@@ -359,4 +363,34 @@ func TestRealLibreTerrain(t *testing.T) {
 		t.Fatalf("shore cells %d -> %d after blur", m.Stats.ShoreCells, rm.Stats.ShoreCells)
 	}
 	t.Logf("refinement applied: %+v", *rm.Refinement)
+}
+
+// With coast_conform on, the exported baseline is the conformed DEM and the config travels with the
+// exchange, so an unedited round trip must still rebuild byte-identical tiles (conforming is deterministic
+// and the refinement sees the final land/water split).
+func TestUnmodifiedRoundTripWithCoastConformIsByteIdentical(t *testing.T) {
+	cfg := fixtureCfg(wideBBox)
+	cfg.CoastConform = "osm"
+	wdir, m, xdir, x, base := exportFixtureCfg(t, cfg)
+	if m.Stats.CoastConform == nil || m.Stats.CoastConform.ToLand+m.Stats.CoastConform.ToWater == 0 {
+		t.Fatalf("fixture must actually conform some cells, else this test proves nothing: %+v", m.Stats.CoastConform)
+	}
+	out := filepath.Join(t.TempDir(), "ref")
+	if _, err := Import(xdir, fakeLTOutput(t, x, base, nil), out, ImportOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	rcfg, err := world.LoadConfig(filepath.Join(out, "fixture-refined.world.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rcfg.CoastConform != "osm" {
+		t.Fatal("coast_conform must travel into the refined config")
+	}
+	rdir, rm := buildWorld(t, rcfg)
+	if n := sameTiles(t, wdir, rdir, m); n != 0 {
+		t.Fatalf("%d tile files differ after an unmodified round trip with coast_conform", n)
+	}
+	if rm.Stats.CoastConform == nil || rm.Stats.CoastConform.ToLand != m.Stats.CoastConform.ToLand || rm.Stats.CoastConform.ToWater != m.Stats.CoastConform.ToWater {
+		t.Fatal("conform must make the same decisions on the rebuild")
+	}
 }

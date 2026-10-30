@@ -27,6 +27,10 @@ type Config struct {
 	DepthBands []float64  `json:"depth_bands,omitempty"` // upper bounds of depth classes in metres
 	Coastline  string     `json:"coastline,omitempty"`   // "osm" (default) or "none"
 	Local      *Local     `json:"local,omitempty"`       // use files on disk instead of downloading
+	// CoastConform "osm" makes the land/water boundary follow the OSM coastline within CoastConformMaxM
+	// of it (see conform.go); empty keeps the DEM's own zero contour.
+	CoastConform     string  `json:"coast_conform,omitempty"`
+	CoastConformMaxM float64 `json:"coast_conform_max_m,omitempty"` // default 300
 	// Seamarks adds OpenSeaMap features (buoys, lights, harbours, wrecks...) from OSM as seamarks.geojson.
 	Seamarks bool `json:"seamarks,omitempty"`
 	// Refinement is the path of a refinement.json from `ocean libreterrain import`, relative
@@ -106,6 +110,21 @@ func (c *Config) Normalize() error {
 	}
 	if c.Coastline != "osm" && c.Coastline != "none" {
 		return fmt.Errorf("config: coastline must be osm or none")
+	}
+	switch c.CoastConform {
+	case "":
+	case "osm":
+		if c.Coastline == "none" {
+			return fmt.Errorf("config: coast_conform needs a coastline (coastline is none)")
+		}
+		if c.CoastConformMaxM == 0 {
+			c.CoastConformMaxM = 300
+		}
+		if c.CoastConformMaxM < c.CellM || c.CoastConformMaxM > 2000 {
+			return fmt.Errorf("config: coast_conform_max_m must be between cell_m and 2000, got %g", c.CoastConformMaxM)
+		}
+	default:
+		return fmt.Errorf("config: coast_conform must be empty or osm")
 	}
 	return nil
 }
@@ -226,6 +245,7 @@ type Stats struct {
 	CoastlineCheck *CoastCheck   `json:"coastline_check,omitempty"`
 	CoastlineNote  string        `json:"coastline_note,omitempty"`
 	Seamarks       *SeamarkStats `json:"seamarks,omitempty"`
+	CoastConform   *ConformStats `json:"coast_conform,omitempty"`
 }
 
 // SeamarkStats summarises seamarks.geojson. Floating marks (buoys, light vessels) that the DEM
