@@ -26,6 +26,8 @@ namespace OceanCompiler.World.Tests
                 var index = h.Result;
                 Assert.IsNotNull(index, loc.PrimaryKey);
                 Assert.That(index.checkpoints.Length, Is.GreaterThan(0));
+                foreach (var s in index.seamarks) Assert.IsNotNull(index.Get(s.tileId), "seamark " + s.id + " has an unknown tile");
+                Debug.Log("OCEAN_SEAMARKS " + index.seamarks.Length);
 
                 // The point of this test is real bundle loading, not AssetDatabase shortcuts.
                 var tileLocs = Addressables.LoadResourceLocationsAsync(index.tiles[0].address);

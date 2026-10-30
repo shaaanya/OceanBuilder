@@ -31,6 +31,18 @@ namespace OceanCompiler.World
         public float elevationM;
     }
 
+    /// <summary>An OpenSeaMap feature (buoy, light, harbour, wreck...) from seamarks.geojson. Volunteer-mapped; not for navigation.</summary>
+    [Serializable]
+    public class OceanSeamark
+    {
+        public string id;              // "<osm type>/<osm id>"
+        public string type;            // seamark:type, e.g. buoy_lateral
+        public string name;
+        public Vector3 position;       // Unity space; y = 0 for floating marks, else DEM elevation
+        public double easting, northing;
+        public string tileId;          // tile containing the mark
+    }
+
     public class OceanWorldIndex : ScriptableObject
     {
         public string worldName, buildId;
@@ -42,6 +54,7 @@ namespace OceanCompiler.World
         public string[] attribution;
         public OceanTileEntry[] tiles;
         public OceanCheckpoint[] checkpoints;
+        public OceanSeamark[] seamarks = new OceanSeamark[0];
 
         public OceanTileEntry Get(string id)
         {

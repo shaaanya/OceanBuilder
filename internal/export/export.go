@@ -40,6 +40,12 @@ func Unity(worldDir, project string) (string, error) {
 	for _, t := range m.Tiles {
 		files = append(files, t.Height, t.Depth, t.Shore)
 	}
+	// A rebuild without seamarks must not leave an older seamarks.geojson for the importer to pick up.
+	if sm := m.Files["seamarks"]; sm != "" {
+		files = append(files, sm)
+	} else if err := os.Remove(filepath.Join(dst, "seamarks.geojson")); err != nil && !os.IsNotExist(err) {
+		return "", err
+	}
 	for _, f := range files {
 		if err := copyFile(filepath.Join(worldDir, f), filepath.Join(dst, f)); err != nil {
 			return "", err

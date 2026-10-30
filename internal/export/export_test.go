@@ -50,3 +50,39 @@ func TestUnityInstallsPackageAndRemovesLegacyScript(t *testing.T) {
 		}
 	}
 }
+
+func TestUnityCopiesSeamarksAndDropsStaleOnes(t *testing.T) {
+	fx := "../../testdata/falmouth/"
+	cfg := &world.Config{Name: "fixture", BBox: [4]float64{-5.12, 50.155, -5.085, 50.185}, CellM: 100, TileCells: 16, Resampling: "average",
+		Local: &world.Local{Topo: fx + "topo.tif", Mask: fx + "mask.tif", Coastline: fx + "coast.geojson", License: "test", Attribution: "test"}}
+	wdir := t.TempDir()
+	if _, err := world.Build(cfg, world.Options{CacheDir: t.TempDir(), OutDir: wdir}); err != nil {
+		t.Fatal(err)
+	}
+	proj := t.TempDir()
+	os.MkdirAll(filepath.Join(proj, "Assets"), 0o755)
+	stale := filepath.Join(proj, "Assets", "OceanWorld", "fixture", "seamarks.geojson")
+	os.MkdirAll(filepath.Dir(stale), 0o755)
+	os.WriteFile(stale, []byte("old"), 0o644)
+	if _, err := Unity(wdir, proj); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(stale); !os.IsNotExist(err) {
+		t.Fatal("a world built without seamarks must not leave an old seamarks.geojson in the project")
+	}
+	// With seamarks in the manifest the file is copied.
+	b, _ := os.ReadFile(filepath.Join(wdir, world.ManifestFile))
+	var m map[string]any
+	json.Unmarshal(b, &m)
+	m["files"].(map[string]any)["seamarks"] = "seamarks.geojson"
+	b, _ = json.Marshal(m)
+	os.WriteFile(filepath.Join(wdir, world.ManifestFile), b, 0o644)
+	os.WriteFile(filepath.Join(wdir, "seamarks.geojson"), []byte(`{"type":"FeatureCollection","features":[]}`), 0o644)
+	if _, err := Unity(wdir, proj); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(stale)
+	if err != nil || string(got) != `{"type":"FeatureCollection","features":[]}` {
+		t.Fatalf("seamarks.geojson not copied: %v %q", err, got)
+	}
+}

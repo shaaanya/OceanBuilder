@@ -29,6 +29,9 @@ public static class OceanWorldImporter
         public float nodata_fraction; public float water_fraction; public float measured_water_fraction;
         public string height; public string depth_class; public string shore_mask;
     }
+    [Serializable] class SmProps { public string osm_type; public long osm_id; public string seamark_type; public string name; public double easting; public double northing; public double dem_elevation_m; }
+    [Serializable] class SmFeature { public SmProps properties; }
+    [Serializable] class SmFile { public SmFeature[] features; }
     [Serializable] class Checkpoint { public string name; public double easting; public double northing; public double elevation_m; }
     [Serializable]
     class Manifest
@@ -214,6 +217,7 @@ public static class OceanWorldImporter
         var cps = new List<OceanCheckpoint>();
         foreach (var c in m.checkpoints) cps.Add(new OceanCheckpoint { name = c.name, easting = c.easting, northing = c.northing, elevationM = (float)c.elevation_m });
         index.checkpoints = cps.ToArray();
+        index.seamarks = ReadSeamarks(dir, index);
         string indexPath = gen + "/OceanWorldIndex.asset";
         var oldIndex = AssetDatabase.LoadAssetAtPath<OceanWorldIndex>(indexPath);
         if (oldIndex == null) AssetDatabase.CreateAsset(index, indexPath);
@@ -240,6 +244,19 @@ public static class OceanWorldImporter
         }
         foreach (var e in index.tiles) index.LinkNeighbours(e, loaded[e.id], id => loaded.TryGetValue(id, out var t) ? t : null);
 
+        // One empty marker per seamark so a game can attach prefabs by type; positions come from the index.
+        if (index.seamarks.Length > 0)
+        {
+            var smRoot = new GameObject("Seamarks");
+            smRoot.transform.SetParent(root.transform);
+            foreach (var s in index.seamarks)
+            {
+                var go = new GameObject(s.type + (s.name != "" ? ": " + s.name : " " + s.id));
+                go.transform.SetParent(smRoot.transform);
+                go.transform.position = s.position;
+            }
+        }
+
         var sea = GameObject.CreatePrimitive(PrimitiveType.Plane);
         sea.name = "SeaLevel";
         sea.transform.SetParent(root.transform);
@@ -263,6 +280,23 @@ public static class OceanWorldImporter
 
     // Convert each manifest checkpoint (UTM) to Unity space independently of tile placement
     // and compare the terrain height there with the expected elevation.
+    static OceanSeamark[] ReadSeamarks(string dir, OceanWorldIndex index)
+    {
+        string path = dir + "/seamarks.geojson";
+        if (!File.Exists(path)) return new OceanSeamark[0];
+        var list = new List<OceanSeamark>();
+        foreach (var f in JsonUtility.FromJson<SmFile>(File.ReadAllText(path)).features)
+        {
+            var p = f.properties;
+            bool floating = p.seamark_type.StartsWith("buoy_") || p.seamark_type == "light_float" || p.seamark_type == "light_vessel";
+            var pos = index.UtmToUnity(p.easting, p.northing, floating ? 0 : p.dem_elevation_m);
+            var tile = index.TileAt(pos);
+            if (tile == null) continue; // the Go side already drops marks outside the grid; this guards edge rounding
+            list.Add(new OceanSeamark { id = p.osm_type + "/" + p.osm_id, type = p.seamark_type, name = p.name ?? "", position = pos, easting = p.easting, northing = p.northing, tileId = tile.id });
+        }
+        return list.ToArray();
+    }
+
     static double Verify(Manifest m, Dictionary<string, Terrain> loaded, OceanWorldIndex index, float span)
     {
         if (m.checkpoints == null || m.checkpoints.Length == 0) throw new Exception("manifest has no checkpoints");
