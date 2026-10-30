@@ -234,6 +234,9 @@ public static class OceanWorldImporter
             });
         }
         index.tiles = entries.ToArray();
+        var cps = new List<OceanCheckpoint>();
+        foreach (var c in m.checkpoints) cps.Add(new OceanCheckpoint { name = c.name, easting = c.easting, northing = c.northing, elevationM = (float)c.elevation_m });
+        index.checkpoints = cps.ToArray();
         string indexPath = gen + "/OceanWorldIndex.asset";
         var oldIndex = AssetDatabase.LoadAssetAtPath<OceanWorldIndex>(indexPath);
         if (oldIndex == null) AssetDatabase.CreateAsset(index, indexPath);

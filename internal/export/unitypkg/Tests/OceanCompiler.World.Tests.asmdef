@@ -1,0 +1,28 @@
+{
+  "name": "OceanCompiler.World.Tests",
+  "rootNamespace": "OceanCompiler.World.Tests",
+  "references": [
+    "OceanCompiler.World",
+    "Unity.Addressables",
+    "Unity.ResourceManager",
+    "UnityEngine.TestRunner"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "overrideReferences": true,
+  "precompiledReferences": [
+    "nunit.framework.dll"
+  ],
+  "defineConstraints": [
+    "UNITY_INCLUDE_TESTS",
+    "OCEAN_ADDRESSABLES"
+  ],
+  "versionDefines": [
+    {
+      "name": "com.unity.addressables",
+      "expression": "1.19.0",
+      "define": "OCEAN_ADDRESSABLES"
+    }
+  ],
+  "autoReferenced": false
+}

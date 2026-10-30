@@ -22,6 +22,15 @@ namespace OceanCompiler.World
         public string north, south, east, west; // neighbour ids at the same level; empty at the world edge
     }
 
+    /// <summary>A manifest vertex with its expected elevation, for runtime sanity checks of a loaded world.</summary>
+    [Serializable]
+    public class OceanCheckpoint
+    {
+        public string name;
+        public double easting, northing;
+        public float elevationM;
+    }
+
     public class OceanWorldIndex : ScriptableObject
     {
         public string worldName, buildId;
@@ -32,6 +41,7 @@ namespace OceanCompiler.World
         public int tilesX, tilesY;
         public string[] attribution;
         public OceanTileEntry[] tiles;
+        public OceanCheckpoint[] checkpoints;
 
         public OceanTileEntry Get(string id)
         {

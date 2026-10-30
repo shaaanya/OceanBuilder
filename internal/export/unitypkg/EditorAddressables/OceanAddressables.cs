@@ -54,6 +54,11 @@ namespace OceanCompiler.World.Editor
                     tiles++;
                 }
             }
+            // Make play mode load the bundles just built, so runtime tests exercise real Addressables loading.
+            for (int i = 0; i < settings.DataBuilders.Count; i++)
+                if (settings.DataBuilders[i].GetType().Name == "BuildScriptPackedPlayMode") settings.ActivePlayModeDataBuilderIndex = i;
+            EditorUtility.SetDirty(settings);
+            AssetDatabase.SaveAssets();
             UnityEngine.Debug.Log("OCEAN_ADDRESSABLES_OK tiles=" + tiles + " bundles built, addresses and labels verified");
         }
 
