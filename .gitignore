@@ -1,0 +1,4 @@
+/bin/
+/.ocean-cache/
+/output/
+*.test

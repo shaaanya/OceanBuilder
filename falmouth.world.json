@@ -1,0 +1,13 @@
+{
+  "bbox": [
+    -5.2,
+    50.05,
+    -4.95,
+    50.22
+  ],
+  "cell_m": 48,
+  "coastline": "osm",
+  "name": "falmouth",
+  "resampling": "bilinear",
+  "tile_cells": 128
+}
