@@ -4,7 +4,14 @@
 
 Done and verified on real data (Falmouth, Mindelo): GMRT + OSM worlds, LibreTerrain file round trip, Unity URP package with Addressables, tile streamer, seamarks, opt-in coast conform, opt-in EMODnet regional fill. All Go tests pass; PlayMode tests (4) pass on the URP demo. Unverified or not started: see Next and Known problems. Highest-value next steps: (a) LOD pyramid (5) so distant tiles are cheap in the sailing game; (b) incremental builds (9) now that `build_id` tracks algorithm versions; (c) a depth-gradient URP water/seabed material; (d) first test inside the user's own Unity project (not found on this machine); (e) floating origin for the streamer.
 
-## Next (highest value first)
+## Next (highest value first, re-ranked 2026-10-30 session 2)
+
+A. Per-cell source layer per tile (uint8: GMRT survey, GEBCO fill, regional, regional-blend, conformed, refined, nodata) with tile hashes and validator checks against manifest stats; prerequisite for honest LOD downsampling and water shading. Inputs (`meas`, `replace`/`dist`, conform and refine decisions) already exist in `Build`.
+B. Standalone player build of the URP demo with Addressables (untested).
+C. LOD design (after A).
+D. Mindelo offline regression fixture (needs local regional-source support, currently rejected).
+Done this session: source lock (`-update-lock`), verified cache hits, `regional_release`, regional status/caveats.
+
 
 0. ~~LibreTerrain round trip~~ done 2026-10-30 (`ocean libreterrain ...`, ADR 0003, numbers in research/libreterrain.md). Remaining: open the exported `.lterrain` in the GUI app; masks/tiles exchange not attempted.
 1. ~~EMODnet regional fill~~ done as opt-in `regional_bathymetry` (README): fill-only, offset measured on flat shared cells, refused when it cannot be validated. Remaining: NOAA CUDEM for the US, per-cell source id and confidence layer (currently only counts), vertical datum conversion (offset is reported, not applied), a better offset story where survey cells are all steep (Mindelo).
