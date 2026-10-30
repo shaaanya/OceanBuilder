@@ -13,9 +13,17 @@
 9. Incremental builds keyed on input hashes and config (the cache already keys downloads).
 10. Multi-zone worlds.
 
+## From the ecosystem research (docs/research/ecosystem.md, 2026-10-30)
+
+- Seascape (openwatersio, BSD-3 code, CC BY 4.0 tiles, Terrarium PNG tiles over HTTPS) as an optional fallback bathymetry source; its source catalogue is the regional-source list. Datum varies per source.
+- EMODnet DTM 2024 (~115 m) via WCS and NOAA CUDEM via the public S3 bucket, fetched through GDAL. EMODnet licence text still to read; ~115 m will not beat GMRT's delivered 39 m at Falmouth, so value is elsewhere.
+- Engine-exact tile sizes: Unreal needs 2ⁿ−1-style sizes and a Z-scale (default 100 covers only ±256 m) written to the manifest.
+- OSM seamarks via the existing Overpass client; verify the `seamark:type` list first. Seamap is GPL-3.0: reference only.
+- Cesium plugins are Apache-2.0: possible later output target, not a core dependency.
+
 ## Open questions
 
-- Does LibreTerrain exist as a usable tool? Not found so far; revisit if a repo is identified.
+- LibreTerrain: no standalone project found (searches listed in ecosystem.md). Decision: not integrated. gen-map: no repo found; ask the user for a URL.
 - ODbL treatment of built worlds containing OSM-derived masks.
 - Vertical datum for GMRT land vs. multibeam: how to quantify per region.
 
