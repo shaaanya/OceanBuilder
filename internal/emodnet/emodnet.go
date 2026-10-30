@@ -23,13 +23,34 @@ func Covers(w, s, e, n float64) bool {
 	return w >= CoverW && s >= CoverS && e <= CoverE && n <= CoverN
 }
 
-// Fetch downloads the coverage for the bbox (cached by request).
-func Fetch(cacheDir string, w, s, e, n float64) (*fetch.Provenance, error) {
+// Releases are the dated coverages the service lists (GetCapabilities, 2026-10-30). Release "" is the
+// service's current, unversioned "emodnet__mean", which changes when EMODnet publishes.
+var Releases = []string{"2016", "2018", "2020", "2022"}
+
+// CoverageID maps a release to the WCS coverage id; ok is false for an unknown release.
+func CoverageID(release string) (string, bool) {
+	if release == "" {
+		return Coverage, true
+	}
+	for _, r := range Releases {
+		if r == release {
+			return Coverage + "_" + r, true
+		}
+	}
+	return "", false
+}
+
+// Fetch downloads the coverage of a release for the bbox (cached by request).
+func Fetch(cacheDir, release string, w, s, e, n float64) (*fetch.Provenance, error) {
 	if !Covers(w, s, e, n) {
 		return nil, fmt.Errorf("bbox %.3f,%.3f,%.3f,%.3f is outside the EMODnet coverage (lon %.1f..%.1f, lat %.1f..%.1f)", w, s, e, n, CoverW, CoverE, CoverS, CoverN)
 	}
+	cov, ok := CoverageID(release)
+	if !ok {
+		return nil, fmt.Errorf("unknown EMODnet release %q (have %v, or empty for the current unversioned coverage)", release, Releases)
+	}
 	q := url.Values{
-		"service": {"WCS"}, "version": {"2.0.1"}, "request": {"GetCoverage"}, "coverageId": {Coverage}, "format": {"image/tiff"},
+		"service": {"WCS"}, "version": {"2.0.1"}, "request": {"GetCoverage"}, "coverageId": {cov}, "format": {"image/tiff"},
 	}
 	// WCS wants repeated subset parameters; fetch.Get takes a ready URL, so build it by hand.
 	u := fmt.Sprintf("%s?%s&subset=Lat(%.6f,%.6f)&subset=Long(%.6f,%.6f)", Endpoint, q.Encode(), s, n, w, e)

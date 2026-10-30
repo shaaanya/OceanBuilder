@@ -99,7 +99,7 @@ func Build(cfg *Config, opt Options) (*Manifest, error) {
 	var regionalSrc *fetch.Provenance
 	if cfg.RegionalBathymetry == "emodnet" {
 		opt.logf("fetching EMODnet bathymetry")
-		if regionalSrc, err = emodnet.Fetch(opt.CacheDir, fb.W, fb.S, fb.E, fb.N); err != nil {
+		if regionalSrc, err = emodnet.Fetch(opt.CacheDir, cfg.RegionalRelease, fb.W, fb.S, fb.E, fb.N); err != nil {
 			return nil, fmt.Errorf("regional_bathymetry emodnet: %w", err)
 		}
 	}

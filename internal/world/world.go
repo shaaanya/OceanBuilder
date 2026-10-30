@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ocean-compiler/ocean/internal/emodnet"
 	"github.com/ocean-compiler/ocean/internal/fetch"
 )
 
@@ -39,6 +40,9 @@ type Config struct {
 	// RegionalBathymetry "emodnet" replaces GEBCO-filled water cells with the ~115 m EMODnet DTM (see regional.go).
 	// Not available with local sources.
 	RegionalBathymetry string `json:"regional_bathymetry,omitempty"`
+	// RegionalRelease pins a dated EMODnet coverage ("2016".."2022"); empty uses the service's current,
+	// unversioned coverage, which changes when EMODnet publishes.
+	RegionalRelease string `json:"regional_release,omitempty"`
 	// CoastConform "osm" makes the land/water boundary follow the OSM coastline within CoastConformMaxM
 	// of it (see conform.go); empty keeps the DEM's own zero contour.
 	CoastConform     string  `json:"coast_conform,omitempty"`
@@ -131,6 +135,14 @@ func (c *Config) Normalize() error {
 		}
 	default:
 		return fmt.Errorf("config: regional_bathymetry must be empty or emodnet")
+	}
+	if c.RegionalRelease != "" {
+		if c.RegionalBathymetry != "emodnet" {
+			return fmt.Errorf("config: regional_release needs regional_bathymetry emodnet")
+		}
+		if _, ok := emodnet.CoverageID(c.RegionalRelease); !ok {
+			return fmt.Errorf("config: regional_release %q not one of %v", c.RegionalRelease, emodnet.Releases)
+		}
 	}
 	switch c.CoastConform {
 	case "":
