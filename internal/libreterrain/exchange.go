@@ -165,7 +165,10 @@ func Export(worldDir, outDir string, opt ExportOptions) (*Exchange, error) {
 	}
 	lo, hi := math.Floor(zmin), math.Ceil(zmax+opt.Headroom*(zmax-zmin))
 	side := max(W, H)
-	sq := padSquare(z, W, H, side, float32(zmin))
+	if side > 8193 {
+		return nil, fmt.Errorf("world is %d samples wide; LibreTerrain asks for confirmation above 8193 and an unattended build would silently not run", side)
+	}
+	sq := padSquare(z, W, H, side)
 
 	x := &Exchange{SchemaVersion: 1, Kind: ExchangeKind, Tool: "ocean " + world.ToolVersion}
 	x.Source.World, x.Source.BuildID = m.Name, m.BuildID
@@ -198,7 +201,7 @@ func Export(worldDir, outDir string, opt ExportOptions) (*Exchange, error) {
 	x.Notes = []string{
 		"heightmap.exr is float32 metres relative to the world's own vertical reference (not a surveyed chart datum); it holds land and sea floor together.",
 		"Edit land only: `ocean libreterrain import` applies changes to cells that are land in the source build, ramped in from the shoreline; sea floor, coastline and nodata are kept from the original sources.",
-		"Padding rows/cols (if any) are filled with the minimum elevation and discarded on import.",
+		"Padding rows/cols (if any) repeat the last real row/column and are discarded on import.",
 		"Do not change the project's world size, height range or resolution, or import is refused.",
 		"NOT FOR NAVIGATION: derived from GMRT/GEBCO game-development bathymetry; see the source world's ATTRIBUTION.txt for licences.",
 	}
@@ -264,13 +267,15 @@ func writeProject(bridge, path string, x *Exchange) error {
 	return c.Save(path)
 }
 
-func padSquare(z []float32, W, H, side int, fill float32) []float32 {
+// padSquare copies z into the top-left of a side x side raster and fills the rest by repeating the
+// last real column and row, so filters and erosion near the edge are not pulled toward an artificial cliff.
+func padSquare(z []float32, W, H, side int) []float32 {
 	out := make([]float32, side*side)
-	for i := range out {
-		out[i] = fill
-	}
-	for r := 0; r < H; r++ {
-		copy(out[r*side:r*side+W], z[r*W:(r+1)*W])
+	for r := 0; r < side; r++ {
+		sr := min(r, H-1)
+		for c := 0; c < side; c++ {
+			out[r*side+c] = z[sr*W+min(c, W-1)]
+		}
 	}
 	return out
 }

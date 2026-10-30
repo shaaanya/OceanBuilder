@@ -106,8 +106,12 @@ func TestExportPadsToSquareAndMatchesTiles(t *testing.T) {
 			}
 		}
 	}
-	if got := base[(n-1)*n+n-1]; math.Abs(float64(got)-x.Stats.MinM) > 1e-4 && x.Grid.PadRows > 0 {
-		t.Fatalf("padding = %v, want min %v", got, x.Stats.MinM)
+	// Padding repeats the edge: the corner pad cell equals the last real cell, not the world minimum.
+	if got, want := base[(n-1)*n+n-1], base[(x.Grid.Height-1)*n+x.Grid.Width-1]; got != want {
+		t.Fatalf("padding corner = %v, want last real sample %v", got, want)
+	}
+	if x.Grid.PadCols > 0 && base[5*n+n-1] != base[5*n+x.Grid.Width-1] {
+		t.Fatal("padded columns must repeat the last real column")
 	}
 	if len(x.Checkpoints) < 4 {
 		t.Fatal("checkpoints missing from exchange")

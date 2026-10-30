@@ -105,12 +105,21 @@ public static class OceanWorldImporter
         var layers = new TerrainLayer[Layers];
         for (int k = 0; k < Layers; k++)
         {
-            var tex = new Texture2D(4, 4); var px = new Color[16];
-            for (int p = 0; p < 16; p++) px[p] = LayerColors[k];
-            tex.SetPixels(px); tex.Apply();
-            AssetDatabase.CreateAsset(tex, gen + "/Layers/" + LayerNames[k] + ".asset");
-            layers[k] = new TerrainLayer { diffuseTexture = tex, tileSize = new Vector2(100, 100) };
-            AssetDatabase.CreateAsset(layers[k], gen + "/Layers/" + LayerNames[k] + ".terrainlayer");
+            string texPath = gen + "/Layers/" + LayerNames[k] + ".asset", layerPath = gen + "/Layers/" + LayerNames[k] + ".terrainlayer";
+            var tex = AssetDatabase.LoadAssetAtPath<Texture2D>(texPath);
+            if (tex == null)
+            {
+                tex = new Texture2D(4, 4); var px = new Color[16];
+                for (int p = 0; p < 16; p++) px[p] = LayerColors[k];
+                tex.SetPixels(px); tex.Apply();
+                AssetDatabase.CreateAsset(tex, texPath);
+            }
+            layers[k] = AssetDatabase.LoadAssetAtPath<TerrainLayer>(layerPath);
+            if (layers[k] == null)
+            {
+                layers[k] = new TerrainLayer { diffuseTexture = tex, tileSize = new Vector2(100, 100) };
+                AssetDatabase.CreateAsset(layers[k], layerPath);
+            }
         }
         return layers;
     }
@@ -157,16 +166,20 @@ public static class OceanWorldImporter
         int waterClasses = 0;
         foreach (var d in m.depth_classes) if (d.id > 0 && d.id != 255) waterClasses++;
 
-        // Generated output is rebuilt from scratch so a re-import never leaves stale tiles behind.
+        // Assets are updated in place, never deleted and recreated: their GUIDs (and so Addressables
+        // AssetReferences, scene links and VCS history) stay stable across re-imports of the same tile ids.
         string gen = dir + "/Generated";
-        if (AssetDatabase.IsValidFolder(gen)) AssetDatabase.DeleteAsset(gen);
-        AssetDatabase.CreateFolder(dir, "Generated");
-        foreach (var f in new[] { "Terrains", "Prefabs", "Layers" }) AssetDatabase.CreateFolder(gen, f);
+        if (!AssetDatabase.IsValidFolder(gen)) AssetDatabase.CreateFolder(dir, "Generated");
+        foreach (var f in new[] { "Terrains", "Prefabs", "Layers" }) if (!AssetDatabase.IsValidFolder(gen + "/" + f)) AssetDatabase.CreateFolder(gen, f);
 
         var layers = MakeLayers(gen);
         var tShader = Shader.Find("Universal Render Pipeline/Terrain/Lit");
         Material terrainMat = null;
-        if (tShader != null) { terrainMat = new Material(tShader); AssetDatabase.CreateAsset(terrainMat, gen + "/TerrainLit.mat"); }
+        if (tShader != null)
+        {
+            terrainMat = AssetDatabase.LoadAssetAtPath<Material>(gen + "/TerrainLit.mat");
+            if (terrainMat == null) { terrainMat = new Material(tShader); AssetDatabase.CreateAsset(terrainMat, gen + "/TerrainLit.mat"); }
+        }
 
         var index = ScriptableObject.CreateInstance<OceanWorldIndex>();
         index.worldName = m.name; index.buildId = m.build_id; index.epsg = m.crs.epsg;
@@ -189,12 +202,16 @@ public static class OceanWorldImporter
                 for (int j = 0; j < S; j++)
                     h[S - 1 - i, j] = (raw[(i * S + j) * 2] | (raw[(i * S + j) * 2 + 1] << 8)) / 65535f;
 
-            var td = new TerrainData { heightmapResolution = S, size = new Vector3(span, range, span) };
+            string tdPath = gen + "/Terrains/" + t.id + ".asset";
+            var td = AssetDatabase.LoadAssetAtPath<TerrainData>(tdPath);
+            bool newTd = td == null;
+            if (newTd) td = new TerrainData();
+            td.heightmapResolution = S; td.size = new Vector3(span, range, span);
             td.SetHeights(0, 0, h);
             td.terrainLayers = layers;
             td.alphamapResolution = res;
             td.SetAlphamaps(0, 0, Paint(ReadMask(Path.Combine(dir, t.depth_class), S), ReadMask(Path.Combine(dir, t.shore_mask), S), S, res, waterClasses));
-            AssetDatabase.CreateAsset(td, gen + "/Terrains/" + t.id + ".asset");
+            if (newTd) AssetDatabase.CreateAsset(td, tdPath); else EditorUtility.SetDirty(td);
 
             // Tile row 0 is the northernmost; world +Z is north, y = 0 is sea level.
             var pos = new Vector3(t.col * span, m.height_encoding.min_m, (m.grid.tiles_y - 1 - t.row) * span);
@@ -217,12 +234,23 @@ public static class OceanWorldImporter
             });
         }
         index.tiles = entries.ToArray();
-        AssetDatabase.CreateAsset(index, gen + "/OceanWorldIndex.asset");
+        string indexPath = gen + "/OceanWorldIndex.asset";
+        var oldIndex = AssetDatabase.LoadAssetAtPath<OceanWorldIndex>(indexPath);
+        if (oldIndex == null) AssetDatabase.CreateAsset(index, indexPath);
+        else { EditorUtility.CopySerialized(index, oldIndex); UnityEngine.Object.DestroyImmediate(index); EditorUtility.SetDirty(oldIndex); }
+        // Tiles that left the manifest (bbox shrank) are removed; the rest keep their assets.
+        var keep = new HashSet<string>(prefabPaths.Keys);
+        foreach (var sub in new[] { "Terrains", "Prefabs" })
+            foreach (var guid in AssetDatabase.FindAssets("", new[] { gen + "/" + sub }))
+            {
+                string path = AssetDatabase.GUIDToAssetPath(guid);
+                if (!keep.Contains(Path.GetFileNameWithoutExtension(path))) AssetDatabase.DeleteAsset(path);
+            }
 
         // Scene: every tile prefab plus a sea plane; neighbours linked through the same runtime helper games use.
         var scene = UnityEditor.SceneManagement.EditorSceneManager.NewScene(UnityEditor.SceneManagement.NewSceneSetup.DefaultGameObjects, UnityEditor.SceneManagement.NewSceneMode.Single);
         // A new scene unloads unreferenced objects; continue with the saved asset, not the in-memory instance.
-        index = AssetDatabase.LoadAssetAtPath<OceanWorldIndex>(gen + "/OceanWorldIndex.asset");
+        index = AssetDatabase.LoadAssetAtPath<OceanWorldIndex>(indexPath);
         var root = new GameObject("Ocean_" + m.name);
         var loaded = new Dictionary<string, Terrain>();
         foreach (var e in index.tiles)
@@ -238,8 +266,8 @@ public static class OceanWorldImporter
         float width = m.grid.tiles_x * span, depth = m.grid.tiles_y * span;
         sea.transform.position = new Vector3(width / 2, 0, depth / 2);
         sea.transform.localScale = new Vector3(width / 10, 1, depth / 10);
-        var mat = TransparentMaterial(new Color(0.05f, 0.3f, 0.5f, 0.45f));
-        AssetDatabase.CreateAsset(mat, gen + "/Sea.mat");
+        var mat = AssetDatabase.LoadAssetAtPath<Material>(gen + "/Sea.mat");
+        if (mat == null) { mat = TransparentMaterial(new Color(0.05f, 0.3f, 0.5f, 0.45f)); AssetDatabase.CreateAsset(mat, gen + "/Sea.mat"); }
         sea.GetComponent<Renderer>().sharedMaterial = mat;
 
         double maxErr = Verify(m, loaded, index, span);

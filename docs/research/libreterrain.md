@@ -11,7 +11,7 @@ Checked 2026-10-30 by running `../LibreTerrain/libreterrain-mcp --project <file>
 | PNG16 import, same size | **Bit-identical** (129² pattern encoding `x + 129·y`, 0 of 16641 pixels differ), no flip, no transpose. | numpy/PIL diff |
 | Raster registration | **Vertex-registered**: `cell_size_m = world_size / (resolution − 1)`; 129 px over 6144 m ⇒ 48 m. Same convention as OceanBuilder's grid. | `build.json` |
 | Resolution change | Bilinear, corners preserved: at 257 px every even sample equals the 129 px input, odd samples are the mean of neighbours; PNG16 output truncates (≤1 LSB). Exact only when sizes match. | diff of 257² vs 129² |
-| Non-square worlds | `build.resolution` is one integer. A 3072×1536 m world exported at 65 gives a 65×65 raster with `cell_size_m = [48, 24]`: **the short axis is stretched**. OceanBuilder therefore pads to a square and crops on import. | `build.json` |
+| Non-square worlds | `build.resolution` is one integer. A 3072×1536 m world exported at 65 gives a 65×65 raster with `cell_size_m = [48, 24]`: **the short axis is stretched**. OceanBuilder therefore pads to a square (repeating the edge row/column) and crops on import. | `build.json` |
 | EXR32 | Float32 **metres, unclipped** even outside `height_range_m` (input −150…506 m with range −100…300 m came back exact). Even rows exact in the stretched test. | gdalinfo + numpy |
 | PNG16 export | `0..65535 = height_range_m min..max`, **clipped** outside the range (`build.json` `data_min/max` still report the true span, so clipping is detectable). Step = range/65535 (≈6 mm for 400 m). | numpy |
 | `values` modes of `primitive.file` | `metres` (EXR; used here), `normalised` (0..1 → world range or `low_m..high_m`), `auto`. | node resource |
@@ -24,7 +24,7 @@ Checked 2026-10-30 by running `../LibreTerrain/libreterrain-mcp --project <file>
 ## Numerical results (real data)
 
 - **Falmouth, 513×513, 48 m, EXR32 unedited**: max |error| 0 m, mean 0 m over 263,169 samples; all six manifest checkpoints identical (highest 255.341 m, lowest −71.710 m, four corners); rebuilding the refined config gives **16 of 16 tiles byte-identical** to the original (height, depth class and shore mask files).
-- **Fixture world, non-square (33×65 padded to 65²)**: unedited round trip exact; edited with LibreTerrain's `adjust.blur` (400 m): 2,145 of 2,145 samples changed, max 95.4 m (cliffs at the coast), mean 7.0 m. After applying to land only: 2,062 land cells changed (max 55.2 m), 83 edits on water ignored, shoreline cells unchanged.
+- **Fixture world, non-square (33×65 padded to 65²)**: unedited round trip exact; edited with LibreTerrain's `adjust.blur` (400 m): all 2,145 samples changed, max 95.4 m (cliffs at the coast). After applying to land only: 2,062 land cells changed (max 24.2 m, mean 5.2 m), 83 edits on water ignored, shoreline cells unchanged. **Padding matters:** the first version padded with the world minimum (a ~70 m cliff at the edge); the same blur then moved land by up to 55.2 m (mean 6.3 m) because the blur pulled real cells toward the pad. Repeating the edge row/column fixed this (24.2 m / 5.2 m), so padding repeats the edge.
 - **Flip/transpose detection**: east-west flip, north-south flip and transpose of the exchange raster are all refused with the transform named (tests).
 
 ## Not verified
