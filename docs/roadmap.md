@@ -1,5 +1,9 @@
 # Roadmap
 
+## State at last stop (2026-10-30)
+
+Done and verified on real data (Falmouth, Mindelo): GMRT + OSM worlds, LibreTerrain file round trip, Unity URP package with Addressables, tile streamer, seamarks, opt-in coast conform, opt-in EMODnet regional fill. All Go tests pass; PlayMode tests (4) pass on the URP demo. Unverified or not started: see Next and Known problems. Highest-value next steps: (a) LOD pyramid (5) so distant tiles are cheap in the sailing game; (b) incremental builds (9) now that `build_id` tracks algorithm versions; (c) a depth-gradient URP water/seabed material; (d) first test inside the user's own Unity project (not found on this machine); (e) floating origin for the streamer.
+
 ## Next (highest value first)
 
 0. ~~LibreTerrain round trip~~ done 2026-10-30 (`ocean libreterrain ...`, ADR 0003, numbers in research/libreterrain.md). Remaining: open the exported `.lterrain` in the GUI app; masks/tiles exchange not attempted.
