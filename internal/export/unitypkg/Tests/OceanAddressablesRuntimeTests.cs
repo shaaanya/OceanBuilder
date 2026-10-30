@@ -63,6 +63,24 @@ namespace OceanCompiler.World.Tests
                         Assert.AreSame(kv.Value, east.leftNeighbor, e.east + " west");
                     }
                 }
+
+                // Render the loaded tiles from beyond Terrain.basemapDistance (the far-LOD terrain path) and look for the
+                // pink error shader: this is what a missing or incompatible render pipeline setup looks like.
+                var focus = index.Get(new List<string>(loaded.Keys)[0]);
+                var centre = focus.position + new Vector3(focus.size.x / 2, 0, focus.size.z / 2);
+                var cam = new GameObject("OceanProbeCamera").AddComponent<Camera>();
+                cam.clearFlags = CameraClearFlags.SolidColor; cam.backgroundColor = Color.black; cam.farClipPlane = 30000;
+                cam.transform.position = centre + new Vector3(0, 3500, -3500); cam.transform.LookAt(centre);
+                yield return null; yield return null;
+                var rt = new RenderTexture(256, 256, 24); cam.targetTexture = rt; cam.Render(); cam.Render();
+                RenderTexture.active = rt;
+                var img = new Texture2D(256, 256, TextureFormat.RGB24, false); img.ReadPixels(new Rect(0, 0, 256, 256), 0, 0); img.Apply();
+                RenderTexture.active = null;
+                int pink = 0; foreach (var c in img.GetPixels()) if (c.r > 0.8f && c.g < 0.3f && c.b > 0.8f) pink++;
+                float frac = pink / (256f * 256f);
+                Debug.Log("OCEAN_PINK_FRACTION " + frac.ToString("F4") + " pipeline=" + (UnityEngine.Rendering.GraphicsSettings.currentRenderPipeline != null ? UnityEngine.Rendering.GraphicsSettings.currentRenderPipeline.GetType().Name : "Built-in"));
+                Object.Destroy(cam.gameObject);
+                Assert.Less(frac, 0.01f, "terrain renders with the pink error shader from a distance");
                 foreach (var g in instances) Addressables.ReleaseInstance(g);
                 Debug.Log("OCEAN_RUNTIME_OK world=" + index.worldName + " tilesLoaded=" + loaded.Count + " checkpoints=" + index.checkpoints.Length);
             }

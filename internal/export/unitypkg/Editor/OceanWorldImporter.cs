@@ -41,13 +41,13 @@ public static class OceanWorldImporter
     public static event Action<OceanWorldIndex, Dictionary<string, string>> TilesImported;
 
     const double Tolerance = 0.05; // metres; 16-bit quantisation over typical ranges is ~0.005 m
-    const int Layers = 5; // land, shore, shallow, mid, deep
+    // URP and HDRP terrain shaders draw 4 layers per pass; a 5th needs an extra pass shader that did not render (magenta) in the URP test, so 4 layers.
+    const int Layers = 4; // land, shore, shallow, deep
     static readonly Color[] LayerColors =
     {
-        new Color(0.33f, 0.45f, 0.24f), new Color(0.76f, 0.70f, 0.50f), new Color(0.50f, 0.68f, 0.62f),
-        new Color(0.22f, 0.42f, 0.50f), new Color(0.08f, 0.16f, 0.30f),
+        new Color(0.33f, 0.45f, 0.24f), new Color(0.76f, 0.70f, 0.50f), new Color(0.45f, 0.65f, 0.60f), new Color(0.10f, 0.20f, 0.34f),
     };
-    static readonly string[] LayerNames = { "land", "shore", "shallow", "mid", "deep" };
+    static readonly string[] LayerNames = { "land", "shore", "shallow", "deep" };
 
     [MenuItem("Ocean/Import World")]
     public static void ImportMenu()
@@ -146,11 +146,11 @@ public static class OceanWorldImporter
                 int vz = Math.Min(S - 1, (int)Math.Round((z + 0.5) * (S - 1) / res)), vx = Math.Min(S - 1, (int)Math.Round((x + 0.5) * (S - 1) / res));
                 int c = cls[vz * S + vx], layer;
                 if (c == 0) layer = shore[vz * S + vx] != 0 ? 1 : 0;
-                else if (c == 255) layer = 4; // nodata: drawn as deep, not hidden
+                else if (c == 255) layer = 3; // nodata: drawn as deep, not hidden
                 else
                 {
                     double f = waterClasses <= 1 ? 1 : (c - 1.0) / (waterClasses - 1);
-                    layer = f < 0.2 ? 2 : f < 0.6 ? 3 : 4;
+                    layer = f < 0.4 ? 2 : 3; // roughly the shallow half of the depth bands vs the rest
                 }
                 a[z, x, layer] = 1;
             }
@@ -173,14 +173,8 @@ public static class OceanWorldImporter
         foreach (var f in new[] { "Terrains", "Prefabs", "Layers" }) if (!AssetDatabase.IsValidFolder(gen + "/" + f)) AssetDatabase.CreateFolder(gen, f);
 
         var layers = MakeLayers(gen);
-        var tShader = Shader.Find("Universal Render Pipeline/Terrain/Lit");
-        Material terrainMat = null;
-        if (tShader != null)
-        {
-            terrainMat = AssetDatabase.LoadAssetAtPath<Material>(gen + "/TerrainLit.mat");
-            if (terrainMat == null) { terrainMat = new Material(tShader); AssetDatabase.CreateAsset(terrainMat, gen + "/TerrainLit.mat"); }
-        }
-
+        // No terrain material template: the active render pipeline's default terrain material is used, so the
+        // same TerrainData renders under Built-in, URP and HDRP. (A hand-made URP Terrain/Lit template rendered magenta beyond basemapDistance.)
         var index = ScriptableObject.CreateInstance<OceanWorldIndex>();
         index.worldName = m.name; index.buildId = m.build_id; index.epsg = m.crs.epsg;
         index.originEasting = m.grid.origin_easting;
@@ -218,7 +212,6 @@ public static class OceanWorldImporter
             var go = Terrain.CreateTerrainGameObject(td);
             go.name = t.id;
             go.transform.position = pos;
-            if (terrainMat != null) go.GetComponent<Terrain>().materialTemplate = terrainMat;
             string prefab = gen + "/Prefabs/" + t.id + ".prefab";
             PrefabUtility.SaveAsPrefabAsset(go, prefab);
             UnityEngine.Object.DestroyImmediate(go);
@@ -307,7 +300,12 @@ public static class OceanWorldImporter
 
     static void Screenshot(string path)
     {
+        // Shaders compile asynchronously in the editor and render as the pink error shader until ready.
+        EditorSettings.asyncShaderCompilation = false;
         var terrains = UnityEngine.Object.FindObjectsByType<Terrain>(FindObjectsSortMode.None);
+        // Batchmode never ticks the editor, so URP's far-LOD terrain base map is never generated and distant terrain renders
+        // magenta in this screenshot. Draw full-quality layers instead (in-memory only; play mode and players are unaffected, see the PlayMode test).
+        foreach (var t in terrains) t.basemapDistance = 1000000;
         var b = new Bounds(terrains[0].transform.position, Vector3.zero);
         foreach (var t in terrains) b.Encapsulate(new Bounds(t.transform.position + t.terrainData.size / 2, t.terrainData.size));
         var camGo = new GameObject("ShotCam");
@@ -320,7 +318,13 @@ public static class OceanWorldImporter
         var light = UnityEngine.Object.FindFirstObjectByType<Light>();
         if (light != null) { light.transform.rotation = Quaternion.Euler(40, 300, 0); light.intensity = 1.3f; }
         var rt = new RenderTexture(1920, 1080, 24);
-        cam.targetTexture = rt; cam.Render();
+        cam.targetTexture = rt;
+        var pipe = UnityEngine.Rendering.GraphicsSettings.currentRenderPipeline;
+        Debug.Log("OCEAN_PIPELINE " + (pipe != null ? pipe.GetType().Name : "Built-in"));
+        // First render triggers shader compilation; wait for it, then render again for the image.
+        cam.Render();
+        for (int i = 0; i < 600 && ShaderUtil.anythingCompiling; i++) System.Threading.Thread.Sleep(100);
+        cam.Render();
         RenderTexture.active = rt;
         var img = new Texture2D(rt.width, rt.height, TextureFormat.RGB24, false);
         img.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0); img.Apply();
