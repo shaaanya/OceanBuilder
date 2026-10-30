@@ -107,9 +107,6 @@ func Build(cfg *Config, opt Options) (*Manifest, error) {
 	if mask != nil {
 		m.Sources = append(m.Sources[:1], append([]fetch.Provenance{*mask}, m.Sources[1:]...)...)
 	}
-	if err := applyLock(&opt, m.Sources); err != nil {
-		return nil, err
-	}
 	nativeRes, err := nativeResolution(topo.File, clat)
 	if err != nil {
 		return nil, err
@@ -432,6 +429,10 @@ func Build(cfg *Config, opt Options) (*Manifest, error) {
 	}
 	m.Attribution = append(m.Attribution, "NOT FOR NAVIGATION: bathymetry here is a game-development dataset (GMRT terms: data should not be used for navigation purposes)")
 	sort.Strings(m.Attribution)
+	// Last, so m.Sources is complete (regional grid, refinement) and a failed build never writes a lock.
+	if err := applyLock(&opt, m.Sources); err != nil {
+		return nil, err
+	}
 	m.BuildID = buildID(m)
 	if cfg.Refinement != "" {
 		// The edit layer is a delta against one specific baseline: refuse to apply it over a world whose inputs,

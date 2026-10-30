@@ -239,6 +239,13 @@ func TestSourceLock(t *testing.T) {
 	if _, err := world.Build(fixtureCfg(insideBBox), opt(true)); err != nil {
 		t.Fatal(err)
 	}
+	b0, _ := os.ReadFile(lock)
+	var l struct{ Sources map[string]json.RawMessage }
+	json.Unmarshal(b0, &l)
+	m0, _ := world.Build(fixtureCfg(insideBBox), opt(false))
+	if m0 == nil || len(l.Sources) != len(m0.Sources) {
+		t.Fatalf("lock must cover every manifest source: %d locked, manifest has %d", len(l.Sources), len(m0.Sources))
+	}
 	if _, err := world.Build(fixtureCfg(insideBBox), opt(false)); err != nil {
 		t.Fatalf("same sources must match their lock: %v", err)
 	}
