@@ -209,7 +209,12 @@ func Run(dir string) (*Report, error) {
 	if water > 0 && m.Config.Local == nil {
 		if fill := 1 - measured/water; fill > 0.05 {
 			r.Metrics["gebco_fill_water_fraction"] = fill
-			r.add(Warn, "gebco-fill", "%.1f%% of water cells have no survey data and come from the GEBCO_08 grid (≈%.0f m resolution) resampled to %.0f m", 100*fill, m.Resampling.FillResM, m.Resampling.OutputCellM)
+			if rg := m.Stats.Regional; rg != nil && water > 0 {
+				replaced := float64(rg.CellsReplaced) / float64(m.Stats.Cells)
+				r.add(Info, "regional-fill", "%s replaced %d GEBCO-filled water cells (%.1f%% of the grid) with a ~115 m compilation; %d fill cells remain at GEBCO_08 (≈%.0f m). Median offset to GMRT survey cells %.2f m (rms %.2f m) was measured, not corrected. Replaced cells are still not survey-backed", rg.Source, rg.CellsReplaced, 100*replaced, rg.FillCellsLeft, m.Resampling.FillResM, rg.MedianOffsetM, rg.RMSOffsetM)
+			} else {
+				r.add(Warn, "gebco-fill", "%.1f%% of water cells have no survey data and come from the GEBCO_08 grid (≈%.0f m resolution) resampled to %.0f m", 100*fill, m.Resampling.FillResM, m.Resampling.OutputCellM)
+			}
 		}
 	}
 	if cc := m.Stats.CoastlineCheck; cc != nil && cc.Points-cc.Outside > 0 {

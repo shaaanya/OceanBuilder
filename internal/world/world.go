@@ -23,6 +23,7 @@ const (
 	ConformAlgo    = 2 // 1 was the discarded flood-fill labelling; 2 is nearest-coastline-sample sides
 	SeamarksAlgo   = 1
 	RefinementAlgo = 1
+	RegionalAlgo   = 1
 )
 
 // Config is the user-facing world description (world.json).
@@ -35,6 +36,9 @@ type Config struct {
 	DepthBands []float64  `json:"depth_bands,omitempty"` // upper bounds of depth classes in metres
 	Coastline  string     `json:"coastline,omitempty"`   // "osm" (default) or "none"
 	Local      *Local     `json:"local,omitempty"`       // use files on disk instead of downloading
+	// RegionalBathymetry "emodnet" replaces GEBCO-filled water cells with the ~115 m EMODnet DTM (see regional.go).
+	// Not available with local sources.
+	RegionalBathymetry string `json:"regional_bathymetry,omitempty"`
 	// CoastConform "osm" makes the land/water boundary follow the OSM coastline within CoastConformMaxM
 	// of it (see conform.go); empty keeps the DEM's own zero contour.
 	CoastConform     string  `json:"coast_conform,omitempty"`
@@ -118,6 +122,15 @@ func (c *Config) Normalize() error {
 	}
 	if c.Coastline != "osm" && c.Coastline != "none" {
 		return fmt.Errorf("config: coastline must be osm or none")
+	}
+	switch c.RegionalBathymetry {
+	case "":
+	case "emodnet":
+		if c.Local != nil {
+			return fmt.Errorf("config: regional_bathymetry is not available with local sources")
+		}
+	default:
+		return fmt.Errorf("config: regional_bathymetry must be empty or emodnet")
 	}
 	switch c.CoastConform {
 	case "":
@@ -245,15 +258,16 @@ type Tile struct {
 
 // Stats are world-level numbers computed from the data.
 type Stats struct {
-	Cells          int           `json:"cells"`
-	NoDataFraction float64       `json:"nodata_fraction"`
-	WaterFraction  float64       `json:"water_fraction"`
-	MeasuredWater  float64       `json:"measured_water_fraction"`
-	ShoreCells     int           `json:"shore_cells"`
-	CoastlineCheck *CoastCheck   `json:"coastline_check,omitempty"`
-	CoastlineNote  string        `json:"coastline_note,omitempty"`
-	Seamarks       *SeamarkStats `json:"seamarks,omitempty"`
-	CoastConform   *ConformStats `json:"coast_conform,omitempty"`
+	Cells          int            `json:"cells"`
+	NoDataFraction float64        `json:"nodata_fraction"`
+	WaterFraction  float64        `json:"water_fraction"`
+	MeasuredWater  float64        `json:"measured_water_fraction"`
+	ShoreCells     int            `json:"shore_cells"`
+	CoastlineCheck *CoastCheck    `json:"coastline_check,omitempty"`
+	CoastlineNote  string         `json:"coastline_note,omitempty"`
+	Seamarks       *SeamarkStats  `json:"seamarks,omitempty"`
+	CoastConform   *ConformStats  `json:"coast_conform,omitempty"`
+	Regional       *RegionalStats `json:"regional_bathymetry,omitempty"`
 }
 
 // SeamarkStats summarises seamarks.geojson. Floating marks (buoys, light vessels) that the DEM

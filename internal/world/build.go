@@ -18,6 +18,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ocean-compiler/ocean/internal/emodnet"
 	"github.com/ocean-compiler/ocean/internal/fetch"
 	"github.com/ocean-compiler/ocean/internal/gdal"
 	"github.com/ocean-compiler/ocean/internal/gmrt"
@@ -89,6 +90,13 @@ func Build(cfg *Config, opt Options) (*Manifest, error) {
 				m.Sources = append(m.Sources, *p)
 				coastGeoJSON = gj
 			}
+		}
+	}
+	var regionalSrc *fetch.Provenance
+	if cfg.RegionalBathymetry == "emodnet" {
+		opt.logf("fetching EMODnet bathymetry")
+		if regionalSrc, err = emodnet.Fetch(opt.CacheDir, fb.W, fb.S, fb.E, fb.N); err != nil {
+			return nil, fmt.Errorf("regional_bathymetry emodnet: %w", err)
 		}
 	}
 	m.Sources = append([]fetch.Provenance{*topo}, m.Sources...)
@@ -171,6 +179,29 @@ func Build(cfg *Config, opt Options) (*Manifest, error) {
 				meas[i] = 1
 			}
 		}
+	}
+
+	// 2a0. Optional regional bathymetry: replaces GEBCO-filled water cells; runs first so the conform step sees final depths.
+	if regionalSrc != nil {
+		regPath := filepath.Join(work, "regional.bin")
+		if err := warp(regionalSrc.File, regPath, "bilinear", "Float32"); err != nil {
+			return nil, err
+		}
+		reg, err := gdal.ReadF32(regPath, W, H)
+		if err != nil {
+			return nil, err
+		}
+		rs, err := fillRegional(dem.Data, reg.Data, meas, W, H, cfg.CellM,
+			func(i int) bool { return dem.Data[i] > noData+1 },
+			func(v float32) bool { return v > noData+1 && !math.IsNaN(float64(v)) })
+		if err != nil {
+			return nil, fmt.Errorf("regional_bathymetry emodnet: %w", err)
+		}
+		rs.Source = emodnet.Coverage
+		m.Stats.Regional = &rs
+		m.Sources = append(m.Sources, *regionalSrc)
+		opt.logf("regional bathymetry: %d fill cells replaced (max change %.1f m), %d left; offset vs GMRT survey cells median %.2f m, rms %.2f m over %d cells",
+			rs.CellsReplaced, rs.MaxChangeM, rs.FillCellsLeft, rs.MedianOffsetM, rs.RMSOffsetM, rs.OverlapCells)
 	}
 
 	// 2a. Optional coastline conforming: runs before the refinement so edits see the final land/water split.
@@ -507,6 +538,9 @@ func buildID(m *Manifest) string {
 	h.Write([]byte(ToolVersion))
 	if m.Config.CoastConform != "" {
 		fmt.Fprintf(h, "conform-algo=%d", ConformAlgo)
+	}
+	if m.Config.RegionalBathymetry != "" {
+		fmt.Fprintf(h, "regional-algo=%d", RegionalAlgo)
 	}
 	if m.Config.Seamarks {
 		fmt.Fprintf(h, "seamarks-algo=%d", SeamarksAlgo)
