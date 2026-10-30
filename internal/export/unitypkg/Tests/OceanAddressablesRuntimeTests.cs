@@ -78,8 +78,13 @@ namespace OceanCompiler.World.Tests
                 RenderTexture.active = null;
                 int pink = 0; foreach (var c in img.GetPixels()) if (c.r > 0.8f && c.g < 0.3f && c.b > 0.8f) pink++;
                 float frac = pink / (256f * 256f);
+                // An all-background frame also has no pink: require that terrain actually fills part of the picture.
+                int seen = 0; foreach (var c in img.GetPixels()) if (Mathf.Abs(c.r - cam.backgroundColor.r) + Mathf.Abs(c.g - cam.backgroundColor.g) + Mathf.Abs(c.b - cam.backgroundColor.b) > 0.05f) seen++;
+                float cover = seen / (256f * 256f);
+                Debug.Log("OCEAN_TERRAIN_COVERAGE " + cover.ToString("F4"));
                 Debug.Log("OCEAN_PINK_FRACTION " + frac.ToString("F4") + " pipeline=" + (UnityEngine.Rendering.GraphicsSettings.currentRenderPipeline != null ? UnityEngine.Rendering.GraphicsSettings.currentRenderPipeline.GetType().Name : "Built-in"));
                 Object.Destroy(cam.gameObject);
+                Assert.Greater(cover, 0.2f, "probe camera sees no terrain");
                 Assert.Less(frac, 0.01f, "terrain renders with the pink error shader from a distance");
                 foreach (var g in instances) Addressables.ReleaseInstance(g);
                 Debug.Log("OCEAN_RUNTIME_OK world=" + index.worldName + " tilesLoaded=" + loaded.Count + " checkpoints=" + index.checkpoints.Length);

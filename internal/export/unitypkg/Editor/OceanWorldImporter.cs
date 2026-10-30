@@ -41,13 +41,13 @@ public static class OceanWorldImporter
     public static event Action<OceanWorldIndex, Dictionary<string, string>> TilesImported;
 
     const double Tolerance = 0.05; // metres; 16-bit quantisation over typical ranges is ~0.005 m
-    // URP and HDRP terrain shaders draw 4 layers per pass; a 5th needs an extra pass shader that did not render (magenta) in the URP test, so 4 layers.
-    const int Layers = 4; // land, shore, shallow, deep
+    const int Layers = 5; // land, shore, shallow, mid, deep
     static readonly Color[] LayerColors =
     {
-        new Color(0.33f, 0.45f, 0.24f), new Color(0.76f, 0.70f, 0.50f), new Color(0.45f, 0.65f, 0.60f), new Color(0.10f, 0.20f, 0.34f),
+        new Color(0.33f, 0.45f, 0.24f), new Color(0.76f, 0.70f, 0.50f), new Color(0.50f, 0.68f, 0.62f),
+        new Color(0.22f, 0.42f, 0.50f), new Color(0.08f, 0.16f, 0.30f),
     };
-    static readonly string[] LayerNames = { "land", "shore", "shallow", "deep" };
+    static readonly string[] LayerNames = { "land", "shore", "shallow", "mid", "deep" };
 
     [MenuItem("Ocean/Import World")]
     public static void ImportMenu()
@@ -146,11 +146,11 @@ public static class OceanWorldImporter
                 int vz = Math.Min(S - 1, (int)Math.Round((z + 0.5) * (S - 1) / res)), vx = Math.Min(S - 1, (int)Math.Round((x + 0.5) * (S - 1) / res));
                 int c = cls[vz * S + vx], layer;
                 if (c == 0) layer = shore[vz * S + vx] != 0 ? 1 : 0;
-                else if (c == 255) layer = 3; // nodata: drawn as deep, not hidden
+                else if (c == 255) layer = 4; // nodata: drawn as deep, not hidden
                 else
                 {
                     double f = waterClasses <= 1 ? 1 : (c - 1.0) / (waterClasses - 1);
-                    layer = f < 0.4 ? 2 : 3; // roughly the shallow half of the depth bands vs the rest
+                    layer = f < 0.2 ? 2 : f < 0.6 ? 3 : 4;
                 }
                 a[z, x, layer] = 1;
             }
