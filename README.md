@@ -37,13 +37,13 @@ Neighbour edge mismatches: 0
 
 WARNINGS:
   [low-res-bathymetry] 1 tiles are mostly (>50%) interpolated/global-grid bathymetry rather than survey-backed
-  [upsampled] output cell 48 m is finer than the delivered source cell (≈39 m) only where surveyed: ...
-  [coast-misaligned] OSM coastline is 101 m (median) / 268 m (p90) from the nearest DEM shoreline; ...
+  [gebco-fill] 8.1% of water cells have no survey data and come from the GEBCO_08 grid (≈758 m resolution) resampled to 48 m
+  [coast-misaligned] OSM coastline is 101 m (median) / 268 m (p90) from the nearest DEM shoreline; 31% of points have none within 384 m. ...
 
 RESULT: BUILT WITH WARNINGS
 ```
 
-Mindelo (Cabo Verde) is a useful contrast: only 3.7% of its water cells are survey-backed, the rest is the ~0.9 km GEBCO grid resampled to 48 m, and the validator says so.
+Mindelo (Cabo Verde) is a useful contrast: only 3.7% of its water cells are survey-backed, the rest is the ~0.9 km GEBCO grid resampled to 48 m, and the validator says so (`docs/img/mindelo-preview.png`).
 
 ## What a built world contains
 
@@ -67,10 +67,13 @@ Tile ids are absolute indices on the UTM grid (`floor(easting / tile span)`), so
 Unity -batchmode -projectPath <project> -executeMethod OceanWorldImporter.ImportFromCommandLine -quit
 ```
 
-This path was run against Unity 6000.4.0f1 for the Falmouth world (16 terrains, scene saved). Water is a flat plane; there is no ocean shader or water simulation yet.
+![Falmouth imported into Unity 6000.4.0f1: 16 linked terrains and a translucent sea plane](docs/img/falmouth-unity.png)
+
+Rendered by the importer itself (`-oceanShot docs/img/falmouth-unity.png`, no `-nographics`) on Unity 6000.4.0f1, Built-in render pipeline. The importer also checks six manifest checkpoints (highest and lowest vertices, four corners) against `Terrain.SampleHeight` using its own UTM→Unity conversion; for Falmouth the largest error was 3 mm, and any flip or offset fails the import. The shader lookup falls back URP → HDRP → Standard but only Built-in has been run. Water is a flat translucent plane: no ocean shader or simulation yet.
 
 ## Honest limits
 
+- Not for navigation. GMRT's terms say its data must not be used for navigation, and this tool is for game worlds.
 - GMRT's `topo` layer is filled with GEBCO_08 (~0.9 km) wherever no ~100 m multibeam survey exists. Output cells finer than that are interpolation. The manifest and validator report the surveyed fraction per tile.
 - There is no vertical-datum reconciliation. Land DEMs, multibeam, and the OSM coastline use different references; the tool treats 0 m as the waterline and reports the horizontal offset to the OSM coastline instead of hiding it.
 - Single resolution level (no LOD pyramid), single UTM zone, no harbour or seamark features yet.
@@ -81,4 +84,4 @@ This path was run against Unity 6000.4.0f1 for the Falmouth world (16 terrains, 
 
 ## Licence
 
-MIT for the code (see [LICENSE](LICENSE)). Data keeps its own licence: GMRT CC BY 4.0, OpenStreetMap ODbL. Built worlds carry `ATTRIBUTION.txt`; do not redistribute them without it. Test fixtures in `testdata/` are small crops of those sources.
+MIT for the code (see [LICENSE](LICENSE)). Data keeps its own licence: GMRT CC BY 4.0 (citation required, see `ATTRIBUTION.txt`), GEBCO public domain, OpenStreetMap ODbL. Built worlds carry `ATTRIBUTION.txt`; do not redistribute them without it. Test fixtures in `testdata/` are small crops of those sources.

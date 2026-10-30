@@ -34,6 +34,6 @@ func Fetch(cacheDir string, b BBox, layer string) (*fetch.Provenance, error) {
 	q.Set("resolution", "max")
 	q.Set("layer", layer)
 	return fetch.Get(cacheDir, "gmrt", endpoint+"?"+q.Encode(), nil, layer+".tif",
-		"CC BY 4.0 (GMRT data; individual contributed grids carry their own credits)",
-		"Ryan, W.B.F. et al. (2009), Global Multi-Resolution Topography (GMRT) synthesis, Geochem. Geophys. Geosyst., 10, Q03014. https://www.gmrt.org")
+		"CC BY 4.0 (https://www.gmrt.org/about/terms_of_use.php); data must not be used for navigation",
+		"Ryan, W.B.F. et al. (2009), Global Multi-Resolution Topography (GMRT) synthesis data set, Geochem. Geophys. Geosyst., 10, Q03014, doi:10.1029/2008GC002332; data doi:10.1594/IEDA.100001")
 }

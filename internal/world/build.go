@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -257,6 +258,8 @@ func Build(cfg *Config, opt Options) (*Manifest, error) {
 		}
 	}
 
+	m.Checkpoints = checkpoints(dem, g, zmin, zmax, W, H)
+
 	// 5. Coastline: copy to output and compare against the DEM.
 	if coastGeoJSON != "" {
 		b, err := os.ReadFile(coastGeoJSON)
@@ -292,9 +295,18 @@ func Build(cfg *Config, opt Options) (*Manifest, error) {
 	}
 	m.Grid.BBoxWGS84 = [4]float64{minF(bw), minF(bs), maxF(bw), maxF(bs)}
 	m.Files["attribution"] = "ATTRIBUTION.txt"
-	for _, p := range m.Sources {
+	for i, p := range m.Sources {
 		m.Attribution = append(m.Attribution, fmt.Sprintf("%s — %s — license: %s", p.Source, p.Attribution, p.License))
+		// Shipped manifests must not leak local paths.
+		m.Sources[i].File = ""
+		if strings.HasPrefix(p.URL, "file://") {
+			m.Sources[i].URL = "file://" + filepath.Base(p.File)
+		}
 	}
+	if cfg.Local == nil {
+		m.Attribution = append(m.Attribution, "GEBCO_08 Grid — fills water cells without survey data inside GMRT's topo layer (≈900 m) — public domain, https://www.gebco.net/data-products/gridded-bathymetry/terms-of-use")
+	}
+	m.Attribution = append(m.Attribution, "NOT FOR NAVIGATION: bathymetry here is a game-development dataset (GMRT terms: data should not be used for navigation purposes)")
 	sort.Strings(m.Attribution)
 	m.BuildID = buildID(m)
 	if err := writeJSON(filepath.Join(opt.OutDir, ManifestFile), m); err != nil {
@@ -592,4 +604,41 @@ func localSources(l *Local) (topo, mask, coast *fetch.Provenance, err error) {
 		}
 	}
 	return
+}
+
+// checkpoints picks the highest and lowest vertices and the four world corners.
+// Elevations are the values as quantised into the tiles.
+func checkpoints(dem *gdal.Raster, g *Grid, zmin, zmax float64, W, H int) []Checkpoint {
+	q := func(v float32) float64 {
+		return zmin + math.Round((float64(v)-zmin)/(zmax-zmin)*65535)/65535*(zmax-zmin)
+	}
+	at := func(name string, c, r int) *Checkpoint {
+		v := dem.Data[r*W+c]
+		if v <= noData+1 {
+			return nil
+		}
+		return &Checkpoint{Name: name, Easting: g.OriginE + float64(c)*g.CellM, Northing: g.OriginN - float64(r)*g.CellM, ElevationM: q(v)}
+	}
+	hi, lo := -1, -1
+	for i, v := range dem.Data {
+		if v <= noData+1 {
+			continue
+		}
+		if hi < 0 || v > dem.Data[hi] {
+			hi = i
+		}
+		if lo < 0 || v < dem.Data[lo] {
+			lo = i
+		}
+	}
+	var out []Checkpoint
+	for _, c := range []*Checkpoint{
+		at("highest", hi%W, hi/W), at("lowest", lo%W, lo/W),
+		at("corner_nw", 0, 0), at("corner_ne", W-1, 0), at("corner_sw", 0, H-1), at("corner_se", W-1, H-1),
+	} {
+		if c != nil {
+			out = append(out, *c)
+		}
+	}
+	return out
 }

@@ -203,8 +203,14 @@ func Run(dir string) (*Report, error) {
 	if lowRes > 0 {
 		r.add(Warn, "low-res-bathymetry", "%d tiles are mostly (>50%%) interpolated/global-grid bathymetry rather than survey-backed", lowRes)
 	}
-	if m.Resampling.Upsampled || m.Resampling.OutputCellM < m.Resampling.FillResM {
-		r.add(Warn, "upsampled", "output cell %.0f m is finer than the delivered source cell (≈%.0f m)%s: interpolated values are not higher-resolution data. Water without survey data comes from GEBCO_08 at ≈%.0f m", m.Resampling.OutputCellM, m.Resampling.SourceResM, map[bool]string{true: "", false: " only where surveyed"}[m.Resampling.Upsampled], m.Resampling.FillResM)
+	if m.Resampling.Upsampled {
+		r.add(Warn, "upsampled", "output cell %.0f m is finer than the delivered source cell (≈%.0f m): the extra detail is interpolation, not data", m.Resampling.OutputCellM, m.Resampling.SourceResM)
+	}
+	if water > 0 && m.Config.Local == nil {
+		if fill := 1 - measured/water; fill > 0.05 {
+			r.Metrics["gebco_fill_water_fraction"] = fill
+			r.add(Warn, "gebco-fill", "%.1f%% of water cells have no survey data and come from the GEBCO_08 grid (≈%.0f m resolution) resampled to %.0f m", 100*fill, m.Resampling.FillResM, m.Resampling.OutputCellM)
+		}
 	}
 	if cc := m.Stats.CoastlineCheck; cc != nil && cc.Points-cc.Outside > 0 {
 		r.Metrics["coastline_offset_median_m"] = cc.OffsetMedianM

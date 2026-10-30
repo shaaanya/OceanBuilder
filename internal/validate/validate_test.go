@@ -178,3 +178,54 @@ func BenchmarkValidate(b *testing.B) {
 		}
 	}
 }
+
+func TestCheckpointsMatchTiles(t *testing.T) {
+	dir, m := build(t, insideBBox)
+	if len(m.Checkpoints) < 3 {
+		t.Fatalf("want checkpoints, got %d", len(m.Checkpoints))
+	}
+	N, S := m.Grid.TileCells, m.Grid.SamplesPerTile
+	cache := map[string][]float64{}
+	var hi, lo float64 = -1e9, 1e9
+	for _, c := range m.Checkpoints {
+		col := int((c.Easting - m.Grid.OriginE) / m.Grid.CellM)
+		row := int((m.Grid.OriginN - c.Northing) / m.Grid.CellM)
+		tc, tr := min(col/N, m.Grid.TilesX-1), min(row/N, m.Grid.TilesY-1)
+		var tile *world.Tile
+		for i := range m.Tiles {
+			if m.Tiles[i].Col == tc && m.Tiles[i].Row == tr {
+				tile = &m.Tiles[i]
+			}
+		}
+		h, ok := cache[tile.ID]
+		if !ok {
+			var err error
+			if h, err = ReadHeights(filepath.Join(dir, tile.Height), m); err != nil {
+				t.Fatal(err)
+			}
+			cache[tile.ID] = h
+		}
+		got := h[(row-tr*N)*S+(col-tc*N)]
+		if d := got - c.ElevationM; d > 1e-6 || d < -1e-6 {
+			t.Errorf("%s: tile value %.4f, checkpoint %.4f", c.Name, got, c.ElevationM)
+		}
+		if c.Name == "highest" {
+			hi = c.ElevationM
+		}
+		if c.Name == "lowest" {
+			lo = c.ElevationM
+		}
+	}
+	if hi <= lo || hi < m.Height.MaxM-0.01 || lo > m.Height.MinM+0.01 {
+		t.Errorf("highest %.2f / lowest %.2f do not match height range %.2f..%.2f", hi, lo, m.Height.MaxM, m.Height.MinM)
+	}
+}
+
+func TestManifestLeaksNoLocalPaths(t *testing.T) {
+	dir, _ := build(t, insideBBox)
+	b, _ := os.ReadFile(filepath.Join(dir, world.ManifestFile))
+	abs, _ := filepath.Abs("../../testdata")
+	if bytes.Contains(b, []byte(abs)) || bytes.Contains(b, []byte("/Users/")) || bytes.Contains(b, []byte(os.TempDir())) {
+		t.Fatal("manifest contains absolute local paths")
+	}
+}

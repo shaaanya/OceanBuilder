@@ -9,7 +9,8 @@ See [ecosystem.md](ecosystem.md) for the wider survey. This file covers only wha
 - `layer=topo-mask`: masked grid with only high-resolution (≈100 m) ocean data, NaN elsewhere. We use "finite in mask" as "survey-backed" and report the fraction of water cells that are.
 - `resolution=max` delivers ≈100 m/node at most per the docs; observed delivered cells around Falmouth were ≈39 m (N–S/E–W mean), so the nominal grid spacing is not the same as true data resolution. The manifest records both the delivered cell size and the GEBCO fill resolution (30″).
 - Vertical reference: a mosaic of contributed grids; not a single datum. Manifest says so.
-- Licence: GMRT is CC BY 4.0 with contributed grids carrying their own credits; cite Ryan et al. (2009), doi:10.1029/2008GC002332. Check https://www.gmrt.org/about/terms_of_use.php before redistributing built worlds.
+- Licence (verified 2026-10-30 at https://www.gmrt.org/about/terms_of_use.php): CC BY 4.0, acknowledgment with byline/credit/link required, **data should not be used for navigation purposes**. Cite Ryan et al. (2009), doi:10.1029/2008GC002332; data doi:10.1594/IEDA.100001.
+- GEBCO_08 (the fill under `topo`): GEBCO says its grid is in the public domain and free to use, and that use implies acceptance of its conditions of use (https://www.gebco.net/data-products/gridded-bathymetry-data, checked 2026-10-30). Credited in every `ATTRIBUTION.txt`.
 
 ## OpenStreetMap coastline (Overpass)
 

@@ -130,8 +130,18 @@ type Manifest struct {
 	Resampling   Resampling         `json:"resampling"`
 	Tiles        []Tile             `json:"tiles"`
 	Stats        Stats              `json:"stats"`
+	Checkpoints  []Checkpoint       `json:"checkpoints"`
 	Files        map[string]string  `json:"files"`
 	Attribution  []string           `json:"attribution"`
+}
+
+// Checkpoint is a world vertex with its expected elevation as stored in the
+// tiles, so an engine importer can verify orientation and placement independently.
+type Checkpoint struct {
+	Name       string  `json:"name"`
+	Easting    float64 `json:"easting"`
+	Northing   float64 `json:"northing"`
+	ElevationM float64 `json:"elevation_m"`
 }
 
 type CRS struct {

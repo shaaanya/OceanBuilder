@@ -28,7 +28,7 @@ type Provenance struct {
 	Bytes       int64  `json:"bytes"`
 	License     string `json:"license"`
 	Attribution string `json:"attribution"`
-	File        string `json:"file"`
+	File        string `json:"file,omitempty"` // local cache path; stripped from shipped manifests
 }
 
 // Get downloads a URL (GET, or POST form when form != nil) into
@@ -43,6 +43,7 @@ func Get(cacheDir, source, rawURL string, form url.Values, name, license, attrib
 		var p Provenance
 		if json.Unmarshal(b, &p) == nil {
 			if _, err := os.Stat(file); err == nil {
+				p.License, p.Attribution = license, attribution // terms may have been corrected since the download
 				return &p, nil
 			}
 		}
