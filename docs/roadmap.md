@@ -8,7 +8,7 @@
 3. Remaining build time on small worlds is the GDAL subprocesses (2× gdalwarp, ogr2ogr); profile before optimising further. Tile-corner transforms are already batched (fixture build 1.97 s → 1.60 s).
 4. Windowed processing so global-scale areas do not need the full grid in memory.
 5. LOD pyramid (levels > 0) with deterministic ids and tests that levels agree at shared vertices.
-6. Unity: depth-class texture overlay, simple water shader, Terrain layers from shore mask; screenshots in README from Unity itself.
+6. Unity: ~~depth-class Terrain layers, tile prefabs, index, Addressables registration~~ done (README). Remaining: runtime streaming sample that loads tiles from built bundles in a player, URP/HDRP test, water shader, LOD tiles, real textures.
 7. Harbour and seamark features (OpenSeaMap tags) as GeoJSON in the manifest.
 8. Unreal Landscape exporter (resampled to 2ⁿ−1 components).
 9. Incremental builds keyed on input hashes and config (the cache already keys downloads).

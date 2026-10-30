@@ -9,3 +9,7 @@
 /examples/unity-demo/Assets/OceanWorld/
 /examples/unity-demo/Assets/Editor/
 *.world.json.bak
+/examples/unity-demo/Packages/com.oceancompiler.world/
+/examples/unity-demo/Assets/AddressableAssetsData/
+/examples/unity-demo/Assets/AddressableAssetsData.meta
+/examples/unity-demo/ServerData/

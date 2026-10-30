@@ -1,0 +1,9 @@
+{
+  "name": "OceanCompiler.World",
+  "rootNamespace": "OceanCompiler.World",
+  "references": [],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "autoReferenced": true
+}

@@ -4,17 +4,24 @@
 package export
 
 import (
-	_ "embed"
+	"embed"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 
 	"github.com/ocean-compiler/ocean/internal/world"
 )
 
-//go:embed unity/OceanWorldImporter.cs
-var unityImporter []byte
+// unityPkg is the UPM package com.oceancompiler.world (runtime tile index, editor importer,
+// optional Addressables module), installed as an embedded package under Packages/.
+//
+//go:embed all:unitypkg
+var unityPkg embed.FS
+
+// UnityPackageName is the folder name under Packages/.
+const UnityPackageName = "com.oceancompiler.world"
 
 // Unity copies a built world into a Unity project and installs the editor
 // importer. Run `Ocean/Import World` in the editor, or in batchmode:
@@ -38,11 +45,29 @@ func Unity(worldDir, project string) (string, error) {
 			return "", err
 		}
 	}
-	ed := filepath.Join(project, "Assets", "Editor")
-	if err := os.MkdirAll(ed, 0o755); err != nil {
+	// The importer used to be a single script in Assets/Editor; it would clash with the package's class.
+	if err := os.Remove(filepath.Join(project, "Assets", "Editor", "OceanWorldImporter.cs")); err != nil && !os.IsNotExist(err) {
 		return "", err
 	}
-	if err := os.WriteFile(filepath.Join(ed, "OceanWorldImporter.cs"), unityImporter, 0o644); err != nil {
+	pkg := filepath.Join(project, "Packages", UnityPackageName)
+	if err := os.RemoveAll(pkg); err != nil {
+		return "", err
+	}
+	err = fs.WalkDir(unityPkg, "unitypkg", func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+		b, err := unityPkg.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		out := filepath.Join(pkg, path[len("unitypkg/"):])
+		if err := os.MkdirAll(filepath.Dir(out), 0o755); err != nil {
+			return err
+		}
+		return os.WriteFile(out, b, 0o644)
+	})
+	if err != nil {
 		return "", err
 	}
 	return dst, nil

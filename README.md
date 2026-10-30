@@ -61,15 +61,24 @@ Tile ids are absolute indices on the UTM grid (`floor(easting / tile span)`), so
 
 ## Unity
 
-`ocean export` copies the world into `Assets/OceanWorld/<name>/` and installs an editor script. `Ocean > Import World` builds one `Terrain` per tile with neighbours linked, plus a sea-level plane at y = 0. In batchmode:
+`ocean export <world> -target unity -dest <project>` copies the world into `Assets/OceanWorld/<name>/` and installs the UPM package `Packages/com.oceancompiler.world` (embedded in the binary). `Ocean > Import World` (or batchmode) generates, under `Generated/`:
+
+- `Terrains/<tile id>.asset`: TerrainData per tile with 5 flat-colour layers painted from the depth-class and shore masks (land, shore, shallow, mid, deep; no texture assets needed, so no render-pipeline dependency in the data).
+- `Prefabs/<tile id>.prefab`: Terrain + TerrainCollider, already positioned in world space.
+- `OceanWorldIndex.asset`: tile ids, UTM bounds, Unity-space position/size, elevation range, water/survey fractions, **neighbour ids** and an Addressables address per tile, plus UTM↔Unity conversion (`OceanWorldIndex.UtmToUnity`, `TileAt`, `LinkNeighbours`).
+- `<name>.unity`: a scene with every tile and a translucent sea plane at y = 0.
+
+Unity space: x = east, z = north, y = metres above the world's zero; the south-west corner of the world is (0,0).
+
+**Addressables.** If `com.unity.addressables` (≥1.19) is installed, the import creates the group `Ocean_<world>` and registers every tile prefab at `ocean/<world>/<tile id>` (labels `ocean-tile`, `ocean-<world>`) and the index at `ocean/<world>/index` (label `ocean-index`). Your own groups and build settings are untouched; move the entries wherever your game wants them. At runtime load the index, pick tiles near the ship by `TileAt`, `Addressables.InstantiateAsync(entry.address)`, then `index.LinkNeighbours(entry, terrain, id => loadedTerrains[id])`. `Ocean > Addressables > Build And Check` builds the bundles and verifies every address and label (batchmode: `-executeMethod OceanCompiler.World.Editor.OceanAddressables.BuildAndCheckFromCommandLine`).
 
 ```bash
 Unity -batchmode -projectPath <project> -executeMethod OceanWorldImporter.ImportFromCommandLine -quit
 ```
 
-![Falmouth imported into Unity 6000.4.0f1: 16 linked terrains and a translucent sea plane](docs/img/falmouth-unity.png)
+![Falmouth in Unity 6000.4.0f1: 16 prefab tiles, seabed painted by depth under a translucent sea plane](docs/img/falmouth-unity.png)
 
-Rendered by the importer itself (`-oceanShot docs/img/falmouth-unity.png`, no `-nographics`) on Unity 6000.4.0f1, Built-in render pipeline. The importer also checks six manifest checkpoints (highest and lowest vertices, four corners) against `Terrain.SampleHeight` using its own UTM→Unity conversion; for Falmouth the largest error was 3 mm, and any flip or offset fails the import. The shader lookup falls back URP → HDRP → Standard but only Built-in has been run. Water is a flat translucent plane: no ocean shader or simulation yet.
+Rendered by the importer itself (`-oceanShot`, no `-nographics`) on Unity 6000.4.0f1, **Built-in render pipeline**. The importer checks six manifest checkpoints (highest and lowest vertices, four corners) against `Terrain.SampleHeight` through its own UTM→Unity conversion; Falmouth's largest error is 3 mm and any flip or offset fails the import. URP and HDRP are **not** tested (the shader lookup falls back URP → HDRP → Standard); the Terrain layers and prefabs themselves are pipeline-independent, the sea plane material is not. Not implemented: LOD levels above 0 (the index has a `level` field, only 0 exists), water shader, textures, nautical features. A runtime `LoadAssetAsync` from built bundles in a player has not been exercised; only registration and the bundle build are verified.
 
 ## Refining land in LibreTerrain (optional)
 

@@ -1,0 +1,12 @@
+{
+  "name": "OceanCompiler.World.Editor.Addressables",
+  "rootNamespace": "OceanCompiler.World.Editor",
+  "references": ["OceanCompiler.World", "OceanCompiler.World.Editor", "Unity.Addressables", "Unity.Addressables.Editor"],
+  "includePlatforms": ["Editor"],
+  "excludePlatforms": [],
+  "defineConstraints": ["OCEAN_ADDRESSABLES"],
+  "versionDefines": [
+    { "name": "com.unity.addressables", "expression": "1.19.0", "define": "OCEAN_ADDRESSABLES" }
+  ],
+  "autoReferenced": true
+}

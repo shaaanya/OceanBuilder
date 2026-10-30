@@ -1,0 +1,9 @@
+{
+  "name": "OceanCompiler.World.Editor",
+  "rootNamespace": "OceanCompiler.World.Editor",
+  "references": ["OceanCompiler.World"],
+  "includePlatforms": ["Editor"],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "autoReferenced": true
+}
