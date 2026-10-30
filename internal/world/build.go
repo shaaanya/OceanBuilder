@@ -307,6 +307,20 @@ func Build(cfg *Config, opt Options) (*Manifest, error) {
 		st.CoastlineCheck = cc
 	}
 
+	// 5b. Seamarks (optional): OpenSeaMap points, projected to the grid and cross-checked against the DEM.
+	if cfg.Seamarks {
+		opt.logf("fetching OSM seamarks")
+		prov, ss, err := seamarks(cfg, srs, dem, g, W, H, opt)
+		if err != nil {
+			st.Seamarks = &SeamarkStats{Note: "OSM seamarks unavailable: " + err.Error()}
+			opt.logf("WARNING: %s", st.Seamarks.Note)
+		} else {
+			m.Sources = append(m.Sources, *prov)
+			m.Files["seamarks"] = "seamarks.geojson"
+			st.Seamarks = ss
+		}
+	}
+
 	// 6. Manifest.
 	m.Tool.Version, m.Tool.GDAL = ToolVersion, gdal.Version()
 	m.CRS = CRS{EPSG: epsg, Name: fmt.Sprintf("WGS 84 / UTM zone %d%s", epsg%100, map[bool]string{true: "N", false: "S"}[epsg < 32700])}

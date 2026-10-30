@@ -40,3 +40,28 @@ func TestToGeoJSONRejectsGarbage(t *testing.T) {
 		t.Fatal("expected error for non-JSON Overpass response")
 	}
 }
+
+func TestParseSeamarks(t *testing.T) {
+	raw := `{"elements":[
+	 {"type":"way","id":5,"center":{"lat":50.15,"lon":-5.05},"tags":{"seamark:type":"harbour","name":"Falmouth Docks"}},
+	 {"type":"node","id":2,"lat":50.07,"lon":-5.06,"tags":{"seamark:type":"wreck","name":"Volnay","wreck:depth":"19m"}},
+	 {"type":"node","id":1,"lat":50.10,"lon":-5.00,"tags":{"seamark:type":"buoy_lateral"}},
+	 {"type":"way","id":6,"tags":{"seamark:type":"harbour"}},
+	 {"type":"node","id":3,"lat":50.1,"lon":-5.0,"tags":{"name":"no seamark tag"}}]}`
+	sm, err := ParseSeamarks([]byte(raw))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sm) != 3 {
+		t.Fatalf("want 3 (way without centre and untagged node dropped), got %d", len(sm))
+	}
+	if sm[0].Type != "buoy_lateral" || sm[1].Type != "harbour" || sm[2].Type != "wreck" {
+		t.Fatalf("order must be by type: %v %v %v", sm[0].Type, sm[1].Type, sm[2].Type)
+	}
+	if sm[1].Lon != -5.05 || sm[1].Lat != 50.15 || sm[1].OSMType != "way" {
+		t.Fatalf("way must use its centre as lon,lat: %+v", sm[1])
+	}
+	if sm[2].Tags["wreck:depth"] != "19m" {
+		t.Fatal("raw tags must be kept")
+	}
+}

@@ -52,12 +52,17 @@ output/falmouth/
   world.manifest.json      grid, CRS, height encoding, sources (URL, time, sha256, licence), per-tile stats, build id
   ATTRIBUTION.txt          required credits for the sources used
   coastline.wgs84.geojson  OSM coastline as fetched
+  seamarks.geojson         OpenSeaMap points (only with "seamarks": true in the world config)
   tiles/0/L0_<x>_<y>.height.r16   uint16 heights, (N+1)² samples, shared edges with neighbours
   tiles/0/L0_<x>_<y>.depth.png    class per cell: 0 land, 1..n depth bands, 255 nodata
   tiles/0/L0_<x>_<y>.shore.png    255 where land touches water
 ```
 
 Tile ids are absolute indices on the UTM grid (`floor(easting / tile span)`), so the same place gets the same id whatever bounding box you ask for. Outputs are byte-identical for identical config and inputs (tested).
+
+### Seamarks
+
+`"seamarks": true` in the world config fetches every OSM element tagged `seamark:type` in the bbox (buoys, lights, harbours, wrecks, anchorages...) and writes `seamarks.geojson`: WGS84 points (ways use their centre) with `seamark_type`, `name`, all raw tags, UTM `easting`/`northing` and the DEM elevation under each. Falmouth: 58 features in 14 types. `stats.seamarks` in the manifest counts them by type and cross-checks floating marks (buoys) against the DEM: 8 of 30 sit on DEM land, all in the intertidal upper Penryn/Truro creeks (DEM 0 to 3 m at 48 m cells), while the other 22 are on water where expected, so that is data resolution/tide, not misplacement. Volunteer-mapped tagging, ODbL, not a nautical chart. Unity does not consume the file yet.
 
 ## Unity
 

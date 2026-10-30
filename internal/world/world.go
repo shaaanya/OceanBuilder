@@ -27,6 +27,8 @@ type Config struct {
 	DepthBands []float64  `json:"depth_bands,omitempty"` // upper bounds of depth classes in metres
 	Coastline  string     `json:"coastline,omitempty"`   // "osm" (default) or "none"
 	Local      *Local     `json:"local,omitempty"`       // use files on disk instead of downloading
+	// Seamarks adds OpenSeaMap features (buoys, lights, harbours, wrecks...) from OSM as seamarks.geojson.
+	Seamarks bool `json:"seamarks,omitempty"`
 	// Refinement is the path of a refinement.json from `ocean libreterrain import`, relative
 	// to this config file. Its land-elevation edits are applied on top of the sources.
 	Refinement string `json:"refinement,omitempty"`
@@ -216,13 +218,25 @@ type Tile struct {
 
 // Stats are world-level numbers computed from the data.
 type Stats struct {
-	Cells          int         `json:"cells"`
-	NoDataFraction float64     `json:"nodata_fraction"`
-	WaterFraction  float64     `json:"water_fraction"`
-	MeasuredWater  float64     `json:"measured_water_fraction"`
-	ShoreCells     int         `json:"shore_cells"`
-	CoastlineCheck *CoastCheck `json:"coastline_check,omitempty"`
-	CoastlineNote  string      `json:"coastline_note,omitempty"`
+	Cells          int           `json:"cells"`
+	NoDataFraction float64       `json:"nodata_fraction"`
+	WaterFraction  float64       `json:"water_fraction"`
+	MeasuredWater  float64       `json:"measured_water_fraction"`
+	ShoreCells     int           `json:"shore_cells"`
+	CoastlineCheck *CoastCheck   `json:"coastline_check,omitempty"`
+	CoastlineNote  string        `json:"coastline_note,omitempty"`
+	Seamarks       *SeamarkStats `json:"seamarks,omitempty"`
+}
+
+// SeamarkStats summarises seamarks.geojson. Floating marks (buoys, light vessels) that the DEM
+// puts on land point to a coastline/DEM offset or a mis-mapped feature; it is a cross-check, not a correction.
+type SeamarkStats struct {
+	Count          int            `json:"count"`
+	OutsideGrid    int            `json:"dropped_outside_grid"`
+	ByType         map[string]int `json:"by_type"`
+	Floating       int            `json:"floating_marks"`
+	FloatingOnLand int            `json:"floating_marks_on_dem_land"`
+	Note           string         `json:"note,omitempty"`
 }
 
 // CoastCheck compares DEM elevation sampled along the OSM coastline with 0 m.
