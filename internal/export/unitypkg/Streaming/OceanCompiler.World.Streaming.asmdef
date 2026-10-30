@@ -1,0 +1,12 @@
+{
+  "name": "OceanCompiler.World.Streaming",
+  "rootNamespace": "OceanCompiler.World",
+  "references": ["OceanCompiler.World", "Unity.Addressables", "Unity.ResourceManager"],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "defineConstraints": ["OCEAN_ADDRESSABLES"],
+  "versionDefines": [
+    { "name": "com.unity.addressables", "expression": "1.19.0", "define": "OCEAN_ADDRESSABLES" }
+  ],
+  "autoReferenced": true
+}

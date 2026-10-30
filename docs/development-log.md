@@ -72,3 +72,5 @@ Ran LibreTerrain's headless MCP bridge and measured it (`docs/research/libreterr
 - Found while screenshotting: the demo's `Sea.mat` dated from the Built-in era (Standard shader) and rendered pink under URP because the importer only created it when missing. It is now rebuilt and copied into the existing asset on every import (GUID stable).
 
 - Mindelo with coast_conform: 69% agreement, 6330 to water, 408 to land, 2771 skipped (steep cliffs trip the 30 m guard); buoys on DEM land 6/6 -> 1/6; offset before 142/331 m. One buoy still on land is not investigated.
+
+- `OceanTileStreamer` + `OceanStreamingPlan`: PlayMode 4/4 pass on URP (index test, plan tests x2, streaming move test: centre loads 5 tiles with neighbours linked, corner leaves 3, Terrain objects destroyed, destroy releases all). The plan hysteresis test initially asserted the opposite of its own comment; fixed before the real run.

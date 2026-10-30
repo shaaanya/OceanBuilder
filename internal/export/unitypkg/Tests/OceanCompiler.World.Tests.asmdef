@@ -3,6 +3,7 @@
   "rootNamespace": "OceanCompiler.World.Tests",
   "references": [
     "OceanCompiler.World",
+    "OceanCompiler.World.Streaming",
     "Unity.Addressables",
     "Unity.ResourceManager",
     "UnityEngine.TestRunner"
