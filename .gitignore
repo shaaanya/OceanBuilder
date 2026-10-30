@@ -2,3 +2,10 @@
 /.ocean-cache/
 /output/
 *.test
+/examples/unity-demo/Library/
+/examples/unity-demo/Logs/
+/examples/unity-demo/UserSettings/
+/examples/unity-demo/Temp/
+/examples/unity-demo/Assets/OceanWorld/
+/examples/unity-demo/Assets/Editor/
+*.world.json.bak

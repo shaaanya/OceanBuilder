@@ -203,14 +203,16 @@ func Run(dir string) (*Report, error) {
 	if lowRes > 0 {
 		r.add(Warn, "low-res-bathymetry", "%d tiles are mostly (>50%%) interpolated/global-grid bathymetry rather than survey-backed", lowRes)
 	}
-	if m.Resampling.Upsampled {
-		r.add(Warn, "upsampled", "output cell %.1f m is finer than source cell ≈%.1f m: values are interpolated, not higher-resolution data", m.Resampling.OutputCellM, m.Resampling.SourceResM)
+	if m.Resampling.Upsampled || m.Resampling.OutputCellM < m.Resampling.FillResM {
+		r.add(Warn, "upsampled", "output cell %.0f m is finer than the delivered source cell (≈%.0f m)%s: interpolated values are not higher-resolution data. Water without survey data comes from GEBCO_08 at ≈%.0f m", m.Resampling.OutputCellM, m.Resampling.SourceResM, map[bool]string{true: "", false: " only where surveyed"}[m.Resampling.Upsampled], m.Resampling.FillResM)
 	}
 	if cc := m.Stats.CoastlineCheck; cc != nil && cc.Points-cc.Outside > 0 {
-		r.Metrics["coastline_within_2m"] = cc.Within2M
+		r.Metrics["coastline_offset_median_m"] = cc.OffsetMedianM
+		r.Metrics["coastline_offset_p90_m"] = cc.OffsetP90M
+		r.Metrics["coastline_unmatched"] = cc.NoShoreWithin
 		r.Metrics["coastline_median_elev_m"] = cc.MedianM
-		if cc.Within2M < 0.5 {
-			r.add(Warn, "coast-misaligned", "only %.0f%% of OSM coastline points sit within ±2 m of DEM zero (median %.1f m, p10 %.1f, p90 %.1f): vertical datum or horizontal offset between sources", 100*cc.Within2M, cc.MedianM, cc.P10M, cc.P90M)
+		if cc.OffsetMedianM > 2*m.Grid.CellM || cc.NoShoreWithin > 0.25 {
+			r.add(Warn, "coast-misaligned", "OSM coastline is %.0f m (median) / %.0f m (p90) from the nearest DEM shoreline; %.0f%% of points have none within %.0f m. DEM elevation at the coastline: median %.1f m (p10 %.1f, p90 %.1f). Horizontal offset or vertical datum differs between sources", cc.OffsetMedianM, cc.OffsetP90M, 100*cc.NoShoreWithin, cc.SearchRadiusM, cc.MedianM, cc.P10M, cc.P90M)
 		}
 		if cc.Outside > 0 {
 			r.Metrics["coastline_coverage"] = 1 - float64(cc.Outside)/float64(cc.Points)
@@ -314,8 +316,8 @@ func (r *Report) Format() string {
 	if v, ok := r.Metrics["measured_water_fraction"]; ok {
 		fmt.Fprintf(&b, "Water cells backed by survey data (GMRT mask): %.1f%%\n", 100*v)
 	}
-	if v, ok := r.Metrics["coastline_within_2m"]; ok {
-		fmt.Fprintf(&b, "Coastline within ±2 m of DEM zero: %.1f%% (median %.1f m)\n", 100*v, r.Metrics["coastline_median_elev_m"])
+	if v, ok := r.Metrics["coastline_offset_median_m"]; ok {
+		fmt.Fprintf(&b, "OSM coastline to DEM shoreline offset: median %.0f m, p90 %.0f m\n", v, r.Metrics["coastline_offset_p90_m"])
 	}
 	fmt.Fprintf(&b, "Neighbour edge mismatches: %d\n", int(r.Metrics["edge_mismatches"]))
 	for _, l := range []Level{Error, Warn, Info} {

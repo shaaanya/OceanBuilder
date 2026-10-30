@@ -26,6 +26,19 @@ type Config struct {
 	Resampling string     `json:"resampling,omitempty"`  // gdalwarp -r method, default bilinear
 	DepthBands []float64  `json:"depth_bands,omitempty"` // upper bounds of depth classes in metres
 	Coastline  string     `json:"coastline,omitempty"`   // "osm" (default) or "none"
+	Local      *Local     `json:"local,omitempty"`       // use files on disk instead of downloading
+}
+
+// Local points at user-provided data. Topo is a GeoTIFF of elevation in metres
+// (negative below sea level) in any CRS GDAL can read; Mask (optional) is the same
+// grid with NaN where the value is not survey-backed; Coastline is optional GeoJSON
+// LineStrings in EPSG:4326. License and Attribution are mandatory: they travel into the manifest.
+type Local struct {
+	Topo        string `json:"topo"`
+	Mask        string `json:"mask,omitempty"`
+	Coastline   string `json:"coastline,omitempty"`
+	License     string `json:"license"`
+	Attribution string `json:"attribution"`
 }
 
 // LoadConfig reads and validates a world config.
@@ -75,8 +88,14 @@ func (c *Config) Normalize() error {
 			return fmt.Errorf("config: depth_bands must be strictly increasing")
 		}
 	}
+	if c.Local != nil && (c.Local.Topo == "" || c.Local.License == "" || c.Local.Attribution == "") {
+		return fmt.Errorf("config: local needs topo, license and attribution")
+	}
 	if c.Coastline == "" {
 		c.Coastline = "osm"
+		if c.Local != nil && c.Local.Coastline == "" {
+			c.Coastline = "none"
+		}
 	}
 	if c.Coastline != "osm" && c.Coastline != "none" {
 		return fmt.Errorf("config: coastline must be osm or none")
@@ -192,12 +211,15 @@ type Stats struct {
 
 // CoastCheck compares DEM elevation sampled along the OSM coastline with 0 m.
 type CoastCheck struct {
-	Points   int     `json:"points_sampled"`
-	Outside  int     `json:"points_outside_grid"`
-	MedianM  float64 `json:"median_dem_elevation_m"`
-	P10M     float64 `json:"p10_dem_elevation_m"`
-	P90M     float64 `json:"p90_dem_elevation_m"`
-	Within2M float64 `json:"fraction_within_2m_of_zero"`
+	Points        int     `json:"points_sampled"`
+	Outside       int     `json:"points_outside_grid"`
+	MedianM       float64 `json:"median_dem_elevation_m"`
+	P10M          float64 `json:"p10_dem_elevation_m"`
+	P90M          float64 `json:"p90_dem_elevation_m"`
+	SearchRadiusM float64 `json:"search_radius_m"`
+	NoShoreWithin float64 `json:"fraction_without_dem_shoreline_in_radius"`
+	OffsetMedianM float64 `json:"horizontal_offset_median_m"` // OSM coastline to nearest DEM land/water boundary cell
+	OffsetP90M    float64 `json:"horizontal_offset_p90_m"`
 }
 
 // LoadManifest reads a built world's manifest from its output directory.

@@ -15,6 +15,7 @@ import (
 	"runtime"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/ocean-compiler/ocean/internal/fetch"
 	"github.com/ocean-compiler/ocean/internal/gdal"
@@ -55,29 +56,43 @@ func Build(cfg *Config, opt Options) (*Manifest, error) {
 	pad := math.Max(span*1.2, 500)
 	dLat := pad / 110574.0
 	dLon := pad / (111320.0 * math.Cos(clat*math.Pi/180))
+	var err error
 	fb := gmrt.BBox{W: math.Max(w-dLon, -180), S: math.Max(s-dLat, -85), E: math.Min(e+dLon, 180), N: math.Min(n+dLat, 85)}
-	opt.logf("fetching GMRT topo+mask for %.4f,%.4f,%.4f,%.4f", fb.W, fb.S, fb.E, fb.N)
-	topo, err := gmrt.Fetch(opt.CacheDir, fb, gmrt.LayerTopo)
-	if err != nil {
-		return nil, err
-	}
-	mask, err := gmrt.Fetch(opt.CacheDir, fb, gmrt.LayerMask)
-	if err != nil {
-		return nil, err
-	}
 	m := &Manifest{SchemaVersion: SchemaVersion, Name: cfg.Name, Config: *cfg, Files: map[string]string{}}
-	m.Sources = []fetch.Provenance{*topo, *mask}
+	var topo, mask *fetch.Provenance
 	var coastGeoJSON string
-	if cfg.Coastline == "osm" {
-		opt.logf("fetching OSM coastline")
-		p, gj, err := osm.FetchCoastline(opt.CacheDir, fb.W, fb.S, fb.E, fb.N)
-		if err != nil {
-			m.Stats.CoastlineNote = "OSM coastline unavailable: " + err.Error()
-			opt.logf("WARNING: %s", m.Stats.CoastlineNote)
-		} else {
-			m.Sources = append(m.Sources, *p)
-			coastGeoJSON = gj
+	if cfg.Local != nil {
+		var coast *fetch.Provenance
+		if topo, mask, coast, err = localSources(cfg.Local); err != nil {
+			return nil, err
 		}
+		if coast != nil {
+			m.Sources = append(m.Sources, *coast)
+			coastGeoJSON = coast.File
+		}
+	} else {
+		opt.logf("fetching GMRT topo+mask for %.4f,%.4f,%.4f,%.4f", fb.W, fb.S, fb.E, fb.N)
+		if topo, err = gmrt.Fetch(opt.CacheDir, fb, gmrt.LayerTopo); err != nil {
+			return nil, err
+		}
+		if mask, err = gmrt.Fetch(opt.CacheDir, fb, gmrt.LayerMask); err != nil {
+			return nil, err
+		}
+		if cfg.Coastline == "osm" {
+			opt.logf("fetching OSM coastline")
+			p, gj, err := osm.FetchCoastline(opt.CacheDir, fb.W, fb.S, fb.E, fb.N)
+			if err != nil {
+				m.Stats.CoastlineNote = "OSM coastline unavailable: " + err.Error()
+				opt.logf("WARNING: %s", m.Stats.CoastlineNote)
+			} else {
+				m.Sources = append(m.Sources, *p)
+				coastGeoJSON = gj
+			}
+		}
+	}
+	m.Sources = append([]fetch.Provenance{*topo}, m.Sources...)
+	if mask != nil {
+		m.Sources = append(m.Sources[:1], append([]fetch.Provenance{*mask}, m.Sources[1:]...)...)
 	}
 	nativeRes, err := nativeResolution(topo.File, clat)
 	if err != nil {
@@ -133,7 +148,11 @@ func Build(cfg *Config, opt Options) (*Manifest, error) {
 	}
 	// topo-mask holds the same elevations but NaN wherever GMRT has no ~100 m
 	// ocean survey (there topo is filled from GEBCO_08). Nearest-neighbour keeps it binary.
-	if err := warp(mask.File, maskPath, "near", "Float32"); err != nil {
+	maskSrc := topo.File // no mask supplied: no cell is claimed to be survey-backed
+	if mask != nil {
+		maskSrc = mask.File
+	}
+	if err := warp(maskSrc, maskPath, "near", "Float32"); err != nil {
 		return nil, err
 	}
 	dem, err := gdal.ReadF32(demPath, W, H)
@@ -145,9 +164,11 @@ func Build(cfg *Config, opt Options) (*Manifest, error) {
 		return nil, err
 	}
 	meas := make([]uint8, W*H)
-	for i, v := range mraw.Data {
-		if !math.IsNaN(float64(v)) && v > noData+1 {
-			meas[i] = 1
+	if mask != nil {
+		for i, v := range mraw.Data {
+			if !math.IsNaN(float64(v)) && v > noData+1 {
+				meas[i] = 1
+			}
 		}
 	}
 
@@ -246,7 +267,7 @@ func Build(cfg *Config, opt Options) (*Manifest, error) {
 			return nil, err
 		}
 		m.Files["coastline"] = "coastline.wgs84.geojson"
-		cc, err := coastCheck(coastGeoJSON, srs, work, dem, g, W, H)
+		cc, err := coastCheck(coastGeoJSON, srs, work, dem, shore, g, W, H)
 		if err != nil {
 			return nil, err
 		}
@@ -258,7 +279,7 @@ func Build(cfg *Config, opt Options) (*Manifest, error) {
 	m.CRS = CRS{EPSG: epsg, Name: fmt.Sprintf("WGS 84 / UTM zone %d%s", epsg%100, map[bool]string{true: "N", false: "S"}[epsg < 32700])}
 	m.Vertical.Unit = "metre"
 	m.Vertical.Datum = "unspecified: GMRT mosaic of contributed grids with heterogeneous vertical references"
-	m.Vertical.Note = "Zero is treated as the land/water boundary. No vertical datum reconciliation is performed; OSM coastline (≈mean high water in the UK) and GMRT zero are not guaranteed to coincide."
+	m.Vertical.Note = "Zero is treated as the land/water boundary. No vertical datum reconciliation is performed; the OSM coastline (a high-water-line convention that varies by country) and GMRT zero are not guaranteed to coincide."
 	m.Height = HeightEncoding{Bits: 16, ByteOrder: "little", RowOrder: "north_to_south", MinM: zmin, MaxM: zmax,
 		Note: "uint16 = round((z-min_m)/(max_m-min_m)*65535); nodata cells are written as 0 and flagged class 255 in the depth map"}
 	// GEBCO_08 is 30 arc-seconds; GMRT documents it as the fill where no survey data exists.
@@ -416,7 +437,7 @@ func nativeResolution(tif string, lat float64) (float64, error) {
 }
 
 // coastCheck samples the DEM along the OSM coastline (reprojected to the grid CRS).
-func coastCheck(geojson, srs, work string, dem *gdal.Raster, g *Grid, W, H int) (*CoastCheck, error) {
+func coastCheck(geojson, srs, work string, dem *gdal.Raster, shore []uint8, g *Grid, W, H int) (*CoastCheck, error) {
 	proj := filepath.Join(work, "coast.utm.geojson")
 	if _, err := gdal.Run("ogr2ogr", "-f", "GeoJSON", "-t_srs", srs, proj, geojson); err != nil {
 		return nil, err
@@ -437,7 +458,8 @@ func coastCheck(geojson, srs, work string, dem *gdal.Raster, g *Grid, W, H int) 
 		return nil, err
 	}
 	cc := &CoastCheck{}
-	var vals []float64
+	var vals, offs []float64
+	unmatched := 0
 	for _, f := range fc.Features {
 		var line [][]float64
 		if f.Geometry.Type != "LineString" || json.Unmarshal(f.Geometry.Coordinates, &line) != nil {
@@ -459,6 +481,11 @@ func coastCheck(geojson, srs, work string, dem *gdal.Raster, g *Grid, W, H int) 
 					continue
 				}
 				vals = append(vals, v)
+				if d, found := nearestShore(shore, W, H, (e-g.OriginE)/g.CellM, (g.OriginN-n)/g.CellM, searchCells); found {
+					offs = append(offs, d*g.CellM)
+				} else {
+					unmatched++
+				}
 			}
 		}
 	}
@@ -468,14 +495,37 @@ func coastCheck(geojson, srs, work string, dem *gdal.Raster, g *Grid, W, H int) 
 	sort.Float64s(vals)
 	q := func(p float64) float64 { return vals[int(p*float64(len(vals)-1))] }
 	cc.MedianM, cc.P10M, cc.P90M = q(0.5), q(0.1), q(0.9)
-	in := 0
-	for _, v := range vals {
-		if math.Abs(v) <= 2 {
-			in++
+	cc.SearchRadiusM = searchCells * g.CellM
+	cc.NoShoreWithin = float64(unmatched) / float64(len(vals))
+	if len(offs) > 0 {
+		sort.Float64s(offs)
+		cc.OffsetMedianM = offs[len(offs)/2]
+		cc.OffsetP90M = offs[int(0.9*float64(len(offs)-1))]
+	}
+	return cc, nil
+}
+
+const searchCells = 8
+
+// nearestShore returns the distance in cells from (col,row) to the closest
+// shoreline cell within radius cells.
+func nearestShore(shore []uint8, W, H int, col, row, radius float64) (float64, bool) {
+	best, found := radius*radius+1, false
+	r0, c0 := int(math.Round(row)), int(math.Round(col))
+	R := int(radius)
+	for dr := -R; dr <= R; dr++ {
+		for dc := -R; dc <= R; dc++ {
+			r, c := r0+dr, c0+dc
+			if r < 0 || r >= H || c < 0 || c >= W || shore[r*W+c] == 0 {
+				continue
+			}
+			d := (float64(r)-row)*(float64(r)-row) + (float64(c)-col)*(float64(c)-col)
+			if d < best {
+				best, found = d, true
+			}
 		}
 	}
-	cc.Within2M = float64(in) / float64(len(vals))
-	return cc, nil
+	return math.Sqrt(best), found && best <= radius*radius
 }
 
 // sampleBilinear samples at fractional (col,row); false when outside or touching nodata.
@@ -508,4 +558,38 @@ func maxF(a []float64) float64 {
 		m = math.Max(m, v)
 	}
 	return m
+}
+
+// localSources wraps user-provided files with provenance (sha256, mtime, declared license).
+func localSources(l *Local) (topo, mask, coast *fetch.Provenance, err error) {
+	wrap := func(name, path string) (*fetch.Provenance, error) {
+		abs, err := filepath.Abs(path)
+		if err != nil {
+			return nil, err
+		}
+		fi, err := os.Stat(abs)
+		if err != nil {
+			return nil, err
+		}
+		sum, err := fetch.SHA256File(abs)
+		if err != nil {
+			return nil, err
+		}
+		return &fetch.Provenance{Source: "local:" + name, URL: "file://" + abs, RetrievedAt: fi.ModTime().UTC().Format(time.RFC3339),
+			SHA256: sum, Bytes: fi.Size(), License: l.License, Attribution: l.Attribution, File: abs}, nil
+	}
+	if topo, err = wrap("topo", l.Topo); err != nil {
+		return
+	}
+	if l.Mask != "" {
+		if mask, err = wrap("mask", l.Mask); err != nil {
+			return
+		}
+	}
+	if l.Coastline != "" {
+		if coast, err = wrap("coastline", l.Coastline); err != nil {
+			return
+		}
+	}
+	return
 }
