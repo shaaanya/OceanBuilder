@@ -4,6 +4,13 @@
   "version": "0.2.0",
   "unity": "6000.0",
   "description": "Imports worlds built by the Ocean Compiler CLI: one Terrain per tile, a tile index for runtime streaming, optional Addressables registration. Installed by `ocean export -target unity`.",
-  "keywords": ["terrain", "bathymetry", "addressables"],
-  "license": "MIT"
+  "keywords": [
+    "terrain",
+    "bathymetry",
+    "addressables"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "com.unity.render-pipelines.universal": "17.0.3"
+  }
 }

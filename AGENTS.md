@@ -33,3 +33,5 @@ GDAL CLI tools must be on `PATH` (gdalwarp, gdal_translate, gdaltransform, ogr2o
 - Real-data fixtures go in `testdata/` with a README naming source and licence.
 - Record decisions in `docs/decisions/`, progress in `docs/development-log.md`, plans in `docs/roadmap.md`.
 - Land edits from external tools enter as a hash-checked delta (`world/refine.go`); water, coastline and nodata are never changed by them.
+
+- Unity target is URP only. Do not add Built-in or HDRP code paths.

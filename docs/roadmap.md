@@ -8,7 +8,7 @@
 3. Remaining build time on small worlds is the GDAL subprocesses (2× gdalwarp, ogr2ogr); profile before optimising further. Tile-corner transforms are already batched (fixture build 1.97 s → 1.60 s).
 4. Windowed processing so global-scale areas do not need the full grid in memory.
 5. LOD pyramid (levels > 0) with deterministic ids and tests that levels agree at shared vertices.
-6. Unity: ~~depth-class Terrain layers, tile prefabs, index, Addressables registration~~ done (README). Runtime load from built bundles is tested in editor play mode. Remaining: a standalone player build test, a streaming sample that loads/unloads by ship position, HDRP test, water shader, LOD tiles, real textures.
+6. Unity: ~~depth-class Terrain layers, tile prefabs, index, Addressables registration~~ done (README). Runtime load from built bundles is tested in editor play mode. Remaining: a standalone player build test, a streaming sample that loads/unloads by ship position,  water shader, LOD tiles, real textures.
 7. Harbour and seamark features (OpenSeaMap tags) as GeoJSON in the manifest.
 8. Unreal Landscape exporter (resampled to 2ⁿ−1 components).
 9. Incremental builds keyed on input hashes and config (the cache already keys downloads).
@@ -30,7 +30,7 @@
 
 ## Known problems
 
-- Unity URP/HDRP are unverified (importer falls back URP → HDRP → Standard shaders; only Built-in has been run). Test with a URP template project.
+- Unity: URP only by decision (Built-in and HDRP are not supported). Verified on URP 17.4.
 - Coastline-to-DEM offset is reported but not corrected.
 - Preview colours are a fixed ramp; not meant as a chart.
 - `-nographics` Unity batchmode cannot take screenshots; Unity visuals still need a manual or MCP capture.

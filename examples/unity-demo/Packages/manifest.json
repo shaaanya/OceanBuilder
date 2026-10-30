@@ -36,7 +36,8 @@
     "com.unity.modules.wind": "1.0.0",
     "com.unity.modules.xr": "1.0.0",
     "com.unity.addressables": "4.1.2",
-    "com.unity.test-framework": "1.6.0"
+    "com.unity.test-framework": "1.6.0",
+    "com.unity.render-pipelines.universal": "17.4.0"
   },
   "testables": [
     "com.oceancompiler.world"

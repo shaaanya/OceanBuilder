@@ -52,6 +52,8 @@ public static class OceanWorldImporter
     [MenuItem("Ocean/Import World")]
     public static void ImportMenu()
     {
+        if (!(UnityEngine.Rendering.GraphicsSettings.currentRenderPipeline is UnityEngine.Rendering.Universal.UniversalRenderPipelineAsset))
+            throw new Exception("Ocean importer supports the Universal Render Pipeline only: assign a URP asset in Project Settings > Graphics.");
         foreach (var dir in Directory.GetDirectories("Assets/OceanWorld")) Import(dir.Replace('\\', '/'));
     }
 
@@ -67,35 +69,17 @@ public static class OceanWorldImporter
         catch (Exception e) { Debug.LogError("Ocean import failed: " + e); EditorApplication.Exit(1); }
     }
 
-    static Shader FindShader(params string[] names)
-    {
-        foreach (var n in names) { var s = Shader.Find(n); if (s != null) return s; }
-        throw new Exception("none of the shaders found: " + string.Join(", ", names));
-    }
-
     static Material TransparentMaterial(Color c)
     {
-        var shader = FindShader("Universal Render Pipeline/Lit", "HDRP/Lit", "Standard");
+        var shader = Shader.Find("Universal Render Pipeline/Lit") ?? throw new Exception("URP Lit shader not found: this package supports URP only");
         var mat = new Material(shader);
-        mat.color = c;
-        if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", c);
-        if (shader.name.StartsWith("Universal"))
-        {
-            mat.SetFloat("_Surface", 1); mat.SetFloat("_Blend", 0);
-            mat.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
-            mat.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
-            mat.SetFloat("_ZWrite", 0);
-            mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
-            mat.SetOverrideTag("RenderType", "Transparent");
-        }
-        else if (shader.name == "Standard")
-        {
-            mat.SetFloat("_Mode", 2);
-            mat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
-            mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
-            mat.SetInt("_ZWrite", 0);
-            mat.EnableKeyword("_ALPHABLEND_ON");
-        }
+        mat.SetColor("_BaseColor", c);
+        mat.SetFloat("_Surface", 1); mat.SetFloat("_Blend", 0);
+        mat.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
+        mat.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+        mat.SetFloat("_ZWrite", 0);
+        mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+        mat.SetOverrideTag("RenderType", "Transparent");
         mat.renderQueue = 3000;
         return mat;
     }
@@ -174,7 +158,7 @@ public static class OceanWorldImporter
 
         var layers = MakeLayers(gen);
         // No terrain material template: the active render pipeline's default terrain material is used, so the
-        // same TerrainData renders under Built-in, URP and HDRP. (A hand-made URP Terrain/Lit template rendered magenta beyond basemapDistance.)
+        // same TerrainData renders with whatever URP terrain shader the project uses. (A hand-made URP Terrain/Lit template rendered magenta beyond basemapDistance.)
         var index = ScriptableObject.CreateInstance<OceanWorldIndex>();
         index.worldName = m.name; index.buildId = m.build_id; index.epsg = m.crs.epsg;
         index.originEasting = m.grid.origin_easting;
@@ -325,7 +309,7 @@ public static class OceanWorldImporter
         var rt = new RenderTexture(1920, 1080, 24);
         cam.targetTexture = rt;
         var pipe = UnityEngine.Rendering.GraphicsSettings.currentRenderPipeline;
-        Debug.Log("OCEAN_PIPELINE " + (pipe != null ? pipe.GetType().Name : "Built-in"));
+        Debug.Log("OCEAN_PIPELINE " + (pipe != null ? pipe.GetType().Name : "none"));
         // First render triggers shader compilation; wait for it, then render again for the image.
         cam.Render();
         for (int i = 0; i < 600 && ShaderUtil.anythingCompiling; i++) System.Threading.Thread.Sleep(100);

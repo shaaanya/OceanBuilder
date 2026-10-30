@@ -1,7 +1,7 @@
 {
   "name": "OceanCompiler.World.Editor",
   "rootNamespace": "OceanCompiler.World.Editor",
-  "references": ["OceanCompiler.World"],
+  "references": ["OceanCompiler.World", "Unity.RenderPipelines.Universal.Runtime"],
   "includePlatforms": ["Editor"],
   "excludePlatforms": [],
   "allowUnsafeCode": false,
