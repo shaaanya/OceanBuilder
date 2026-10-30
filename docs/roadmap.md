@@ -7,7 +7,7 @@ Done and verified on real data (Falmouth, Mindelo): GMRT + OSM worlds, LibreTerr
 ## Next (highest value first)
 
 0. ~~LibreTerrain round trip~~ done 2026-10-30 (`ocean libreterrain ...`, ADR 0003, numbers in research/libreterrain.md). Remaining: open the exported `.lterrain` in the GUI app; masks/tiles exchange not attempted.
-1. ~~EMODnet regional fill~~ done as opt-in `regional_bathymetry` (README): fill-only, offset measured on flat shared cells, refused when it cannot be validated. Remaining: NOAA CUDEM for the US, selectable dated EMODnet coverage (current `emodnet__mean` is unversioned), per-cell source id and confidence layer (currently only counts), vertical datum conversion (offset is reported, not applied), a better offset story where survey cells are all steep (Mindelo).
+1. ~~EMODnet regional fill~~ done as opt-in `regional_bathymetry` (README): fill-only, offset measured on flat shared cells, refused when it cannot be validated. Remaining: NOAA CUDEM for the US, per-cell source id and confidence layer (currently only counts), vertical datum conversion (offset is reported, not applied), a better offset story where survey cells are all steep (Mindelo).
 2. ~~Coastline-driven land/water mask~~ done as opt-in `coast_conform` (README). Remaining: apply on the 20-tile Mindelo world, decide default, handle sub-cell creeks, tidal range.
 3. Remaining build time on small worlds is the GDAL subprocesses (2× gdalwarp, ogr2ogr); profile before optimising further. Tile-corner transforms are already batched (fixture build 1.97 s → 1.60 s).
 4. Windowed processing so global-scale areas do not need the full grid in memory.
