@@ -1,0 +1,50 @@
+{
+  "generator": "LibreTerrain",
+  "app_version": "2026.2.0",
+  "world_size_m": [
+    3072.0,
+    1536.0
+  ],
+  "height_range_m": [
+    -100.0,
+    300.0
+  ],
+  "resolution": [
+    65,
+    65
+  ],
+  "cell_size_m": [
+    48.0,
+    24.0
+  ],
+  "seed": 0,
+  "orientation": "row 0 = world Y 0, column 0 = world X 0",
+  "compute": "cpu",
+  "files": [
+    {
+      "file": "file-n_0001_out_65.exr",
+      "node": "n_0001",
+      "port": "out",
+      "data": "heightfield",
+      "format": "exr32",
+      "encoding": "metres",
+      "data_min": -150.0,
+      "data_max": 506.0
+    },
+    {
+      "file": "file-n_0001_out_65.png",
+      "node": "n_0001",
+      "port": "out",
+      "data": "heightfield",
+      "format": "png16",
+      "encoding": "0..65535 = height_range_m min..max",
+      "data_min": -150.0,
+      "data_max": 506.0
+    }
+  ],
+  "unreal": {
+    "xy_scale": 4800.0,
+    "z_scale": 78.12619211108569,
+    "z_location": 10000.305180437934
+  }
+}
