@@ -394,3 +394,34 @@ func TestUnmodifiedRoundTripWithCoastConformIsByteIdentical(t *testing.T) {
 		t.Fatal("conform must make the same decisions on the rebuild")
 	}
 }
+
+// The delta belongs to one baseline. A refinement whose base_build_id does not match what the world builds as
+// today (here: the id is altered, as if sources or tool version had changed) must be refused, not applied.
+func TestRefinementRefusedWhenBaselineChanged(t *testing.T) {
+	_, _, xdir, x, base := exportFixture(t)
+	out := filepath.Join(t.TempDir(), "ref")
+	if _, err := Import(xdir, fakeLTOutput(t, x, base, nil), out, ImportOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	rp := filepath.Join(out, "refinement.json")
+	b, err := os.ReadFile(rp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ref map[string]any
+	if err := json.Unmarshal(b, &ref); err != nil {
+		t.Fatal(err)
+	}
+	ref["base_build_id"] = strings.Repeat("0", 64)
+	b, _ = json.Marshal(ref)
+	if err := os.WriteFile(rp, b, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := world.LoadConfig(filepath.Join(out, "fixture-refined.world.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := world.Build(cfg, world.Options{CacheDir: t.TempDir(), OutDir: t.TempDir()}); err == nil || !strings.Contains(err.Error(), "export again") {
+		t.Fatalf("a refinement over a changed baseline must be refused, got %v", err)
+	}
+}

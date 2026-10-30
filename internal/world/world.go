@@ -23,7 +23,7 @@ const (
 	ConformAlgo    = 2 // 1 was the discarded flood-fill labelling; 2 is nearest-coastline-sample sides
 	SeamarksAlgo   = 1
 	RefinementAlgo = 1
-	RegionalAlgo   = 1
+	RegionalAlgo   = 2 // 2: blend ramp from kept cells
 )
 
 // Config is the user-facing world description (world.json).

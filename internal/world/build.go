@@ -233,6 +233,7 @@ func Build(cfg *Config, opt Options) (*Manifest, error) {
 			cs.ToLand, cs.ToWater, cs.SkippedGuard, 100*cs.Agreement, cs.Labelled)
 	}
 
+	var refBase, refName string
 	// 2b. Optional land-elevation edit layer (e.g. from LibreTerrain). Applied on the whole
 	// world grid, before masks and tiles, so edits cannot open cracks between tiles.
 	if cfg.Refinement != "" {
@@ -246,6 +247,7 @@ func Build(cfg *Config, opt Options) (*Manifest, error) {
 		st := applyRefinement(dem.Data, W, H, delta, ref.BlendCells)
 		st.BaseBuildID = ref.BaseBuildID
 		m.Refinement = &st
+		refBase, refName = ref.BaseBuildID, ref.BaseWorld
 		m.Sources = append(m.Sources, ref.Provenance())
 		opt.logf("refinement %s: %d land cells changed (max %.2f m), %d clamped at sea level, %d edits on water ignored",
 			ref.Editor, st.CellsChanged, st.MaxAbsChangeM, st.ClampedLandCells, st.IgnoredWaterCells)
@@ -424,6 +426,13 @@ func Build(cfg *Config, opt Options) (*Manifest, error) {
 	m.Attribution = append(m.Attribution, "NOT FOR NAVIGATION: bathymetry here is a game-development dataset (GMRT terms: data should not be used for navigation purposes)")
 	sort.Strings(m.Attribution)
 	m.BuildID = buildID(m)
+	if cfg.Refinement != "" {
+		// The edit layer is a delta against one specific baseline: refuse to apply it over a world whose inputs,
+		// configuration or algorithms changed since the export.
+		if base := baseBuildID(m, refName); base != refBase {
+			return nil, fmt.Errorf("refinement was exported from build %s but the base of this world is build %s: sources, config or tool version changed since the export; export again", short(refBase), short(base))
+		}
+	}
 	if err := writeJSON(filepath.Join(opt.OutDir, ManifestFile), m); err != nil {
 		return nil, err
 	}
@@ -841,4 +850,22 @@ func projectedLines(geojson, srs, work string, g *Grid) ([][][2]float64, error) 
 		}
 	}
 	return out, nil
+}
+
+// baseBuildID is the build id this world would have without its refinement: the id a LibreTerrain export recorded.
+// baseName is the name of the world the export was made from (the refined config is named differently).
+func baseBuildID(m *Manifest, baseName string) string {
+	b := *m
+	if baseName != "" {
+		b.Config.Name = baseName
+	}
+	b.Config.Refinement = ""
+	b.Refinement = nil
+	b.Sources = nil
+	for _, s := range m.Sources {
+		if !strings.HasPrefix(s.Source, "refinement:") {
+			b.Sources = append(b.Sources, s)
+		}
+	}
+	return buildID(&b)
 }
