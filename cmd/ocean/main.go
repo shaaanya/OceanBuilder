@@ -23,6 +23,7 @@ commands:
   validate <dir>          validate a built world (-json); exit 1 on errors
   preview <dir>           write preview.html and preview.png into the world dir
   export <dir>            export for an engine (-target unity -dest <project dir>)
+  libreterrain export|run|inspect|import   refine land in LibreTerrain (optional external tool) and bring it back
   cache stats|clean       inspect or clear the download cache
   version
 `
@@ -43,6 +44,8 @@ func main() {
 		err = cmdPreview(args)
 	case "export":
 		err = cmdExport(args)
+	case "libreterrain":
+		err = cmdLibreTerrain(args)
 	case "sources":
 		err = cmdSources(args)
 	case "world":

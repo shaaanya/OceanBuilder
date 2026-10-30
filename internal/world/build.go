@@ -173,6 +173,24 @@ func Build(cfg *Config, opt Options) (*Manifest, error) {
 		}
 	}
 
+	// 2b. Optional land-elevation edit layer (e.g. from LibreTerrain). Applied on the whole
+	// world grid, before masks and tiles, so edits cannot open cracks between tiles.
+	if cfg.Refinement != "" {
+		ref, delta, err := LoadRefinement(filepath.Join(cfg.dir, cfg.Refinement))
+		if err != nil {
+			return nil, err
+		}
+		if err := ref.Check(g, epsg, W, H); err != nil {
+			return nil, err
+		}
+		st := applyRefinement(dem.Data, W, H, delta, ref.BlendCells)
+		st.BaseBuildID = ref.BaseBuildID
+		m.Refinement = &st
+		m.Sources = append(m.Sources, ref.Provenance())
+		opt.logf("refinement %s: %d land cells changed (max %.2f m), %d clamped at sea level, %d edits on water ignored",
+			ref.Editor, st.CellsChanged, st.MaxAbsChangeM, st.ClampedLandCells, st.IgnoredWaterCells)
+	}
+
 	// 3. Derive world-wide grids so tile borders see identical neighbours.
 	zmin, zmax := math.Inf(1), math.Inf(-1)
 	valid := func(i int) bool { return dem.Data[i] > noData+1 }
@@ -311,7 +329,7 @@ func Build(cfg *Config, opt Options) (*Manifest, error) {
 		m.Attribution = append(m.Attribution, fmt.Sprintf("%s — %s — license: %s", p.Source, p.Attribution, p.License))
 		// Shipped manifests must not leak local paths.
 		m.Sources[i].File = ""
-		if strings.HasPrefix(p.URL, "file://") {
+		if strings.HasPrefix(p.URL, "file://") && p.File != "" {
 			m.Sources[i].URL = "file://" + filepath.Base(p.File)
 		}
 	}

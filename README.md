@@ -71,6 +71,19 @@ Unity -batchmode -projectPath <project> -executeMethod OceanWorldImporter.Import
 
 Rendered by the importer itself (`-oceanShot docs/img/falmouth-unity.png`, no `-nographics`) on Unity 6000.4.0f1, Built-in render pipeline. The importer also checks six manifest checkpoints (highest and lowest vertices, four corners) against `Terrain.SampleHeight` using its own UTM→Unity conversion; for Falmouth the largest error was 3 mm, and any flip or offset fails the import. The shader lookup falls back URP → HDRP → Standard but only Built-in has been run. Water is a flat translucent plane: no ocean shader or simulation yet.
 
+## Refining land in LibreTerrain (optional)
+
+[LibreTerrain](../LibreTerrain) is a separate node-graph terrain editor; OceanBuilder only exchanges files with it.
+
+```bash
+ocean libreterrain export output/falmouth      # heightmap.exr + exchange.json (+ .lterrain if libreterrain-mcp is found)
+# ...edit in LibreTerrain, build exports (EXR32)...
+ocean libreterrain import output/falmouth-libreterrain <libreterrain output dir> -out refined/falmouth
+ocean build refined/falmouth/falmouth-refined.world.json
+```
+
+Import writes an edit layer, not a replacement: only cells that are land in the original build change, sea floor and coastline stay as sourced, and the layer is recorded in the manifest. It refuses flipped, resampled or resized output. Measured behaviour: `docs/research/libreterrain.md`.
+
 ## Honest limits
 
 - Not for navigation. GMRT's terms say its data must not be used for navigation, and this tool is for game worlds.

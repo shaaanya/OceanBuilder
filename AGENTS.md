@@ -19,6 +19,7 @@ GDAL CLI tools must be on `PATH` (gdalwarp, gdal_translate, gdaltransform, ogr2o
 - `internal/fetch`, `gmrt`, `osm`: downloads into a content-addressed cache with provenance sidecars.
 - `internal/world`: config, manifest types, the build pipeline (normalise → derive masks → tile → manifest).
 - `internal/validate`: validator; every metric is computed from tile files.
+- `internal/libreterrain`: optional LibreTerrain file exchange (export/import edit layer, MCP client). `go test` runs the real app if `../LibreTerrain/libreterrain-mcp` exists.
 - `internal/preview`: PNG/HTML renderer. `internal/export`: engine adapters (Unity; C# is embedded).
 
 ## Rules
@@ -31,3 +32,4 @@ GDAL CLI tools must be on `PATH` (gdalwarp, gdal_translate, gdaltransform, ogr2o
 - New sources need provenance (URL, retrieval time, sha256), licence and attribution, or validation fails.
 - Real-data fixtures go in `testdata/` with a README naming source and licence.
 - Record decisions in `docs/decisions/`, progress in `docs/development-log.md`, plans in `docs/roadmap.md`.
+- Land edits from external tools enter as a hash-checked delta (`world/refine.go`); water, coastline and nodata are never changed by them.

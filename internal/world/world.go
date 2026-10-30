@@ -27,6 +27,10 @@ type Config struct {
 	DepthBands []float64  `json:"depth_bands,omitempty"` // upper bounds of depth classes in metres
 	Coastline  string     `json:"coastline,omitempty"`   // "osm" (default) or "none"
 	Local      *Local     `json:"local,omitempty"`       // use files on disk instead of downloading
+	// Refinement is the path of a refinement.json from `ocean libreterrain import`, relative
+	// to this config file. Its land-elevation edits are applied on top of the sources.
+	Refinement string `json:"refinement,omitempty"`
+	dir        string // directory of the config file; resolves Refinement
 }
 
 // Local points at user-provided data. Topo is a GeoTIFF of elevation in metres
@@ -51,6 +55,7 @@ func LoadConfig(path string) (*Config, error) {
 	if err := json.Unmarshal(b, &c); err != nil {
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}
+	c.dir = filepath.Dir(path)
 	return &c, c.Normalize()
 }
 
@@ -130,6 +135,7 @@ type Manifest struct {
 	Resampling   Resampling         `json:"resampling"`
 	Tiles        []Tile             `json:"tiles"`
 	Stats        Stats              `json:"stats"`
+	Refinement   *RefineStats       `json:"refinement,omitempty"`
 	Checkpoints  []Checkpoint       `json:"checkpoints"`
 	Files        map[string]string  `json:"files"`
 	Attribution  []string           `json:"attribution"`
