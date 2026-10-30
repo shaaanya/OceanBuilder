@@ -19,3 +19,12 @@ Findings:
 - Falmouth: OSM coastline is a median 101 m from the DEM shoreline (p90 268 m). Mindelo: 142 m / 331 m. The DEM is 39–58 m resolution and includes a tidal range, so this is expected order of magnitude, but not yet separated into datum vs. horizontal causes.
 
 Known problems: see [roadmap](roadmap.md).
+
+## 2026-10-30 (later): review fixes
+
+- Validator no longer says "upsampled" when the output cell is coarser than the source; split into `upsampled` (cell < delivered source cell) and `gebco-fill` (share of water cells without survey data, computed from the mask).
+- Verified GMRT terms (CC BY 4.0, citation required, **not for navigation**) and added GEBCO credit; ATTRIBUTION.txt and README updated. Cached provenance now takes licence text from code, not from stale sidecars.
+- Manifest carries `checkpoints` (highest, lowest, four corners). Unity importer converts them to Unity space independently and fails the import on >5 cm error. Falmouth: max error 3 mm. A north/south or east/west flip would have passed the first version of the importer.
+- Importer: shader fallback, translucent sea, in-engine screenshot (`docs/img/falmouth-unity.png`).
+- Manifest no longer contains local absolute paths.
+- Local git history re-authored to the configured user identity.

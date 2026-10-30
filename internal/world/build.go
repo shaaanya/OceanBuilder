@@ -237,6 +237,18 @@ func Build(cfg *Config, opt Options) (*Manifest, error) {
 	}
 	m.Tiles = make([]Tile, tx*ty)
 	errs := make([]error, tx*ty)
+	// One gdaltransform call for every tile corner (subprocess spawns dominated build time).
+	var all [][2]float64
+	for r := 0; r < ty; r++ {
+		for c := 0; c < tx; c++ {
+			e0, n1 := originE+float64(c)*span, originN-float64(r)*span
+			all = append(all, [2]float64{e0, n1 - span}, [2]float64{e0 + span, n1 - span}, [2]float64{e0, n1}, [2]float64{e0 + span, n1})
+		}
+	}
+	corners, err := gdal.Transform(srs, "EPSG:4326", all)
+	if err != nil {
+		return nil, err
+	}
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, runtime.NumCPU())
 	for r := 0; r < ty; r++ {
@@ -247,7 +259,7 @@ func Build(cfg *Config, opt Options) (*Manifest, error) {
 				defer wg.Done()
 				defer func() { <-sem }()
 				t := &m.Tiles[r*tx+c]
-				errs[r*tx+c] = writeTile(t, r, c, cfg, g, dem, class, shore, meas, zmin, zmax, W, tilesDir, opt.OutDir, srs)
+				errs[r*tx+c] = writeTile(t, r, c, cfg, g, dem, class, shore, meas, zmin, zmax, W, tilesDir, opt.OutDir, corners[(r*tx+c)*4:(r*tx+c)*4+4])
 			}(r, c)
 		}
 	}
@@ -323,7 +335,7 @@ func Build(cfg *Config, opt Options) (*Manifest, error) {
 	return m, nil
 }
 
-func writeTile(t *Tile, r, c int, cfg *Config, g *Grid, dem *gdal.Raster, class, shore, meas []uint8, zmin, zmax float64, W int, dir, out, srs string) error {
+func writeTile(t *Tile, r, c int, cfg *Config, g *Grid, dem *gdal.Raster, class, shore, meas []uint8, zmin, zmax float64, W int, dir, out string, corners [][2]float64) error {
 	N := cfg.TileCells
 	S := N + 1
 	x, y := g.FirstTileX+c, g.FirstTileY+(g.TilesY-1-r)
@@ -334,10 +346,6 @@ func writeTile(t *Tile, r, c int, cfg *Config, g *Grid, dem *gdal.Raster, class,
 	t.BoundsUTM[2] = t.BoundsUTM[0] + g.TileSpanM
 	t.BoundsUTM[3] = g.OriginN - float64(r)*g.TileSpanM
 	t.BoundsUTM[1] = t.BoundsUTM[3] - g.TileSpanM
-	corners, err := gdal.Transform(srs, "EPSG:4326", [][2]float64{{t.BoundsUTM[0], t.BoundsUTM[1]}, {t.BoundsUTM[2], t.BoundsUTM[1]}, {t.BoundsUTM[0], t.BoundsUTM[3]}, {t.BoundsUTM[2], t.BoundsUTM[3]}})
-	if err != nil {
-		return err
-	}
 	var lo, la []float64
 	for _, p := range corners {
 		lo, la = append(lo, p[0]), append(la, p[1])
