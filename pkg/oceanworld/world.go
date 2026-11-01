@@ -230,6 +230,13 @@ func (w *World) SampleUTM(e, n float64, level int) (Sample, error) {
 		return Sample{}, fmt.Errorf("level %d not in 0..%d", level, w.Levels()-1)
 	}
 	t := w.TileAt(e, n, level)
+	// A point exactly on the world's north or east boundary has no tile beyond it, but the vertex exists as the
+	// last row/column of the tile before it.
+	for _, d := range [][2]float64{{-1e-6, 0}, {0, -1e-6}, {-1e-6, -1e-6}} {
+		if t == nil {
+			t = w.TileAt(e+d[0], n+d[1], level)
+		}
+	}
 	if t == nil {
 		return Sample{Level: level}, nil
 	}

@@ -126,3 +126,20 @@ func TestOpenRefusesOtherSchema(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// Vertices on the outer boundary (north and east edges have no tile beyond them) belong to the last tile.
+func TestReaderAnswersOnWorldBoundary(t *testing.T) {
+	dir, m := buildFixture(t)
+	w, err := oceanworld.Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	g := m.Grid
+	e1, n0 := g.OriginE+float64(g.TilesX)*g.TileSpanM, g.OriginN-float64(g.TilesY)*g.TileSpanM
+	for _, p := range [][2]float64{{g.OriginE, g.OriginN}, {e1, g.OriginN}, {g.OriginE, n0}, {e1, n0}} {
+		s, err := w.SampleUTM(p[0], p[1], 0)
+		if err != nil || s.Tile == "" {
+			t.Fatalf("corner (%.0f,%.0f) reported outside the world: %+v %v", p[0], p[1], s, err)
+		}
+	}
+}

@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestCacheHitIsVerifiedAndCorruptionRefetches(t *testing.T) {
@@ -50,5 +51,21 @@ func TestLockCheck(t *testing.T) {
 	}
 	if got, err := ReadLock(path + ".none"); got != nil || err != nil {
 		t.Fatal("missing lock is (nil, nil)")
+	}
+}
+
+// A server that never answers must cost at most the timeout, so a dead Overpass mirror does not stall the next one.
+func TestGetTimeoutGivesUpOnSilentServer(t *testing.T) {
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { <-release }))
+	defer srv.Close()
+	defer close(release)
+	start := time.Now()
+	_, err := GetTimeout(300*time.Millisecond, t.TempDir(), "s", srv.URL, nil, "f.bin", "lic", "attr")
+	if err == nil {
+		t.Fatal("expected a timeout error")
+	}
+	if d := time.Since(start); d > 3*time.Second {
+		t.Fatalf("took %v for a 300 ms timeout", d)
 	}
 }

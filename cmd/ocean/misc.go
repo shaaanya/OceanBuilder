@@ -17,6 +17,9 @@ type sourceInfo struct {
 var sources = []sourceInfo{
 	{"gmrt", "bathymetry+topography (merged, with survey mask)", "global; up to ~1 m where multibeam exists", "GridServer HTTP API, no key", "CC BY 4.0 for GMRT; contributed grids carry own credits"},
 	{"osm-coastline", "coastline vectors (natural=coastline)", "global", "Overpass API (public mirrors)", "ODbL 1.0, © OpenStreetMap contributors"},
+	{"osm-seamarks", "OpenSeaMap seamark points (seamark:type), opt-in \"seamarks\": true", "global, uneven", "Overpass API (public mirrors)", "ODbL 1.0, © OpenStreetMap contributors"},
+	{"emodnet", "regional bathymetry fill (~115 m), opt-in \"regional_bathymetry\"", "European seas", "EMODnet WCS, no key", "service declares no fees or access constraints; Terms of Use not reviewed"},
+	{"local", "your own GeoTIFF topo/mask and GeoJSON coastline (\"local\" in the world config)", "anywhere", "files on disk", "you must declare license and attribution; the build fails without them"},
 }
 
 func cmdSources(args []string) error {

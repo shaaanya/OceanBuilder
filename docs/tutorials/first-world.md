@@ -1,6 +1,6 @@
 # Tutorial: from an empty directory to an inspected maritime world
 
-About 15 minutes, most of it downloading. You need Go 1.22+ and the GDAL command-line tools; no game engine.
+About 15 minutes, most of it downloading. You need Go 1.22 or newer (the `go` line in `go.mod`) and the GDAL command-line tools; no game engine.
 
 ## 1. Install
 
@@ -22,9 +22,10 @@ cat falmouth.world.json
 ```
 
 ```json
-{ "name": "falmouth", "bbox": [-5.2, 50.05, -4.95, 50.22], "cell_m": 48,
-  "tile_cells": 128, "resampling": "bilinear", "coastline": "osm" }
+{ "bbox": [-5.2, 50.05, -4.95, 50.22], "cell_m": 48, "coastline": "osm",
+  "name": "falmouth", "resampling": "bilinear", "tile_cells": 128 }
 ```
+(the file is written pretty-printed with keys in alphabetical order; shown compact here)
 
 `bbox` is `[west, south, east, north]` in degrees. `cell_m` is the grid spacing in metres; `tile_cells` (a power of two) is the cells per tile edge. Pick `cell_m` near the finest data you will use: finer than the source is interpolation, and the validator says so. Other regions to copy from are in `examples/regions/` (a Norwegian fjord, a southern-hemisphere reef, a volcanic flank, a shallow bank).
 
@@ -64,13 +65,13 @@ Ask the data questions directly (no GDAL, no engine):
 
 ```bash
 ocean sample output/falmouth -lonlat -5.05,50.14
-# water, depth 10.5 m  elevation -10.55 m  class 2  source survey (measured)  tile L0_57_904
-ocean sample output/falmouth -line=-5.08,50.12:-5.02,50.18 -steps 12     # a depth profile
+# -5.05000,50.14000  water, depth 10.5 m      elevation   -10.55 m  class 2  source survey (measured)  tile L0_57_904
+ocean sample output/falmouth -line=-5.08,50.12:-5.02,50.18 -steps 12     # a depth profile: one such line per step
 ```
 
 ## 5. Use it
 
-- **Any GIS** (QGIS, GDAL): `ocean export output/falmouth -target geotiff -dest tif -level 0` writes `height.tif`, `depth_class.tif`, `source.tif`.
+- **Any GIS** (QGIS, GDAL): `ocean export output/falmouth -target geotiff -dest tif -level 0` writes `tif/height.tif` (32-bit float), `tif/depth_class.tif` and `tif/source.tif`.
 - **Your own code**: Go programs import `github.com/ocean-compiler/ocean/pkg/oceanworld`; any other language implements the short algorithm in [the format spec](../formats/world-v2.md).
 - **Unity (URP)**: `ocean export output/falmouth -target unity -dest path/to/UnityProject`, then menu *Ocean > Import World*.
 

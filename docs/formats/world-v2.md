@@ -23,7 +23,7 @@ tiles/<level>/<id>.source.png           source code per sample
 
 ## Coordinates and the grid
 
-- Horizontal CRS: WGS 84 / UTM, `crs.epsg` = 326zz (north) or 327zz (south). Units are grid metres, not ground metres: the UTM point scale factor `k` (reported as `stats.utm_scale_min/max`) makes 1 grid metre equal 1/k ground metres, 1.0001 to 1.0002 near Falmouth. The builder refuses bounding boxes whose scale deviates more than 0.5 % from 1.
+- Horizontal CRS: WGS 84 / UTM, `crs.epsg` = 326zz (north) or 327zz (south). Units are grid metres, not ground metres: the UTM point scale factor `k` (reported as `stats.utm_scale_min/max`) makes 1 ground metre equal k grid metres; k is 0.99984 to 0.99990 at Falmouth (zone 30N) and 1.0006 to 1.0008 at Moorea (zone 6S). The builder refuses bounding boxes whose scale deviates more than 0.5 % from 1.
 - Samples are **vertices**, not pixel areas. Level 0 has cell size `grid.cell_m`. Sample `k` east of a tile's west edge is at `west + k * cell`.
 - Tiles hold `S = tile_cells + 1` samples per edge. The last row and column duplicate the first row and column of the neighbouring tile, so adjacent tiles share edge samples exactly (byte for byte) and the surface has no cracks.
 - Rows run **north to south**; columns west to east. Sample `(row i, col j)` of a tile with bounds `[minE, minN, maxE, maxN]` is at easting `minE + j * cell`, northing `maxN - i * cell`.
@@ -78,7 +78,7 @@ Method (`lod.method = "vertex-decimation"`): level `L` keeps every `2^L`-th vert
 | `lod` | `method`, `levels[]` {`level`,`cell_m`,`tile_span_m`,`first/last_tile_x/y`,`tiles`}, `note` |
 | `resampling` | `method`, `source_native_res_m`, `unmeasured_res_m`, `output_cell_m`, `upsampled` (output finer than source: the extra detail is interpolation) |
 | `tiles[]` | per tile: `id`, `level`, `x`, `y`, `col`, `row` (0 = north, within the level), `bounds_utm`, `bounds_wgs84` (envelope), `min_m`, `max_m`, `nodata_fraction`, `water_fraction`, `measured_water_fraction`, file paths `height`, `depth_class`, `shore_mask`, `source`, `sha256` {the four file hashes}, `parent`, `neighbours` |
-| `stats` | world totals, `cells_by_source`, coastline check, conforming/regional/seamark statistics, `utm_scale_min/max`, `notes` |
+| `stats` | world totals, `cells_by_source`, coastline check, conforming/regional/seamark statistics, `utm_scale_min/max`, `notes` (omitted when empty) |
 | `sources[]` | provenance, see below |
 | `checkpoints[]` | named vertices (highest, lowest, corners) with expected elevation, so an importer can verify its own orientation and placement |
 | `attribution[]`, `files` | credits; optional extra files |
@@ -89,15 +89,18 @@ Every `sources[]` entry has `source`, `url`, `retrieved_at` (UTC), `sha256`, `by
 
 ## Reading it: the whole algorithm
 
+File paths in the manifest are relative to the world directory. This code was run against a Moorea world (zone 6S, levels 0 to 2) and agreed with `ocean sample` to 1e-3 m at all six points.
+
 ```python
-import json, struct
-m = json.load(open("world.manifest.json")); assert m["schema_version"] == 2
+import json, os, struct
+root = "."                                      # the world directory
+m = json.load(open(root + "/world.manifest.json")); assert m["schema_version"] == 2
 S, cell, span = m["grid"]["samples_per_tile"], m["grid"]["cell_m"], m["grid"]["tile_span_m"]
 def height(E, N, level=0):                      # E, N in the world's UTM zone
     sp, c = span * 2**level, cell * 2**level
-    x, y = int(E // sp), int(N // sp)
+    x, y = int(E // sp), int(N // sp)           # on the world's north/east boundary, take the tile before (E - 1e-6)
     t = next(t for t in m["tiles"] if (t["level"], t["x"], t["y"]) == (level, x, y))
-    raw = open(t["height"], "rb").read()
+    raw = open(os.path.join(root, t["height"]), "rb").read()
     u, v = (E - x * sp) / c, ((y + 1) * sp - N) / c   # columns east, rows south
     j, i = min(int(u), S - 2), min(int(v), S - 2)
     h = lambda r, q: struct.unpack_from("<f", raw, (r * S + q) * 4)[0]

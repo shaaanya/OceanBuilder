@@ -113,7 +113,7 @@ Region builds from `examples/regions/` (each `ocean build ... -lock off`, cold d
 | region | EPSG | cell | level 0 tiles | LOD levels | survey share of water | cold build | peak RSS | disk |
 |--------|------|-----:|--------------:|-----------:|----------------------:|-----------:|---------:|-----:|
 | geiranger (fjord, N. hemisphere, steep) | 32632 | 32 m | 20 | 6 | 28.1 % | 81.4 s | 55 MB | 3.1 MB |
-| moorea (reef, S. hemisphere, 17.5°S) | 32706 | 48 m | 25 | 7 | 63.3 % | 470.5 s (6 min lost to Overpass) | 55 MB | 4.1 MB |
+| moorea (reef, S. hemisphere, 17.5°S) | 32706 | 48 m | 25 | 7 | 63.3 % | 470.5 s (first run: 6 min lost to Overpass; rerun with warm GMRT cache 72.7 s, coastline fetched in 33 s) | 55 MB | 4.1 MB |
 | kona (volcano flank) | 32605 | 100 m | 9 | 6 | 93.6 % | 79.6 s | 59 MB | 1.8 MB |
 | bahamas-bank (shallow bank) | 32618 | 100 m | 20 | 5 | 29.7 % | 78.2 s | 71 MB | 3.3 MB |
 
@@ -134,10 +134,18 @@ Reader query cost (Falmouth fixture, `go test ./pkg/oceanworld -bench . -run x`)
 
 ### Findings
 
-- Overpass was unreliable: for Moorea all three mirrors timed out at the old 3 min client timeout (9 min worst case). The build correctly continued without a coastline and said so (`no-coastline` in `validate`). Each mirror attempt is now capped at 100 s (the query asks the server for 60–90 s). Seamarks for Moorea succeeded on the same day, so it was query weight or mirror load, not network.
+- Overpass was unreliable: for Moorea all three mirrors timed out at the old 3 min client timeout (9 min worst case). The build correctly continued without a coastline and said so (`no-coastline` in `validate`). Each mirror attempt is now capped at 100 s (the query asks the server for 60–90 s). The same query succeeded on a rerun 15 minutes later, so the failure was transient (cause unknown; mirror load is a guess). The cap is covered by a unit test with a silent server (`TestGetTimeoutGivesUpOnSilentServer`); the real-mirror failure path was not reproduced after the change.
 - `info`-level `coast-coverage` is expected: Overpass returns whole ways, so many coastline samples lie outside the bbox.
 - Repeated `gdalinfo --version` calls cost about 0.5 s each; the version is now memoised.
 - `validate` and the libreterrain tests got slower (validate ≈55 s, libreterrain ≈75 s for the full package tests); not diagnosed beyond the memoised version fix, possibly machine load.
+
+### Review follow-ups (same day)
+
+- Spec checked against reality: the Python reader in the spec was run against Moorea (zone 6S) at levels 0, 1, 2 and matched `ocean sample` to 1e-3 m; every manifest key in the spec table was checked against a real manifest (`stats.notes` is omitted when empty, now stated); the tutorial commands were run verbatim and their outputs pasted.
+- GeoTIFF export on a southern-hemisphere world: Moorea height.tif is EPSG:32706, and `gdallocationinfo` matches `ocean sample` exactly at 9 vertices (levels 0 and 2), after the half-cell registration was taken into account.
+- Bug found by that comparison and fixed: `SampleUTM` reported a vertex exactly on the world's north or east boundary as outside the world (no tile beyond it). It now uses the last tile; `TestReaderAnswersOnWorldBoundary`.
+- `ocean version` printed `schema 2 )`; fixed. `ocean sources list` now lists seamarks, EMODnet and local files. User-Agent says 0.2.
+- Remote sources: `local.topo|mask|coastline` accept http(s) URLs; the file is downloaded once into the cache with sha256, retrieval time and the declared licence (`TestRemoteURLSourceMatchesLocalFiles` against a local test server). This is the route for a single NOAA CUDEM or other national GeoTIFF; no NOAA tile was downloaded in this session, so that use is untested against the real service.
 
 ### Not done / unverified
 

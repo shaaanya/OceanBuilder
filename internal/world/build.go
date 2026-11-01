@@ -109,7 +109,7 @@ func build(cfg *Config, opt Options) (*Manifest, bool, error) {
 	var coastGeoJSON string
 	if cfg.Local != nil {
 		var coast *fetch.Provenance
-		if topo, mask, coast, err = localSources(cfg.Local); err != nil {
+		if topo, mask, coast, err = localSources(cfg.Local, opt.CacheDir); err != nil {
 			return nil, false, err
 		}
 		if coast != nil {
@@ -748,9 +748,13 @@ func maxF(a []float64) float64 {
 	return m
 }
 
-// localSources wraps user-provided files with provenance (sha256, mtime, declared license).
-func localSources(l *Local) (topo, mask, coast *fetch.Provenance, err error) {
-	wrap := func(name, path string) (*fetch.Provenance, error) {
+// localSources wraps user-provided files with provenance (sha256, mtime, declared license). A path starting
+// with http:// or https:// is downloaded once into the cache (fetch.Get: sha256, retrieval time) and used as a file.
+func localSources(l *Local, cacheDir string) (topo, mask, coast *fetch.Provenance, err error) {
+	wrap := func(name, path, file string) (*fetch.Provenance, error) {
+		if strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") {
+			return fetch.Get(cacheDir, "remote-"+name, path, nil, file, l.License, l.Attribution)
+		}
 		abs, err := filepath.Abs(path)
 		if err != nil {
 			return nil, err
@@ -766,16 +770,16 @@ func localSources(l *Local) (topo, mask, coast *fetch.Provenance, err error) {
 		return &fetch.Provenance{Source: "local:" + name, URL: "file://" + abs, RetrievedAt: fi.ModTime().UTC().Format(time.RFC3339),
 			SHA256: sum, Bytes: fi.Size(), License: l.License, Attribution: l.Attribution, File: abs}, nil
 	}
-	if topo, err = wrap("topo", l.Topo); err != nil {
+	if topo, err = wrap("topo", l.Topo, "topo.tif"); err != nil {
 		return
 	}
 	if l.Mask != "" {
-		if mask, err = wrap("mask", l.Mask); err != nil {
+		if mask, err = wrap("mask", l.Mask, "mask.tif"); err != nil {
 			return
 		}
 	}
 	if l.Coastline != "" {
-		if coast, err = wrap("coastline", l.Coastline); err != nil {
+		if coast, err = wrap("coastline", l.Coastline, "coastline.geojson"); err != nil {
 			return
 		}
 	}

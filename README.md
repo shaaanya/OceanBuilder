@@ -74,6 +74,16 @@ Level 0 is the full resolution; each further level keeps every second vertex of 
 
 Tile ids are absolute indices on the UTM grid (`floor(easting / tile span)`), so the same place gets the same id whatever bounding box you ask for. Outputs are byte-identical for identical config and inputs (tested, including from a clean cache). Full specification: [docs/formats/world-v2.md](docs/formats/world-v2.md).
 
+### Your own data (local or remote files)
+
+```json
+{ "name": "mybay", "bbox": [-70.1, 41.6, -69.9, 41.8], "cell_m": 30,
+  "local": { "topo": "bay_dem.tif", "mask": "bay_survey_mask.tif", "coastline": "coast.geojson",
+             "license": "CC0", "attribution": "Agency name, product, year" } }
+```
+
+`topo` is a GeoTIFF of elevation in metres (negative below the waterline) in any CRS GDAL can read; `mask` (optional) is finite where the cell is a survey measurement; `coastline` is optional GeoJSON. Each path may also be an `http(s)://` URL (for example one national bathymetry tile): it is downloaded once into the cache with sha256, retrieval time and your declared licence. `license` and `attribution` are required and end up in the manifest and `ATTRIBUTION.txt`. Source nodata stays nodata (class 255), it is never filled.
+
 ### Regional bathymetry (opt-in, EMODnet)
 
 GMRT fills water without survey data from GEBCO_08 at about 758 m, which the validator flags (`gebco-fill`). `"regional_bathymetry": "emodnet"` fetches the EMODnet Bathymetry DTM (about 115 m; public WCS, the service declares Fees and AccessConstraints NONE, coverage lon -70.5..43, lat 11..90) and replaces **only** those GEBCO-filled water cells where it has water. GMRT survey cells, land and anything shallower than 2 m are never touched; replaced cells are not flagged survey-backed. The replacement ramps in over 8 cells from the nearest kept water cell, so the seam is not a cliff. Not available with `local` sources. The request uses the service's current `emodnet__mean` coverage, which is **not versioned**: after a cache clean and a new EMODnet release the same config builds a different world (the cached file's SHA-256 is in the manifest sources). Set `"regional_release": "2022"` (also 2016, 2018, 2020; the dated coverages the service lists) to pin a dated release instead; combine with the source lock for byte-level pinning.
