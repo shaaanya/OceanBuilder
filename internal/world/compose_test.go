@@ -2,6 +2,7 @@ package world_test
 
 import (
 	"bytes"
+	"encoding/json"
 	"image/png"
 	"math"
 	"os"
@@ -450,5 +451,35 @@ func TestSchema3RefusedByUncheckedAdapters(t *testing.T) {
 	info, _ := exec.Command("gdalinfo", files[0]).CombinedOutput()
 	if !strings.Contains(string(info), "Transverse_Mercator") && !strings.Contains(string(info), "Transverse Mercator") {
 		t.Errorf("exported CRS is not transverse Mercator:\n%s", info)
+	}
+}
+
+// grid.bbox_wgs84 is the level-0 extent (coarse LOD tiles overhang the grid), and the validator rejects a manifest
+// that says otherwise.
+func TestBBoxWGS84IsLevelZeroExtent(t *testing.T) {
+	cfg, _ := twoSourceCfg(t, []string{"fine", "coarse"}, "")
+	m, out := buildIt(t, cfg)
+	var lo, hi [2]float64
+	lo, hi = [2]float64{1e9, 1e9}, [2]float64{-1e9, -1e9}
+	for _, tl := range m.TilesAt(0) {
+		lo = [2]float64{math.Min(lo[0], tl.BoundsWGS[0]), math.Min(lo[1], tl.BoundsWGS[1])}
+		hi = [2]float64{math.Max(hi[0], tl.BoundsWGS[2]), math.Max(hi[1], tl.BoundsWGS[3])}
+	}
+	if b := m.Grid.BBoxWGS84; b != [4]float64{lo[0], lo[1], hi[0], hi[1]} {
+		t.Fatalf("bbox_wgs84 %v, level-0 extent %v %v", b, lo, hi)
+	}
+	mp := filepath.Join(out, "world.manifest.json")
+	raw, _ := os.ReadFile(mp)
+	var j map[string]any
+	if err := json.Unmarshal(raw, &j); err != nil {
+		t.Fatal(err)
+	}
+	g := j["grid"].(map[string]any)
+	b := g["bbox_wgs84"].([]any)
+	b[0] = b[0].(float64) - 0.5
+	raw, _ = json.MarshalIndent(j, "", "  ")
+	os.WriteFile(mp, raw, 0o644)
+	if rep, err := validate.Run(out); err != nil || rep.Result != "FAILED" {
+		t.Fatalf("wrong bbox_wgs84 must fail validation: %v", err)
 	}
 }

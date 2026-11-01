@@ -437,6 +437,9 @@ func build(cfg *Config, opt Options) (*Manifest, bool, error) {
 	m.DepthClasses = depthClasses(cfg.DepthBands)
 	bw, bs := []float64{}, []float64{}
 	for _, t := range m.Tiles {
+		if t.Level != 0 { // coarse tiles overhang the grid; the documented bbox is the level-0 grid
+			continue
+		}
 		bw, bs = append(bw, t.BoundsWGS[0], t.BoundsWGS[2]), append(bs, t.BoundsWGS[1], t.BoundsWGS[3])
 	}
 	m.Grid.BBoxWGS84 = [4]float64{minF(bw), minF(bs), maxF(bw), maxF(bs)}

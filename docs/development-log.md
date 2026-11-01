@@ -209,3 +209,24 @@ New in the Unity package: `Ocean > Build Standalone Player` / `OceanStandaloneBu
 `OceanWorldImporter.MaxLevel` (batch: `-oceanMaxLevel N`, default 0) imports LOD levels 1..N as tile prefabs. They go to `OceanWorldIndex.lodTiles` (`LodTiles(level)` helper, `maxLevelImported`), not to `tiles`, so the scene, streamer, `TileAt` and the smoke component keep seeing level 0 only and behave as before. A coarse terrain has the same sample count as a level-0 one and `size = span * 2^level`; its position comes from `bounds_utm` minus the index origin; neighbour ids are per level. Prefabs are registered with Addressables like level-0 tiles and `Build And Check` verifies them.
 
 Measured (Unity 6000.4.0f1, macOS, batchmode, URP; a scratch copy of the demo project; `lodw`, a 4x4-tile offline world built from the Falmouth fixture with `lod_method: shoal`, 6 levels): `-oceanMaxLevel 2` printed `OCEAN_IMPORT_OK lodw tiles=16 (level 0; 6 coarser tiles of 27 in the manifest, max level 2)`; every coarse tile's `position` and `size` equals its manifest `bounds_utm` offset from the index origin to 0.00 m (script over the generated index asset); `OCEAN_ADDRESSABLES_OK tiles=22`. Not tested: rendering of mixed levels, streaming coarse tiles at runtime (no streamer support: nothing selects levels), seams between a coarse and a fine tile (Unity terrain neighbours stitch only same-size tiles; the library does not hide the crack), schema 3 worlds (still refused by the exporter).
+
+## 2026-11-01: five real regions rebuilt with the 0.3.0-dev tool (GMRT, live)
+
+`examples/regions/*.world.json` built from the live GMRT service and the OSM Overpass/OpenSeaMap services, each into a fresh cache, then `validate` and `lod-report -stride 2`. Machine: macOS, GDAL 3.13.0, a home connection; the wall time is dominated by the services (the `ocean` process used 1.4-1.6 s of CPU and 53-62 MB peak RSS in every build; GDAL children are not included in that RSS figure). All five validate (`BUILT WITH WARNINGS`, no errors).
+
+| region | cell | tiles (L0 / all) | wall time | output | water | water cells survey-measured | UTM zone |
+|---|---|---|---|---|---|---|---|
+| geiranger (fjord) | 32 m | 20 / 38 | 257 s | 3.2 MB | 3.1 % | 28.4 % | 32N |
+| kona (volcano flank) | 100 m | 9 / 20 | 254 s | 1.7 MB | 19.6 % | 93.7 % | 5N |
+| moorea (reef, southern hemisphere) | 48 m | 25 / 51 | 248 s | 4.3 MB | 82.8 % | 63.3 % | 6S |
+| mindelo (near a zone edge, -25 deg) | 48 m | 20 / 35 | 41 s | 3.0 MB | 66.8 % | 3.8 % | 26N |
+| bahamas-bank (shallow bank) | 100 m | 20 / 36 | 433 s | 3.0 MB | 84.5 % | 29.7 % | 18N |
+
+Default LOD (vertex decimation), error against level 0 at level-0 vertices (rms / largest water-deeper-than-level-0 amount): level 1 is exact (0.000: every level-1 vertex is a level-0 vertex). Level 2: Moorea 8.8 m / 264 m, Kona 6.1 m / 114 m, Mindelo 6.6 m / 99 m, Bahamas 4.7 m / 98 m, Geiranger 16.9 m / 56 m. Level 5 (about 1.5 km cells): rms 41-111 m. These are measurements of the terrain being coarsened (steep flanks), not a defect to be fixed by the pyramid; a consumer that needs conservative shoals at distance should use `lod_method: "shoal"`.
+
+Shoal on Moorea and Kona (same cached inputs, 53 s and 44 s): too-deep max is 0.000 m at every level except Moorea level 5 (0.139 m). That small figure comes from bilinear sampling across the waterline at a coarse level, not from a deeper vertex; the validator's per-vertex rule (shoal never deeper) holds. The price is accuracy: rms at level 1 is 20.7 m (Moorea) and 16.6 m (Kona) against 0 for decimation, because the shallowest water of each 3x3 on a steep slope is far from the centre value. Shoal is a safety bias, not an accuracy method.
+
+Findings from this run:
+- `grid.bbox_wgs84` was the union over all LOD levels, so `ocean info` printed regions up to 100 km wider than the grid (Geiranger "6.92..9.47 E" for a 0.25 degree box). The format document always said "level-0 grid". Fixed: the pipeline uses level 0 only and `validate` checks it (error for 0.3 builds, warning for 0.1/0.2 builds, which have the union). Test: `TestBBoxWGS84IsLevelZeroExtent`. The build id does not depend on the field.
+- Mindelo: `[coast-coverage] 2533 of 5669 coastline samples fall outside the built area`. Expected, the island coast is cut by the box; the validator reports it as a warning.
+- Not covered: a region across a UTM zone boundary (Mindelo sits at -25.08..-24.86, zone 26, about 0.9 degree from the -24 edge), large-area real data (the scale runs are synthetic), real NOAA/Seascape data.

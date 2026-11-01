@@ -537,6 +537,19 @@ func checkBounds(r *Report, m *world.Manifest) {
 	if m.Grid.CellM <= 0 || m.Grid.TileCells <= 0 || m.Grid.SamplesPerTile != m.Grid.TileCells+1 {
 		r.add(Error, "grid", "inconsistent grid parameters")
 	}
+	lo, hi := [2]float64{math.Inf(1), math.Inf(1)}, [2]float64{math.Inf(-1), math.Inf(-1)}
+	for _, t := range m.Tiles {
+		if t.Level == 0 {
+			lo, hi = [2]float64{math.Min(lo[0], t.BoundsWGS[0]), math.Min(lo[1], t.BoundsWGS[1])}, [2]float64{math.Max(hi[0], t.BoundsWGS[2]), math.Max(hi[1], t.BoundsWGS[3])}
+		}
+	}
+	if len(m.Tiles) > 0 && (math.Abs(lo[0]-b[0]) > 1e-9 || math.Abs(lo[1]-b[1]) > 1e-9 || math.Abs(hi[0]-b[2]) > 1e-9 || math.Abs(hi[1]-b[3]) > 1e-9) {
+		lvl := Error
+		if strings.HasPrefix(m.Tool.Version, "0.1.") || strings.HasPrefix(m.Tool.Version, "0.2.") { // older builds took the union over all LOD levels
+			lvl = Warn
+		}
+		r.add(lvl, "bounds", "grid.bbox_wgs84 %v is not the extent of the level-0 tiles [%.6f %.6f %.6f %.6f]", b, lo[0], lo[1], hi[0], hi[1])
+	}
 	for _, t := range m.Tiles {
 		if t.BoundsWGS[2]-t.BoundsWGS[0] > 90 {
 			r.add(Error, "bounds", "tile %s: geographic envelope is %.1f degrees wide (antimeridian wrap)", t.ID, t.BoundsWGS[2]-t.BoundsWGS[0])
