@@ -230,3 +230,7 @@ Findings from this run:
 - `grid.bbox_wgs84` was the union over all LOD levels, so `ocean info` printed regions up to 100 km wider than the grid (Geiranger "6.92..9.47 E" for a 0.25 degree box). The format document always said "level-0 grid". Fixed: the pipeline uses level 0 only and `validate` checks it (error for 0.3 builds, warning for 0.1/0.2 builds, which have the union). Test: `TestBBoxWGS84IsLevelZeroExtent`. The build id does not depend on the field.
 - Mindelo: `[coast-coverage] 2533 of 5669 coastline samples fall outside the built area`. Expected, the island coast is cut by the box; the validator reports it as a warning.
 - Not covered: a region across a UTM zone boundary (Mindelo sits at -25.08..-24.86, zone 26, about 0.9 degree from the -24 edge), large-area real data (the scale runs are synthetic), real NOAA/Seascape data.
+
+## 2026-11-01: 0.3.0
+
+Version set to 0.3.0; release report [release-0.3.0.md](release-0.3.0.md) replaces the rc1 report. Last measurements before release: Ctrl-C during an OSM fetch of a changed config exited 130 ("cancelled") and left the existing output directory byte-identical (checksum of all files before and after); GMRT large-request probe in [sources.md](sources.md).

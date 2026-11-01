@@ -18,7 +18,7 @@ const (
 	// SchemaVersionTM is written for worlds in a local transverse Mercator grid (crs.kind "tmerc"). It differs from
 	// schema 2 only in the crs block; UTM worlds stay at 2.
 	SchemaVersionTM = 3
-	ToolVersion     = "0.3.0-dev"
+	ToolVersion     = "0.3.0"
 	ManifestFile    = "world.manifest.json"
 )
 
