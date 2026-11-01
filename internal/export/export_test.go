@@ -44,7 +44,7 @@ func TestUnityInstallsPackageAndRemovesLegacyScript(t *testing.T) {
 	if err := json.Unmarshal(b, &asm); err != nil || len(asm.DefineConstraints) != 1 || asm.DefineConstraints[0] != "OCEAN_ADDRESSABLES" {
 		t.Errorf("addressables asmdef must be gated by OCEAN_ADDRESSABLES: %v %s", err, b)
 	}
-	for _, tl := range m.Tiles {
+	for _, tl := range m.TilesAt(0) {
 		if _, err := os.Stat(filepath.Join(dst, tl.Height)); err != nil {
 			t.Errorf("tile %s not copied", tl.ID)
 		}

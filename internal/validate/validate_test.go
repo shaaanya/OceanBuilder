@@ -45,8 +45,8 @@ func codes(r *Report, l Level) map[string]bool {
 
 func TestBuildAndValidate(t *testing.T) {
 	dir, m := build(t, insideBBox)
-	if len(m.Tiles) != m.Grid.TilesX*m.Grid.TilesY || len(m.Tiles) < 4 {
-		t.Fatalf("want a multi-tile world, got %d tiles (%dx%d)", len(m.Tiles), m.Grid.TilesX, m.Grid.TilesY)
+	if n := len(m.TilesAt(0)); n != m.Grid.TilesX*m.Grid.TilesY || n < 4 {
+		t.Fatalf("want a multi-tile world, got %d tiles (%dx%d)", n, m.Grid.TilesX, m.Grid.TilesY)
 	}
 	if m.Grid.SamplesPerTile != 17 {
 		t.Fatalf("samples per tile = %d, want 2^n+1 = 17", m.Grid.SamplesPerTile)
@@ -71,7 +71,7 @@ func TestBuildAndValidate(t *testing.T) {
 		t.Fatal("no shoreline cells detected")
 	}
 	// Tile ids are absolute grid indices: stable independent of the requested bbox.
-	for _, tl := range m.Tiles {
+	for _, tl := range m.TilesAt(0) {
 		if tl.BoundsUTM[0] != float64(tl.X)*m.Grid.TileSpanM || tl.BoundsUTM[1] != float64(tl.Y)*m.Grid.TileSpanM {
 			t.Fatalf("tile %s bounds %v do not sit on the absolute grid", tl.ID, tl.BoundsUTM)
 		}
@@ -86,7 +86,7 @@ func TestDeterministicBuild(t *testing.T) {
 	}
 	for _, f := range append([]string{world.ManifestFile}, func() (fs []string) {
 		for _, tl := range m1.Tiles {
-			fs = append(fs, tl.Height, tl.Depth, tl.Shore)
+			fs = append(fs, tl.Height, tl.Depth, tl.Shore, tl.Source)
 		}
 		return
 	}()...) {
@@ -120,17 +120,17 @@ func TestDetectsCracks(t *testing.T) {
 	// so only the neighbour comparison can catch it.
 	var left *world.Tile
 	for i := range m.Tiles {
-		if m.Tiles[i].Col == 0 && m.Tiles[i].Row == 0 {
+		if m.Tiles[i].Level == 0 && m.Tiles[i].Col == 0 && m.Tiles[i].Row == 0 {
 			left = &m.Tiles[i]
 		}
 	}
 	S := m.Grid.SamplesPerTile
 	p := filepath.Join(dir, left.Height)
 	b, _ := os.ReadFile(p)
-	b[(3*S+S-1)*2] ^= 0x40
+	b[(3*S+S-1)*4+2] ^= 0x40
 	os.WriteFile(p, b, 0o644)
 	sum := sha256.Sum256(b)
-	left.SHA256 = hex.EncodeToString(sum[:])
+	left.SHA256.Height = hex.EncodeToString(sum[:])
 	mb, _ := json.MarshalIndent(m, "", "  ")
 	os.WriteFile(filepath.Join(dir, world.ManifestFile), mb, 0o644)
 	r, err := Run(dir)
@@ -194,7 +194,7 @@ func TestCheckpointsMatchTiles(t *testing.T) {
 		tc, tr := min(col/N, m.Grid.TilesX-1), min(row/N, m.Grid.TilesY-1)
 		var tile *world.Tile
 		for i := range m.Tiles {
-			if m.Tiles[i].Col == tc && m.Tiles[i].Row == tr {
+			if m.Tiles[i].Level == 0 && m.Tiles[i].Col == tc && m.Tiles[i].Row == tr {
 				tile = &m.Tiles[i]
 			}
 		}

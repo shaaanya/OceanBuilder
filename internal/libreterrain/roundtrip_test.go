@@ -36,7 +36,7 @@ func buildWorld(t *testing.T, cfg *world.Config) (string, *world.Manifest) {
 
 func sameTiles(t *testing.T, a, b string, m *world.Manifest) (differing int) {
 	t.Helper()
-	for _, tl := range m.Tiles {
+	for _, tl := range m.TilesAt(0) {
 		for _, f := range []string{tl.Height, tl.Depth, tl.Shore} {
 			x, _ := os.ReadFile(filepath.Join(a, f))
 			y, _ := os.ReadFile(filepath.Join(b, f))
@@ -95,7 +95,7 @@ func TestExportPadsToSquareAndMatchesTiles(t *testing.T) {
 	}
 	n := x.Grid.Side
 	// Every real sample equals the tile sample (to float32) and padding is the minimum.
-	for _, tl := range m.Tiles {
+	for _, tl := range m.TilesAt(0) {
 		hs, err := validate.ReadHeights(filepath.Join(wdir, tl.Height), m)
 		if err != nil {
 			t.Fatal(err)
@@ -180,7 +180,7 @@ func TestEditsChangeLandOnlyAndKeepBathymetry(t *testing.T) {
 		t.Fatalf("want land edited and water edits ignored: %+v", rm.Refinement)
 	}
 	// Sea floor is unchanged in metres (the tile encoding range may differ, so compare decoded metres).
-	for _, tl := range m.Tiles {
+	for _, tl := range m.TilesAt(0) {
 		a, _ := validate.ReadHeights(filepath.Join(wdir, tl.Height), m)
 		cls, _ := readGrayPNG(filepath.Join(wdir, tl.Depth), m.Grid.SamplesPerTile)
 		b, _ := validate.ReadHeights(filepath.Join(rdir, tl.Height), rm)

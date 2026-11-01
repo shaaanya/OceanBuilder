@@ -28,7 +28,7 @@ func Render(dir string) error {
 	N, S := m.Grid.TileCells, m.Grid.SamplesPerTile
 	W, H := m.Grid.TilesX*N+1, m.Grid.TilesY*N+1
 	z := make([]float64, W*H)
-	for _, t := range m.Tiles {
+	for _, t := range m.TilesAt(0) {
 		h, err := validate.ReadHeights(filepath.Join(dir, t.Height), m)
 		if err != nil {
 			return err

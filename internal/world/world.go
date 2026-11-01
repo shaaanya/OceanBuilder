@@ -13,8 +13,8 @@ import (
 )
 
 const (
-	SchemaVersion = 1
-	ToolVersion   = "0.1.0"
+	SchemaVersion = 2
+	ToolVersion   = "0.2.0"
 	ManifestFile  = "world.manifest.json"
 )
 
@@ -25,6 +25,7 @@ const (
 	SeamarksAlgo   = 1
 	RefinementAlgo = 1
 	RegionalAlgo   = 2 // 2: blend ramp from kept cells
+	FormatAlgo     = 2 // tile/layer encoding and LOD method; bump when the written bytes change for the same inputs
 )
 
 // Config is the user-facing world description (world.json).
@@ -49,6 +50,9 @@ type Config struct {
 	CoastConformMaxM float64 `json:"coast_conform_max_m,omitempty"` // default 300
 	// Seamarks adds OpenSeaMap features (buoys, lights, harbours, wrecks...) from OSM as seamarks.geojson.
 	Seamarks bool `json:"seamarks,omitempty"`
+	// LODLevels is the number of coarser levels above level 0: 0 = as many as needed until one tile covers the
+	// world, -1 = level 0 only, n>0 = exactly n (at most MaxLOD). Levels are vertex decimations of level 0.
+	LODLevels int `json:"lod_levels,omitempty"`
 	// Refinement is the path of a refinement.json from `ocean libreterrain import`, relative
 	// to this config file. Its land-elevation edits are applied on top of the sources.
 	Refinement string `json:"refinement,omitempty"`
@@ -114,6 +118,9 @@ func (c *Config) Normalize() error {
 		if c.DepthBands[i] <= c.DepthBands[i-1] {
 			return fmt.Errorf("config: depth_bands must be strictly increasing")
 		}
+	}
+	if c.LODLevels < -1 || c.LODLevels > MaxLOD {
+		return fmt.Errorf("config: lod_levels must be -1 (none), 0 (auto) or 1..%d, got %d", MaxLOD, c.LODLevels)
 	}
 	if c.Local != nil && (c.Local.Topo == "" || c.Local.License == "" || c.Local.Attribution == "") {
 		return fmt.Errorf("config: local needs topo, license and attribution")
@@ -185,6 +192,8 @@ type Manifest struct {
 	Grid         Grid               `json:"grid"`
 	Height       HeightEncoding     `json:"height_encoding"`
 	DepthClasses []DepthClass       `json:"depth_classes"`
+	SourceLayers []SourceLayer      `json:"source_layers"`
+	LOD          LODInfo            `json:"lod"`
 	Sources      []fetch.Provenance `json:"sources"`
 	Resampling   Resampling         `json:"resampling"`
 	Tiles        []Tile             `json:"tiles"`
@@ -223,13 +232,36 @@ type Grid struct {
 	BBoxWGS84      [4]float64 `json:"bbox_wgs84"`          // covered area, W,S,E,N
 }
 
+// HeightEncoding describes the tile height files: raw float32 metres, no quantisation. MinM/MaxM are the range of
+// valid samples at level 0 (informational: engines that need integer heights choose their own scaling from it).
 type HeightEncoding struct {
-	Bits      int     `json:"bits"`
+	Type      string  `json:"type"` // "float32"
 	ByteOrder string  `json:"byte_order"`
 	RowOrder  string  `json:"row_order"`
+	Unit      string  `json:"unit"`
+	NoData    float64 `json:"nodata"`
 	MinM      float64 `json:"min_m"`
 	MaxM      float64 `json:"max_m"`
 	Note      string  `json:"note"`
+}
+
+// LODInfo describes the level pyramid.
+type LODInfo struct {
+	Method string     `json:"method"` // "vertex-decimation"
+	Levels []LODLevel `json:"levels"`
+	Note   string     `json:"note"`
+}
+
+// LODLevel is the layout of one level. Cell size and tile span double per level; every tile has the same sample count.
+type LODLevel struct {
+	Level     int     `json:"level"`
+	CellM     float64 `json:"cell_m"`
+	TileSpanM float64 `json:"tile_span_m"`
+	FirstX    int     `json:"first_tile_x"`
+	LastX     int     `json:"last_tile_x"`
+	FirstY    int     `json:"first_tile_y"`
+	LastY     int     `json:"last_tile_y"`
+	Tiles     int     `json:"tiles"`
 }
 
 type DepthClass struct {
@@ -242,30 +274,33 @@ type DepthClass struct {
 type Resampling struct {
 	Method      string  `json:"method"`
 	SourceResM  float64 `json:"source_native_res_m"` // mean ground size of one delivered GMRT cell
-	FillResM    float64 `json:"gebco_fill_res_m"`    // true resolution of water cells without survey data (GEBCO_08, 30")
+	FillResM    float64 `json:"unmeasured_res_m"`    // true resolution of water cells without survey data (the primary source's background grid)
 	OutputCellM float64 `json:"output_cell_m"`
 	Upsampled   bool    `json:"upsampled"` // output finer than source: values are interpolated, not measured
 }
 
-// Tile is one entry in the tile index. ID is deterministic from position.
+// Tile is one entry in the tile index. ID is deterministic from level and position.
 type Tile struct {
-	ID        string     `json:"id"`
-	Level     int        `json:"level"`
-	X         int        `json:"x"` // absolute index floor(E/span)
-	Y         int        `json:"y"` // absolute index floor(N/span)
-	Col       int        `json:"col"`
-	Row       int        `json:"row"`          // 0 = north
-	BoundsUTM [4]float64 `json:"bounds_utm"`   // minE,minN,maxE,maxN
-	BoundsWGS [4]float64 `json:"bounds_wgs84"` // W,S,E,N of tile corners (envelope)
-	MinM      float64    `json:"min_m"`
-	MaxM      float64    `json:"max_m"`
-	NoData    float64    `json:"nodata_fraction"`
-	Water     float64    `json:"water_fraction"`
-	Measured  float64    `json:"measured_water_fraction"` // share of water cells backed by survey data (GMRT mask)
-	Height    string     `json:"height"`
-	Depth     string     `json:"depth_class"`
-	Shore     string     `json:"shore_mask"`
-	SHA256    string     `json:"height_sha256"`
+	ID         string            `json:"id"` // L<level>_<x>_<y>
+	Level      int               `json:"level"`
+	X          int               `json:"x"` // absolute index floor(E / tile span of this level)
+	Y          int               `json:"y"` // absolute index floor(N / tile span of this level)
+	Col        int               `json:"col"`
+	Row        int               `json:"row"`          // 0 = north, within this level's tile grid
+	BoundsUTM  [4]float64        `json:"bounds_utm"`   // minE,minN,maxE,maxN
+	BoundsWGS  [4]float64        `json:"bounds_wgs84"` // W,S,E,N of tile corners (envelope)
+	MinM       float64           `json:"min_m"`
+	MaxM       float64           `json:"max_m"`
+	NoData     float64           `json:"nodata_fraction"`
+	Water      float64           `json:"water_fraction"`
+	Measured   float64           `json:"measured_water_fraction"` // share of water cells coded as survey in the source layer
+	Height     string            `json:"height"`
+	Depth      string            `json:"depth_class"`
+	Shore      string            `json:"shore_mask"`
+	Source     string            `json:"source"`
+	SHA256     TileHashes        `json:"sha256"`
+	Parent     string            `json:"parent,omitempty"`     // id of the tile one level up that contains this one
+	Neighbours map[string]string `json:"neighbours,omitempty"` // n, s, e, w tile ids at the same level, when they exist
 }
 
 // Stats are world-level numbers computed from the data.
@@ -275,6 +310,7 @@ type Stats struct {
 	WaterFraction  float64        `json:"water_fraction"`
 	MeasuredWater  float64        `json:"measured_water_fraction"`
 	ShoreCells     int            `json:"shore_cells"`
+	BySource       map[string]int `json:"cells_by_source"` // level-0 cell counts per source layer name
 	CoastlineCheck *CoastCheck    `json:"coastline_check,omitempty"`
 	CoastlineNote  string         `json:"coastline_note,omitempty"`
 	Seamarks       *SeamarkStats  `json:"seamarks,omitempty"`
@@ -317,4 +353,15 @@ func LoadManifest(dir string) (*Manifest, error) {
 		return nil, fmt.Errorf("%s: %w", ManifestFile, err)
 	}
 	return &m, nil
+}
+
+// TilesAt returns the tiles of one LOD level, in manifest order.
+func (m *Manifest) TilesAt(level int) []Tile {
+	var out []Tile
+	for _, t := range m.Tiles {
+		if t.Level == level {
+			out = append(out, t)
+		}
+	}
+	return out
 }

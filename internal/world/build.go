@@ -3,7 +3,6 @@ package world
 import (
 	"bytes"
 	"crypto/sha256"
-	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -12,10 +11,8 @@ import (
 	"math"
 	"os"
 	"path/filepath"
-	"runtime"
 	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/ocean-compiler/ocean/internal/emodnet"
@@ -185,8 +182,11 @@ func Build(cfg *Config, opt Options) (*Manifest, error) {
 		}
 	}
 
+	src := initialSource(dem.Data, meas)
+
 	// 2a0. Optional regional bathymetry: replaces GEBCO-filled water cells; runs first so the conform step sees final depths.
 	if regionalSrc != nil {
+		before := append([]float32(nil), dem.Data...)
 		regPath := filepath.Join(work, "regional.bin")
 		if err := warp(regionalSrc.File, regPath, "bilinear", "Float32"); err != nil {
 			return nil, err
@@ -201,6 +201,7 @@ func Build(cfg *Config, opt Options) (*Manifest, error) {
 		if err != nil {
 			return nil, fmt.Errorf("regional_bathymetry emodnet: %w", err)
 		}
+		markChanged(src, before, dem.Data, SrcRegional)
 		rs.Source, _ = emodnet.CoverageID(cfg.RegionalRelease)
 		m.Stats.Regional = &rs
 		m.Sources = append(m.Sources, *regionalSrc)
@@ -257,56 +258,34 @@ func Build(cfg *Config, opt Options) (*Manifest, error) {
 			ref.Editor, st.CellsChanged, st.MaxAbsChangeM, st.ClampedLandCells, st.IgnoredWaterCells)
 	}
 
-	// 3. Derive world-wide grids so tile borders see identical neighbours.
+	// 3. Level-0 raster: the one grid every tile and every LOD level is cut from, so borders always agree.
 	zmin, zmax := math.Inf(1), math.Inf(-1)
-	valid := func(i int) bool { return dem.Data[i] > noData+1 }
-	for i, v := range dem.Data {
-		if valid(i) {
+	for _, v := range dem.Data {
+		if v > noData+1 {
 			zmin, zmax = math.Min(zmin, float64(v)), math.Max(zmax, float64(v))
 		}
 	}
 	if math.IsInf(zmin, 1) {
 		return nil, fmt.Errorf("no valid elevation samples inside bbox: source does not cover the area")
 	}
-	if zmax == zmin {
-		zmax = zmin + 1
-	}
-	class := make([]uint8, W*H)
-	shore := make([]uint8, W*H)
-	isWater := func(i int) bool { return valid(i) && dem.Data[i] < 0 }
-	var st = &m.Stats
+	base := &raster{W: W, H: H, dem: dem.Data, src: src}
+	base.derive(cfg.DepthBands)
+	st := &m.Stats
 	var nWater, nMeasured, nNoData int
-	for r := 0; r < H; r++ {
-		for c := 0; c < W; c++ {
-			i := r*W + c
-			switch {
-			case !valid(i):
-				class[i] = ClassNoData
-				nNoData++
-			case dem.Data[i] >= 0:
-				class[i] = 0
-				for _, d := range [4][2]int{{-1, 0}, {1, 0}, {0, -1}, {0, 1}} {
-					rr, cc := r+d[0], c+d[1]
-					if rr >= 0 && rr < H && cc >= 0 && cc < W && isWater(rr*W+cc) {
-						shore[i] = 255
-						st.ShoreCells++
-						break
-					}
-				}
-			default:
-				depth := -float64(dem.Data[i])
-				k := 1
-				for k <= len(cfg.DepthBands) && depth > cfg.DepthBands[k-1] {
-					k++
-				}
-				class[i] = uint8(k)
-				nWater++
-				if meas[i] == 1 {
-					nMeasured++
-				}
+	st.BySource = map[string]int{}
+	for i, c := range base.class {
+		st.BySource[srcName(int(src[i]))]++
+		switch {
+		case c == ClassNoData:
+			nNoData++
+		case c > 0:
+			nWater++
+			if src[i] == SrcSurvey {
+				nMeasured++
 			}
 		}
 	}
+	st.ShoreCells = base.shores
 	st.Cells = W * H
 	st.NoDataFraction = float64(nNoData) / float64(W*H)
 	st.WaterFraction = float64(nWater) / float64(W*H)
@@ -314,47 +293,58 @@ func Build(cfg *Config, opt Options) (*Manifest, error) {
 		st.MeasuredWater = float64(nMeasured) / float64(nWater)
 	}
 
-	// 4. Write tiles in parallel; results land in fixed slots so output order is deterministic.
-	tilesDir := filepath.Join(opt.OutDir, "tiles", "0")
-	if err := os.MkdirAll(tilesDir, 0o755); err != nil {
-		return nil, err
+	// 4. Tiles for level 0 and every LOD level. One gdaltransform call covers every tile corner (subprocess
+	// spawns dominated build time).
+	nLOD := cfg.LODLevels
+	switch {
+	case nLOD == 0:
+		nLOD = autoLevels(g)
+	case nLOD < 0:
+		nLOD = 0
 	}
-	m.Tiles = make([]Tile, tx*ty)
-	errs := make([]error, tx*ty)
-	// One gdaltransform call for every tile corner (subprocess spawns dominated build time).
+	var plans []levelPlan
+	var slots [][]tileSlot
 	var all [][2]float64
-	for r := 0; r < ty; r++ {
-		for c := 0; c < tx; c++ {
-			e0, n1 := originE+float64(c)*span, originN-float64(r)*span
-			all = append(all, [2]float64{e0, n1 - span}, [2]float64{e0 + span, n1 - span}, [2]float64{e0, n1}, [2]float64{e0 + span, n1})
+	for k := 0; k <= nLOD; k++ {
+		p := planLevel(g, k)
+		plans, slots = append(plans, p), append(slots, slotsOf(p))
+		for _, sl := range slots[k] {
+			for _, c := range sl.utmCorners() {
+				all = append(all, c)
+			}
 		}
 	}
 	corners, err := gdal.Transform(srs, "EPSG:4326", all)
 	if err != nil {
 		return nil, err
 	}
-	var wg sync.WaitGroup
-	sem := make(chan struct{}, runtime.NumCPU())
-	for r := 0; r < ty; r++ {
-		for c := 0; c < tx; c++ {
-			wg.Add(1)
-			sem <- struct{}{}
-			go func(r, c int) {
-				defer wg.Done()
-				defer func() { <-sem }()
-				t := &m.Tiles[r*tx+c]
-				errs[r*tx+c] = writeTile(t, r, c, cfg, g, dem, class, shore, meas, zmin, zmax, W, tilesDir, opt.OutDir, corners[(r*tx+c)*4:(r*tx+c)*4+4])
-			}(r, c)
+	off := 0
+	for k := range slots {
+		for i := range slots[k] {
+			slots[k][i].corners = corners[off : off+4]
+			off += 4
 		}
 	}
-	wg.Wait()
-	for _, err := range errs {
+	for k := 0; k <= nLOD; k++ {
+		lr := base
+		if k > 0 {
+			lr = decimate(base, g, plans[k])
+			lr.derive(cfg.DepthBands)
+		}
+		tl, err := writeLevelTiles(opt.OutDir, cfg, g, plans[k], lr, slots[k])
 		if err != nil {
 			return nil, err
 		}
+		m.Tiles = append(m.Tiles, tl...)
+		count := len(tl)
+		m.LOD.Levels = append(m.LOD.Levels, LODLevel{Level: k, CellM: plans[k].CellM, TileSpanM: plans[k].SpanM,
+			FirstX: plans[k].X0, LastX: plans[k].X1, FirstY: plans[k].Y0, LastY: plans[k].Y1, Tiles: count})
+		opt.logf("level %d: %d tiles, cell %.0f m", k, count, plans[k].CellM)
 	}
-
-	m.Checkpoints = checkpoints(dem, g, zmin, zmax, W, H)
+	linkTiles(m.Tiles)
+	m.LOD.Method = "vertex-decimation"
+	m.LOD.Note = "Level k keeps every 2^k-th vertex of level 0: values are real level-0 samples, never averaged, so tile edges and parent/child corners agree exactly. Thin features narrower than 2^k cells can vanish at coarse levels; depth classes and shore are recomputed per level from the decimated heights."
+	m.Checkpoints = checkpoints(dem, g, W, H)
 
 	// 5. Coastline: copy to output and compare against the DEM.
 	if coastGeoJSON != "" {
@@ -366,7 +356,7 @@ func Build(cfg *Config, opt Options) (*Manifest, error) {
 			return nil, err
 		}
 		m.Files["coastline"] = "coastline.wgs84.geojson"
-		cc, err := coastCheck(coastGeoJSON, srs, work, dem, shore, g, W, H)
+		cc, err := coastCheck(coastGeoJSON, srs, work, dem, base.shore, g, W, H)
 		if err != nil {
 			return nil, err
 		}
@@ -404,8 +394,9 @@ func Build(cfg *Config, opt Options) (*Manifest, error) {
 	m.Vertical.Unit = "metre"
 	m.Vertical.Datum = "unspecified: GMRT mosaic of contributed grids with heterogeneous vertical references"
 	m.Vertical.Note = "Zero is treated as the land/water boundary. No vertical datum reconciliation is performed; the OSM coastline (a high-water-line convention that varies by country) and GMRT zero are not guaranteed to coincide."
-	m.Height = HeightEncoding{Bits: 16, ByteOrder: "little", RowOrder: "north_to_south", MinM: zmin, MaxM: zmax,
-		Note: "uint16 = round((z-min_m)/(max_m-min_m)*65535); nodata cells are written as 0 and flagged class 255 in the depth map"}
+	m.Height = HeightEncoding{Type: "float32", ByteOrder: "little", RowOrder: "north_to_south", Unit: "metre", NoData: noData, MinM: zmin, MaxM: zmax,
+		Note: "IEEE-754 float32 metres, positive up, zero = land/water boundary. Cells without a value are exactly nodata and have depth class 255 and source 0"}
+	m.SourceLayers = sourceLayers()
 	// GEBCO_08 is 30 arc-seconds; GMRT documents it as the fill where no survey data exists.
 	fill := (30.0/3600*111320*math.Cos(clat*math.Pi/180) + 30.0/3600*110574) / 2
 	m.Resampling = Resampling{Method: cfg.Resampling, SourceResM: nativeRes, FillResM: fill, OutputCellM: cfg.CellM, Upsampled: cfg.CellM < nativeRes}
@@ -455,77 +446,12 @@ func Build(cfg *Config, opt Options) (*Manifest, error) {
 	return m, nil
 }
 
-func writeTile(t *Tile, r, c int, cfg *Config, g *Grid, dem *gdal.Raster, class, shore, meas []uint8, zmin, zmax float64, W int, dir, out string, corners [][2]float64) error {
-	N := cfg.TileCells
-	S := N + 1
-	x, y := g.FirstTileX+c, g.FirstTileY+(g.TilesY-1-r)
-	id := fmt.Sprintf("L0_%d_%d", x, y)
-	*t = Tile{ID: id, Level: 0, X: x, Y: y, Col: c, Row: r,
-		Height: "tiles/0/" + id + ".height.r16", Depth: "tiles/0/" + id + ".depth.png", Shore: "tiles/0/" + id + ".shore.png"}
-	t.BoundsUTM[0] = g.OriginE + float64(c)*g.TileSpanM
-	t.BoundsUTM[2] = t.BoundsUTM[0] + g.TileSpanM
-	t.BoundsUTM[3] = g.OriginN - float64(r)*g.TileSpanM
-	t.BoundsUTM[1] = t.BoundsUTM[3] - g.TileSpanM
-	var lo, la []float64
-	for _, p := range corners {
-		lo, la = append(lo, p[0]), append(la, p[1])
-	}
-	t.BoundsWGS = [4]float64{minF(lo), minF(la), maxF(lo), maxF(la)}
-
-	buf := make([]byte, S*S*2)
-	cls := image.NewGray(image.Rect(0, 0, S, S))
-	shr := image.NewGray(image.Rect(0, 0, S, S))
-	t.MinM, t.MaxM = math.Inf(1), math.Inf(-1)
-	var nd, water, measured int
-	for i := 0; i < S; i++ {
-		for j := 0; j < S; j++ {
-			gi := (r*N+i)*W + c*N + j
-			v := float64(dem.Data[gi])
-			var u uint16
-			if v > noData+1 {
-				u = uint16(math.Round((v - zmin) / (zmax - zmin) * 65535))
-				t.MinM, t.MaxM = math.Min(t.MinM, v), math.Max(t.MaxM, v)
-			} else {
-				nd++
-			}
-			binary.LittleEndian.PutUint16(buf[(i*S+j)*2:], u)
-			cls.Pix[i*S+j], shr.Pix[i*S+j] = class[gi], shore[gi]
-			if v <= noData+1 {
-				continue
-			}
-			if v < 0 {
-				water++
-				if meas[gi] == 1 {
-					measured++
-				}
-			}
-		}
-	}
-	if nd == S*S {
-		t.MinM, t.MaxM = 0, 0
-	}
-	t.NoData = float64(nd) / float64(S*S)
-	t.Water = float64(water) / float64(S*S)
-	if water > 0 {
-		t.Measured = float64(measured) / float64(water)
-	}
-	sum := sha256.Sum256(buf)
-	t.SHA256 = hex.EncodeToString(sum[:])
-	if err := os.WriteFile(filepath.Join(out, t.Height), buf, 0o644); err != nil {
-		return err
-	}
-	if err := writePNG(filepath.Join(out, t.Depth), cls); err != nil {
-		return err
-	}
-	return writePNG(filepath.Join(out, t.Shore), shr)
-}
-
-func writePNG(path string, img image.Image) error {
+func writePNG(path string, img image.Image) (string, error) {
 	var b bytes.Buffer
 	if err := png.Encode(&b, img); err != nil {
-		return err
+		return "", err
 	}
-	return os.WriteFile(path, b.Bytes(), 0o644)
+	return hashHex(b.Bytes()), os.WriteFile(path, b.Bytes(), 0o644)
 }
 
 func writeJSON(path string, v any) error {
@@ -553,6 +479,7 @@ func buildID(m *Manifest) string {
 	cfg, _ := json.Marshal(m.Config)
 	h.Write(cfg)
 	h.Write([]byte(ToolVersion))
+	fmt.Fprintf(h, "format-algo=%d", FormatAlgo)
 	if m.Config.CoastConform != "" {
 		fmt.Fprintf(h, "conform-algo=%d", ConformAlgo)
 	}
@@ -747,17 +674,14 @@ func localSources(l *Local) (topo, mask, coast *fetch.Provenance, err error) {
 }
 
 // checkpoints picks the highest and lowest vertices and the four world corners.
-// Elevations are the values as quantised into the tiles.
-func checkpoints(dem *gdal.Raster, g *Grid, zmin, zmax float64, W, H int) []Checkpoint {
-	q := func(v float32) float64 {
-		return zmin + math.Round((float64(v)-zmin)/(zmax-zmin)*65535)/65535*(zmax-zmin)
-	}
+// Elevations are the float32 values stored in the tiles.
+func checkpoints(dem *gdal.Raster, g *Grid, W, H int) []Checkpoint {
 	at := func(name string, c, r int) *Checkpoint {
 		v := dem.Data[r*W+c]
 		if v <= noData+1 {
 			return nil
 		}
-		return &Checkpoint{Name: name, Easting: g.OriginE + float64(c)*g.CellM, Northing: g.OriginN - float64(r)*g.CellM, ElevationM: q(v)}
+		return &Checkpoint{Name: name, Easting: g.OriginE + float64(c)*g.CellM, Northing: g.OriginN - float64(r)*g.CellM, ElevationM: float64(v)}
 	}
 	hi, lo := -1, -1
 	for i, v := range dem.Data {

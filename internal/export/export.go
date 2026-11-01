@@ -37,7 +37,7 @@ func Unity(worldDir, project string) (string, error) {
 	}
 	dst := filepath.Join(project, "Assets", "OceanWorld", m.Name)
 	files := []string{world.ManifestFile, "ATTRIBUTION.txt"}
-	for _, t := range m.Tiles {
+	for _, t := range m.TilesAt(0) { // the Unity importer reads level 0 only
 		files = append(files, t.Height, t.Depth, t.Shore)
 	}
 	// A rebuild without seamarks must not leave an older seamarks.geojson for the importer to pick up.

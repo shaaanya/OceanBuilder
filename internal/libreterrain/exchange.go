@@ -127,7 +127,7 @@ func Export(worldDir, outDir string, opt ExportOptions) (*Exchange, error) {
 	W, H := g.TilesX*N+1, g.TilesY*N+1
 	z := make([]float32, W*H)
 	nodata := make([]bool, W*H)
-	for _, t := range m.Tiles {
+	for _, t := range m.TilesAt(0) {
 		h, err := validate.ReadHeights(filepath.Join(worldDir, t.Height), m)
 		if err != nil {
 			return nil, err

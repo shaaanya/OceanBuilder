@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"image"
 	"image/png"
 	"math"
 	"os"
@@ -53,22 +54,58 @@ func (r *Report) count(l Level) (n int) {
 	return
 }
 
-// ReadHeights decodes a .r16 tile into metres using the manifest encoding.
+// ReadHeights decodes a .height.f32 tile into metres. Cells without a value come back as the manifest's nodata
+// sentinel (m.Height.NoData).
 func ReadHeights(path string, m *world.Manifest) ([]float64, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
 	S := m.Grid.SamplesPerTile
-	if len(b) != S*S*2 {
-		return nil, fmt.Errorf("%s: %d bytes, want %d", path, len(b), S*S*2)
+	if len(b) != S*S*4 {
+		return nil, fmt.Errorf("%s: %d bytes, want %d", path, len(b), S*S*4)
 	}
 	out := make([]float64, S*S)
 	for i := range out {
-		u := binary.LittleEndian.Uint16(b[i*2:])
-		out[i] = m.Height.MinM + float64(u)/65535*(m.Height.MaxM-m.Height.MinM)
+		out[i] = float64(math.Float32frombits(binary.LittleEndian.Uint32(b[i*4:])))
 	}
 	return out, nil
+}
+
+// loaded is one tile's files read into memory.
+type loaded struct {
+	t               world.Tile
+	h               []float64
+	class, shr, src []uint8
+}
+
+func readGray(path string, size int) ([]uint8, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	img, err := png.Decode(f)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", filepath.Base(path), err)
+	}
+	g, ok := img.(*image.Gray)
+	if !ok {
+		return nil, fmt.Errorf("%s: not an 8-bit grey PNG", filepath.Base(path))
+	}
+	if b := g.Bounds(); b.Dx() != size || b.Dy() != size {
+		return nil, fmt.Errorf("%s is %dx%d, want %dx%d", filepath.Base(path), b.Dx(), b.Dy(), size, size)
+	}
+	return g.Pix, nil
+}
+
+func fileHash(path string) (string, []byte, error) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return "", nil, err
+	}
+	s := sha256.Sum256(b)
+	return hex.EncodeToString(s[:]), b, nil
 }
 
 // Run validates the world in dir.
@@ -80,49 +117,133 @@ func Run(dir string) (*Report, error) {
 	r := &Report{World: m.Name, BuildID: m.BuildID, Tiles: len(m.Tiles), Metrics: map[string]float64{}}
 	if m.SchemaVersion != world.SchemaVersion {
 		r.add(Error, "schema", "manifest schema_version %d, tool understands %d", m.SchemaVersion, world.SchemaVersion)
+		return r.finish(), nil
 	}
 	checkBounds(r, m)
 	checkProvenance(r, m, dir)
 	S := m.Grid.SamplesPerTile
-	byPos := map[[2]int][]float64{}
+	nd := m.Height.NoData
 	ids := map[string]bool{}
-	if len(m.Tiles) != m.Grid.TilesX*m.Grid.TilesY {
-		r.add(Error, "tile-count", "manifest lists %d tiles, grid is %dx%d", len(m.Tiles), m.Grid.TilesX, m.Grid.TilesY)
-	}
+	byLevel := map[int]map[[2]int]*loaded{}
 	var lowRes, partial, steep, steps int
 	var nodataCells, cells int
 	var water, measured float64
+	bySource := map[string]int{}
+	var layerBad int
+	lim := math.Tan(60*math.Pi/180) * m.Grid.CellM
 	for _, t := range m.Tiles {
 		if ids[t.ID] {
 			r.add(Error, "duplicate-tile", "duplicate tile id %s", t.ID)
 		}
 		ids[t.ID] = true
-		if want := fmt.Sprintf("L0_%d_%d", t.X, t.Y); t.ID != want {
-			r.add(Error, "tile-id", "tile %s: id does not match position (%s)", t.ID, want)
+		if want := fmt.Sprintf("L%d_%d_%d", t.Level, t.X, t.Y); t.ID != want {
+			r.add(Error, "tile-id", "tile %s: id does not match level and position (%s)", t.ID, want)
 		}
-		path := filepath.Join(dir, t.Height)
-		raw, err := os.ReadFile(path)
+		sum, _, err := fileHash(filepath.Join(dir, t.Height))
 		if err != nil {
 			r.add(Error, "missing-tile", "tile %s: %v", t.ID, err)
 			continue
 		}
-		sum := sha256.Sum256(raw)
-		if hex.EncodeToString(sum[:]) != t.SHA256 {
+		if sum != t.SHA256.Height {
 			r.add(Error, "tile-hash", "tile %s: height file hash differs from manifest", t.ID)
 		}
-		h, err := ReadHeights(path, m)
+		h, err := ReadHeights(filepath.Join(dir, t.Height), m)
 		if err != nil {
 			r.add(Error, "tile-size", "tile %s: %v (inconsistent resolution)", t.ID, err)
 			continue
 		}
-		byPos[[2]int{t.Col, t.Row}] = h
-		for _, f := range []string{t.Depth, t.Shore} {
-			if err := checkPNG(filepath.Join(dir, f), S); err != nil {
+		L := &loaded{t: t, h: h}
+		ok := true
+		for _, f := range []struct {
+			name, path, want string
+			dst              *[]uint8
+		}{{"depth_class", t.Depth, t.SHA256.Depth, &L.class}, {"shore_mask", t.Shore, t.SHA256.Shore, &L.shr}, {"source", t.Source, t.SHA256.Source, &L.src}} {
+			if hs, _, err := fileHash(filepath.Join(dir, f.path)); err != nil {
 				r.add(Error, "tile-mask", "tile %s: %v", t.ID, err)
+				ok = false
+				continue
+			} else if hs != f.want {
+				r.add(Error, "tile-hash", "tile %s: %s file hash differs from manifest", t.ID, f.name)
+			}
+			if *f.dst, err = readGray(filepath.Join(dir, f.path), S); err != nil {
+				r.add(Error, "tile-mask", "tile %s: %v", t.ID, err)
+				ok = false
 			}
 		}
-		nd := t.NoData * float64(S*S)
-		nodataCells += int(math.Round(nd))
+		if !ok {
+			continue
+		}
+		if byLevel[t.Level] == nil {
+			byLevel[t.Level] = map[[2]int]*loaded{}
+		}
+		byLevel[t.Level][[2]int{t.X, t.Y}] = L
+		// Layers must agree with the heights they were derived from, per sample.
+		var tw, tm, tnd int
+		// Neighbouring tiles share their edge samples; count each world vertex once.
+		owns := func(i int) bool {
+			return t.Level == 0 && (i/S < S-1 || t.Row == m.Grid.TilesY-1) && (i%S < S-1 || t.Col == m.Grid.TilesX-1)
+		}
+		for i, v := range h {
+			isND := v == nd
+			if isND != (L.class[i] == world.ClassNoData) || isND != (L.src[i] == world.SrcNoData) {
+				layerBad++
+				continue
+			}
+			if isND {
+				tnd++
+				if owns(i) {
+					bySource["nodata"]++
+				}
+				continue
+			}
+			wantClass := bandOf(v, m.Config.DepthBands)
+			if L.class[i] != wantClass {
+				layerBad++
+			}
+			if v < 0 {
+				tw++
+				if L.src[i] == world.SrcSurvey {
+					tm++
+				}
+				if L.src[i] == world.SrcLand || L.src[i] == world.SrcRefined {
+					layerBad++
+				}
+			} else if L.src[i] == world.SrcSurvey || L.src[i] == world.SrcBackground || L.src[i] == world.SrcRegional {
+				layerBad++
+			}
+			if owns(i) {
+				bySource[sourceName(m, int(L.src[i]))]++
+			}
+		}
+		for i := 1; i < S-1; i++ { // interior shore only: edge samples depend on the neighbouring tile
+			for j := 1; j < S-1; j++ {
+				k := i*S + j
+				if h[k] == nd {
+					continue
+				}
+				want := uint8(0)
+				if h[k] >= 0 {
+					for _, d := range [4]int{-S, S, -1, 1} {
+						if h[k+d] != nd && h[k+d] < 0 {
+							want = 255
+						}
+					}
+				}
+				if L.shr[k] != want {
+					layerBad++
+				}
+			}
+		}
+		if tnd != int(math.Round(t.NoData*float64(S*S))) {
+			r.add(Error, "tile-stats", "tile %s: manifest nodata_fraction %.4f, files say %d of %d", t.ID, t.NoData, tnd, S*S)
+		}
+		if tw > 0 && math.Abs(float64(tm)/float64(tw)-t.Measured) > 1e-9 {
+			r.add(Error, "tile-stats", "tile %s: manifest measured_water_fraction %.4f, source layer says %.4f", t.ID, t.Measured, float64(tm)/float64(tw))
+		}
+		if t.Level != 0 {
+			continue
+		}
+		nodataCells += tnd
 		cells += S * S
 		if t.NoData > 0 && t.NoData < 1 {
 			partial++
@@ -137,16 +258,18 @@ func Run(dir string) (*Report, error) {
 			lowRes++
 		}
 		// Slope discontinuities: steps above 60 degrees at the grid spacing.
-		lim := math.Tan(60*math.Pi/180) * m.Grid.CellM
 		for i := 0; i < S; i++ {
 			for j := 0; j < S; j++ {
-				if j+1 < S {
+				if h[i*S+j] == nd {
+					continue
+				}
+				if j+1 < S && h[i*S+j+1] != nd {
 					steps++
 					if math.Abs(h[i*S+j+1]-h[i*S+j]) > lim {
 						steep++
 					}
 				}
-				if i+1 < S {
+				if i+1 < S && h[(i+1)*S+j] != nd {
 					steps++
 					if math.Abs(h[(i+1)*S+j]-h[i*S+j]) > lim {
 						steep++
@@ -155,24 +278,31 @@ func Run(dir string) (*Report, error) {
 			}
 		}
 	}
-	// Neighbour consistency: shared edges must match exactly (crack-free tiling).
+	if layerBad > 0 {
+		r.add(Error, "layer-mismatch", "%d samples where depth class, shore mask or source layer disagree with the height file", layerBad)
+	}
+	if n := len(byLevel[0]); n != m.Grid.TilesX*m.Grid.TilesY {
+		r.add(Error, "tile-count", "level 0 has %d tiles, grid is %dx%d", n, m.Grid.TilesX, m.Grid.TilesY)
+	}
+	for name, n := range m.Stats.BySource {
+		if bySource[name] != n {
+			r.add(Error, "source-stats", "manifest says %d %q cells, tile files say %d", n, name, bySource[name])
+		}
+	}
+	// Neighbour consistency per level: shared edges must match exactly (crack-free tiling).
 	var cracks int
-	for c := 0; c < m.Grid.TilesX; c++ {
-		for rw := 0; rw < m.Grid.TilesY; rw++ {
-			a, ok := byPos[[2]int{c, rw}]
-			if !ok {
-				continue
-			}
-			if e, ok := byPos[[2]int{c + 1, rw}]; ok {
+	for _, tiles := range byLevel {
+		for pos, a := range tiles {
+			if e, ok := tiles[[2]int{pos[0] + 1, pos[1]}]; ok {
 				for i := 0; i < S; i++ {
-					if a[i*S+S-1] != e[i*S] {
+					if a.h[i*S+S-1] != e.h[i*S] {
 						cracks++
 					}
 				}
 			}
-			if s, ok := byPos[[2]int{c, rw + 1}]; ok {
+			if n, ok := tiles[[2]int{pos[0], pos[1] + 1}]; ok { // y grows north; row 0 of a is the south edge of n
 				for j := 0; j < S; j++ {
-					if a[(S-1)*S+j] != s[j] {
+					if a.h[j] != n.h[(S-1)*S+j] {
 						cracks++
 					}
 				}
@@ -182,8 +312,15 @@ func Run(dir string) (*Report, error) {
 	if cracks > 0 {
 		r.add(Error, "tile-gap", "%d edge samples differ between neighbouring tiles (cracks)", cracks)
 	}
+	// LOD consistency: a parent sample is exactly the child sample at the same ground position.
+	lodBad := checkLOD(byLevel, m)
+	if lodBad > 0 {
+		r.add(Error, "lod-mismatch", "%d parent samples differ from the child sample at the same position", lodBad)
+	}
 	r.Metrics["tiles"] = float64(len(m.Tiles))
+	r.Metrics["levels"] = float64(len(m.LOD.Levels))
 	r.Metrics["edge_mismatches"] = float64(cracks)
+	r.Metrics["lod_mismatches"] = float64(lodBad)
 	if cells > 0 {
 		r.Metrics["elevation_coverage"] = 1 - float64(nodataCells)/float64(cells)
 		if nodataCells > 0 {
@@ -201,19 +338,19 @@ func Run(dir string) (*Report, error) {
 		r.Metrics["measured_water_fraction"] = measured / water
 	}
 	if lowRes > 0 {
-		r.add(Warn, "low-res-bathymetry", "%d tiles are mostly (>50%%) interpolated/global-grid bathymetry rather than survey-backed", lowRes)
+		r.add(Warn, "low-res-bathymetry", "%d tiles are mostly (>50%%) interpolated/background-grid bathymetry rather than survey-backed", lowRes)
 	}
 	if m.Resampling.Upsampled {
 		r.add(Warn, "upsampled", "output cell %.0f m is finer than the delivered source cell (≈%.0f m): the extra detail is interpolation, not data", m.Resampling.OutputCellM, m.Resampling.SourceResM)
 	}
 	if water > 0 && m.Config.Local == nil {
 		if fill := 1 - measured/water; fill > 0.05 {
-			r.Metrics["gebco_fill_water_fraction"] = fill
-			if rg := m.Stats.Regional; rg != nil && water > 0 && float64(rg.FillCellsLeft)/water <= 0.05 {
+			r.Metrics["background_water_fraction"] = fill
+			if rg := m.Stats.Regional; rg != nil && float64(rg.FillCellsLeft)/water <= 0.05 {
 				replaced := float64(rg.CellsReplaced) / float64(m.Stats.Cells)
-				r.add(Info, "regional-fill", "%s replaced %d GEBCO-filled water cells (%.1f%% of the grid) with a ~115 m compilation; %d fill cells remain at GEBCO_08 (≈%.0f m). Median offset to GMRT survey cells %.2f m (rms %.2f m, measured on flat cells at a median depth of %.0f m, so it says little about the shallow-water datum) was measured, not corrected. Replaced cells are still not survey-backed", rg.Source, rg.CellsReplaced, 100*replaced, rg.FillCellsLeft, m.Resampling.FillResM, rg.MedianOffsetM, rg.RMSOffsetM, rg.FlatMedianDepthM)
+				r.add(Info, "regional-fill", "%s replaced %d background-grid water cells (%.1f%% of the grid) with a ~115 m compilation; %d fill cells remain at the background grid (≈%.0f m). Median offset to survey cells %.2f m (rms %.2f m, measured on flat cells at a median depth of %.0f m, so it says little about the shallow-water datum) was measured, not corrected. Replaced cells are still not survey-backed", rg.Source, rg.CellsReplaced, 100*replaced, rg.FillCellsLeft, m.Resampling.FillResM, rg.MedianOffsetM, rg.RMSOffsetM, rg.FlatMedianDepthM)
 			} else {
-				r.add(Warn, "gebco-fill", "%.1f%% of water cells have no survey data and come from the GEBCO_08 grid (≈%.0f m resolution) resampled to %.0f m", 100*fill, m.Resampling.FillResM, m.Resampling.OutputCellM)
+				r.add(Warn, "background-fill", "%.1f%% of water cells have no survey data and come from a coarse background grid (≈%.0f m resolution) resampled to %.0f m", 100*fill, m.Resampling.FillResM, m.Resampling.OutputCellM)
 			}
 		}
 	}
@@ -242,6 +379,10 @@ func Run(dir string) (*Report, error) {
 		r.add(Warn, "no-coastline", "no coastline in this world; shore masks come from the DEM zero contour only")
 	}
 	r.add(Info, "vertical", "%s", m.Vertical.Note)
+	return r.finish(), nil
+}
+
+func (r *Report) finish() *Report {
 	sort.SliceStable(r.Findings, func(i, j int) bool { return rank(r.Findings[i].Level) < rank(r.Findings[j].Level) })
 	switch {
 	case r.count(Error) > 0:
@@ -251,7 +392,66 @@ func Run(dir string) (*Report, error) {
 	default:
 		r.Result = "OK"
 	}
-	return r, nil
+	return r
+}
+
+func bandOf(v float64, bands []float64) uint8 {
+	if v >= 0 {
+		return 0
+	}
+	k := 1
+	for k <= len(bands) && -v > bands[k-1] {
+		k++
+	}
+	return uint8(k)
+}
+
+func sourceName(m *world.Manifest, code int) string {
+	for _, l := range m.SourceLayers {
+		if l.ID == code {
+			return l.Name
+		}
+	}
+	return fmt.Sprint(code)
+}
+
+// checkLOD compares every parent sample with the child sample at the same ground position. Level k+1 tile
+// (X,Y) has children (2X+dx, 2Y+dy); parent column j lies at child column 2j - dx*N, parent row i (0 = north)
+// at child row 2i - (1-dy)*N.
+func checkLOD(byLevel map[int]map[[2]int]*loaded, m *world.Manifest) int {
+	N, S := m.Grid.TileCells, m.Grid.SamplesPerTile
+	bad := 0
+	for lvl, tiles := range byLevel {
+		if lvl == 0 {
+			continue
+		}
+		for pos, p := range tiles {
+			for dx := 0; dx < 2; dx++ {
+				for dy := 0; dy < 2; dy++ {
+					c, ok := byLevel[lvl-1][[2]int{2*pos[0] + dx, 2*pos[1] + dy}]
+					if !ok {
+						continue
+					}
+					for i := 0; i < S; i++ {
+						ci := 2*i - (1-dy)*N
+						if ci < 0 || ci >= S {
+							continue
+						}
+						for j := 0; j < S; j++ {
+							cj := 2*j - dx*N
+							if cj < 0 || cj >= S {
+								continue
+							}
+							if p.h[i*S+j] != c.h[ci*S+cj] || p.src[i*S+j] != c.src[ci*S+cj] {
+								bad++
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	return bad
 }
 
 func rank(l Level) int { return map[Level]int{Error: 0, Warn: 1, Info: 2}[l] }
@@ -266,12 +466,13 @@ func checkBounds(r *Report, m *world.Manifest) {
 	}
 	for _, t := range m.Tiles {
 		u := t.BoundsUTM
-		if math.Abs((u[2]-u[0])-m.Grid.TileSpanM) > 1e-6 || math.Abs((u[3]-u[1])-m.Grid.TileSpanM) > 1e-6 {
-			r.add(Error, "tile-bounds", "tile %s: bounds size differs from tile span %.1f m", t.ID, m.Grid.TileSpanM)
+		span := m.Grid.TileSpanM * float64(int(1)<<t.Level)
+		if math.Abs((u[2]-u[0])-span) > 1e-6 || math.Abs((u[3]-u[1])-span) > 1e-6 {
+			r.add(Error, "tile-bounds", "tile %s: bounds size differs from tile span %.1f m", t.ID, span)
 		}
 	}
-	if m.Height.MaxM <= m.Height.MinM {
-		r.add(Error, "height-range", "height range min %.2f >= max %.2f", m.Height.MinM, m.Height.MaxM)
+	if m.Height.MaxM < m.Height.MinM || m.Height.Type != "float32" {
+		r.add(Error, "height-range", "height encoding %q range %.2f..%.2f is invalid", m.Height.Type, m.Height.MinM, m.Height.MaxM)
 	}
 }
 
@@ -308,36 +509,20 @@ func checkProvenance(r *Report, m *world.Manifest, dir string) {
 	}
 }
 
-func checkPNG(path string, size int) error {
-	f, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	cfg, err := png.DecodeConfig(f)
-	if err != nil {
-		return fmt.Errorf("%s: %w", filepath.Base(path), err)
-	}
-	if cfg.Width != size || cfg.Height != size {
-		return fmt.Errorf("%s is %dx%d, want %dx%d", filepath.Base(path), cfg.Width, cfg.Height, size, size)
-	}
-	return nil
-}
-
 // Format renders the human-readable report.
 func (r *Report) Format() string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "WORLD: %s\n\nTiles: %d\n", r.World, r.Tiles)
+	fmt.Fprintf(&b, "WORLD: %s\n\nTiles: %d in %d levels\n", r.World, r.Tiles, int(r.Metrics["levels"]))
 	if v, ok := r.Metrics["elevation_coverage"]; ok {
 		fmt.Fprintf(&b, "Elevation coverage: %.1f%%\n", 100*v)
 	}
 	if v, ok := r.Metrics["measured_water_fraction"]; ok {
-		fmt.Fprintf(&b, "Water cells backed by survey data (GMRT mask): %.1f%%\n", 100*v)
+		fmt.Fprintf(&b, "Water cells backed by survey data: %.1f%%\n", 100*v)
 	}
 	if v, ok := r.Metrics["coastline_offset_median_m"]; ok {
 		fmt.Fprintf(&b, "OSM coastline to DEM shoreline offset: median %.0f m, p90 %.0f m\n", v, r.Metrics["coastline_offset_p90_m"])
 	}
-	fmt.Fprintf(&b, "Neighbour edge mismatches: %d\n", int(r.Metrics["edge_mismatches"]))
+	fmt.Fprintf(&b, "Neighbour edge mismatches: %d, level mismatches: %d\n", int(r.Metrics["edge_mismatches"]), int(r.Metrics["lod_mismatches"]))
 	for _, l := range []Level{Error, Warn, Info} {
 		var fs []Finding
 		for _, f := range r.Findings {

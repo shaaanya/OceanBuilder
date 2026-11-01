@@ -19,7 +19,7 @@ using UnityEngine;
 public static class OceanWorldImporter
 {
     [Serializable] class Grid { public int tile_cells; public int samples_per_tile; public float tile_span_m; public int tiles_x; public int tiles_y; public float cell_m; public double origin_easting; public double origin_northing_top; }
-    [Serializable] class Height { public float min_m; public float max_m; public string row_order; }
+    [Serializable] class Height { public string type; public float nodata; public float min_m; public float max_m; public string row_order; }
     [Serializable] class Crs { public int epsg; }
     [Serializable] class DepthClass { public int id; }
     [Serializable] class TileInfo
@@ -147,9 +147,10 @@ public static class OceanWorldImporter
     public static void Import(string dir)
     {
         var m = JsonUtility.FromJson<Manifest>(File.ReadAllText(Path.Combine(dir, "world.manifest.json")));
+        if (m.height_encoding.type != "float32") throw new Exception("unsupported height encoding " + m.height_encoding.type + " (expected float32, schema 2)");
         if (m.height_encoding.row_order != "north_to_south") throw new Exception("unsupported row_order " + m.height_encoding.row_order);
         int S = m.grid.samples_per_tile, res = Math.Max(16, Math.Min(2048, m.grid.tile_cells));
-        float span = m.grid.tile_span_m, range = m.height_encoding.max_m - m.height_encoding.min_m;
+        float span = m.grid.tile_span_m, range = Math.Max(1f, m.height_encoding.max_m - m.height_encoding.min_m); // terrain stores heights as 0..1 of this range (Unity quantises to 16 bit itself)
         int waterClasses = 0;
         foreach (var d in m.depth_classes) if (d.id > 0 && d.id != 255) waterClasses++;
 
@@ -169,19 +170,25 @@ public static class OceanWorldImporter
         index.cellM = m.grid.cell_m; index.tileSpanM = span; index.tilesX = m.grid.tiles_x; index.tilesY = m.grid.tiles_y;
         index.minM = m.height_encoding.min_m; index.maxM = m.height_encoding.max_m; index.attribution = m.attribution;
         var byCell = new Dictionary<(int, int), TileInfo>();
-        foreach (var t in m.tiles) byCell[(t.col, t.row)] = t;
+        foreach (var t in m.tiles) if (t.level == 0) byCell[(t.col, t.row)] = t; // LOD levels above 0 are not imported yet
         string Id(int c, int r) => byCell.TryGetValue((c, r), out var t) ? t.id : "";
         var entries = new List<OceanTileEntry>();
         var prefabPaths = new Dictionary<string, string>();
 
         foreach (var t in m.tiles)
         {
+            if (t.level != 0) continue;
             byte[] raw = File.ReadAllBytes(Path.Combine(dir, t.height));
-            if (raw.Length != S * S * 2) throw new Exception(t.id + ": expected " + S * S * 2 + " bytes, got " + raw.Length);
+            if (raw.Length != S * S * 4) throw new Exception(t.id + ": expected " + S * S * 4 + " bytes, got " + raw.Length);
             var h = new float[S, S]; // h[z, x], z grows north; file rows run north to south
+            float lo = m.height_encoding.min_m;
             for (int i = 0; i < S; i++)
                 for (int j = 0; j < S; j++)
-                    h[S - 1 - i, j] = (raw[(i * S + j) * 2] | (raw[(i * S + j) * 2 + 1] << 8)) / 65535f;
+                {
+                    float v = BitConverter.ToSingle(raw, (i * S + j) * 4); // little-endian host assumed (all Unity platforms)
+                    if (v <= m.height_encoding.nodata + 1f) v = lo; // nodata cells are flat at the minimum; the depth class layer marks them
+                    h[S - 1 - i, j] = Mathf.Clamp01((v - lo) / range);
+                }
 
             string tdPath = gen + "/Terrains/" + t.id + ".asset";
             var td = AssetDatabase.LoadAssetAtPath<TerrainData>(tdPath);

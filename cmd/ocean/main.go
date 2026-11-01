@@ -106,9 +106,9 @@ func cmdBuild(args []string) error {
 		return err
 	}
 	if *asJSON {
-		return json.NewEncoder(os.Stdout).Encode(map[string]any{"out": *out, "build_id": m.BuildID, "tiles": len(m.Tiles), "stats": m.Stats})
+		return json.NewEncoder(os.Stdout).Encode(map[string]any{"out": *out, "build_id": m.BuildID, "tiles": len(m.Tiles), "levels": len(m.LOD.Levels), "stats": m.Stats})
 	}
-	fmt.Printf("built %s: %d tiles (%dx%d), build %s\n  -> %s\n", m.Name, len(m.Tiles), m.Grid.TilesX, m.Grid.TilesY, m.BuildID[:12], *out)
+	fmt.Printf("built %s: %d tiles in %d levels (level 0: %dx%d), build %s\n  -> %s\n", m.Name, len(m.Tiles), len(m.LOD.Levels), m.Grid.TilesX, m.Grid.TilesY, m.BuildID[:12], *out)
 	return nil
 }
 
