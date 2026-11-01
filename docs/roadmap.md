@@ -22,7 +22,7 @@ Partial:
 2. **Source adapters** verified against the real services, with fixtures: ETOPO 2022 tiles, GEBCO (undocumented REST route plus its TID layer), NOAA CUDEM COGs, then the NOAA mosaic. Findings and cautions in [research/source-probes.md](research/source-probes.md). None implemented.
 3. **Licensing metadata in the manifest** (`licensing.sources[]`) from [research/licensing-analysis.md](research/licensing-analysis.md); decide whether the OSM coastline copy becomes opt-in.
 4. Verified antimeridian fetch for GMRT; GMRT size cap (a 10 degree request is silently coarsened to 122 m).
-5. Unity: LOD levels in the importer, schema 3 CRS, standalone player build, floating origin, water/seabed material.
+5. Unity: LOD levels in the importer, schema 3 CRS, Addressables streaming inside a player, floating origin, water/seabed material. (A standalone macOS player build and headless smoke run pass, see the development log.)
 6. Unreal Landscape exporter only when a second consumer asks.
 7. Vector products (depth contours, coast) from the grid.
 8. Local OSM extract as an Overpass alternative.
