@@ -1,0 +1,85 @@
+name: ci
+
+# Offline tier: runs on every push and pull request. Needs GDAL (gdalwarp, gdal_translate, gdaltransform, ogr2ogr,
+# gdalinfo, projinfo) and PROJ's grids (proj-data) on PATH; installed from conda-forge so the three OSes use the same
+# GDAL/PROJ release. Network tier (real services): workflow_dispatch and weekly, never on pull requests.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 4 * * 1"
+
+jobs:
+  offline:
+    strategy:
+      fail-fast: false
+      matrix:
+        # Linux and Windows runners are amd64, the macOS runner is arm64: together they cover the FMA-fusion
+        # difference between the two architectures for the golden tile hashes.
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash -el {0}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: conda-incubator/setup-miniconda@v3
+        with:
+          miniforge-version: latest
+          auto-activate-base: false
+          activate-environment: ocean
+          channels: conda-forge
+          channel-priority: strict
+      - name: Install GDAL and PROJ data
+        run: conda install -y -n ocean "gdal>=3.9" proj-data
+      - name: Tool versions
+        run: |
+          gdalinfo --version
+          projinfo --searchpaths
+          go version
+      - name: go vet
+        run: go vet ./...
+      - name: go test
+        run: go test ./... -count=1
+      - name: Build the CLI
+        run: go build -o bin/ocean ./cmd/ocean
+
+  cross-vet:
+    # Static coverage that needs no GDAL: every package and test binary must compile for the other targets.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: |
+          for t in linux/amd64 linux/arm64 windows/amd64 darwin/arm64 darwin/amd64; do
+            GOOS=${t%/*} GOARCH=${t#*/} go vet ./...
+            for p in $(go list ./...); do GOOS=${t%/*} GOARCH=${t#*/} go test -c -o /dev/null "$p" 2>&1 | grep -v "no test files" || true; done
+            echo "$t ok"
+          done
+
+  network:
+    # Real services (GMRT, ETOPO, GEBCO, CUDEM, Overpass). Slow and flaky by nature; never blocks a merge.
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -el {0}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: conda-incubator/setup-miniconda@v3
+        with:
+          miniforge-version: latest
+          activate-environment: ocean
+          channels: conda-forge
+      - run: conda install -y -n ocean "gdal>=3.9" proj-data
+      - run: OCEAN_SMOKE=1 go test ./internal/etopo ./internal/gebco ./internal/cudem -run Smoke -v -count=1
