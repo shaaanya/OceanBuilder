@@ -2,6 +2,7 @@ package world
 
 import (
 	"math"
+	"path/filepath"
 	"testing"
 )
 
@@ -24,9 +25,27 @@ func TestDecimateMatchesLevel0AtSameGroundPosition(t *testing.T) {
 				base.src[r*W+c] = uint8(1 + (c+r)%6)
 			}
 		}
-		for k := 1; k <= 4; k++ {
+		dir := t.TempDir()
+		mk := func(name string, w, h int) *layerFiles {
+			return &layerFiles{W: w, H: h, demPath: filepath.Join(dir, name+".dem"), kindPath: filepath.Join(dir, name+".kind"), provPath: filepath.Join(dir, name+".prov")}
+		}
+		prev := mk("l0", W, H)
+		if err := writeLayerFromMemory(prev, base.dem, base.src, make([]uint8, W*H)); err != nil {
+			t.Fatal(err)
+		}
+		b := &bctx{cfg: &Config{TileCells: g.TileCells}}
+		for k := 1; k <= 4; k++ { // chained: each level is cut from the one below, as the build does
 			p := planLevel(g, k)
-			lr := decimate(base, g, p)
+			cur := mk(string(rune('a'+k)), p.W, p.H)
+			if err := b.decimateLayer(prev, planLevel(g, k-1), p, cur); err != nil {
+				t.Fatal(err)
+			}
+			prev = cur
+			d, s, _, err := readLayerToMemory(cur)
+			if err != nil {
+				t.Fatal(err)
+			}
+			lr := &raster{dem: d, src: s}
 			for r := 0; r < p.H; r++ {
 				for c := 0; c < p.W; c++ {
 					e, n := p.OriginE+float64(c)*p.CellM, p.OriginN-float64(r)*p.CellM

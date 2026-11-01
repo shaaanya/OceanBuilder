@@ -19,9 +19,14 @@ import (
 // ponytail: a process-wide variable; pass a context through every call if the library is ever used concurrently with different lifetimes.
 var Ctx = context.Background()
 
+// Env is the environment of every GDAL/PROJ subprocess. PROJ_NETWORK=OFF: a missing transformation grid must be an
+// error, never a silent download that makes a build depend on what the network served that day.
+func Env() []string { return append(os.Environ(), "PROJ_NETWORK=OFF") }
+
 // Run executes a GDAL tool and returns stdout.
 func Run(name string, args ...string) (string, error) {
 	cmd := exec.CommandContext(Ctx, name, args...)
+	cmd.Env = Env()
 	var out, errb bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &errb
 	if err := cmd.Run(); err != nil {
@@ -72,7 +77,7 @@ func Transform(srcSRS, dstSRS string, pts [][2]float64) ([][2]float64, error) {
 		fmt.Fprintf(&in, "%.9f %.9f\n", p[0], p[1])
 	}
 	cmd := exec.CommandContext(Ctx, "gdaltransform", "-s_srs", srcSRS, "-t_srs", dstSRS)
-	cmd.Env = append(os.Environ(), "OSR_AXIS_MAPPING_STRATEGY=TRADITIONAL_GIS_ORDER")
+	cmd.Env = append(Env(), "OSR_AXIS_MAPPING_STRATEGY=TRADITIONAL_GIS_ORDER")
 	cmd.Stdin = strings.NewReader(in.String())
 	var out, errb bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &errb

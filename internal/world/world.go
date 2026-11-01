@@ -14,7 +14,7 @@ import (
 
 const (
 	SchemaVersion = 2
-	ToolVersion   = "0.2.0"
+	ToolVersion   = "0.3.0-dev"
 	ManifestFile  = "world.manifest.json"
 )
 
@@ -65,7 +65,16 @@ type Config struct {
 	// Refinement is the path of a refinement.json from `ocean libreterrain import`, relative
 	// to this config file. Its land-elevation edits are applied on top of the sources.
 	Refinement string `json:"refinement,omitempty"`
-	dir        string // directory of the config file; resolves Refinement
+	// Sources lists the elevation datasets of the world. With several, each cell takes its value from the first
+	// dataset (in Precedence order) that has a valid value there, and the manifest records which one (see compose.go).
+	// Empty means the legacy form: GMRT, or Local when set.
+	Sources []SourceSpec `json:"sources,omitempty"`
+	// Precedence is "listed" (default: the order of Sources) or "auto" (ranked by quality class, declared accuracy,
+	// native resolution, vintage and finally list order; `ocean build` logs the resulting order).
+	Precedence string `json:"precedence,omitempty"`
+	// Vertical states the vertical reference of the output; see vertical.go. Empty: the datasets must agree.
+	Vertical *VerticalTarget `json:"vertical,omitempty"`
+	dir      string          // directory of the config file; resolves Refinement
 }
 
 // Local points at user-provided data. Topo is a GeoTIFF of elevation in metres
@@ -134,6 +143,9 @@ func (c *Config) Normalize() error {
 	if c.LODLevels < -1 || c.LODLevels > MaxLOD {
 		return fmt.Errorf("config: lod_levels must be -1 (none), 0 (auto) or 1..%d, got %d", MaxLOD, c.LODLevels)
 	}
+	if err := c.normalizeSources(); err != nil {
+		return err
+	}
 	if c.Local != nil && (c.Local.Topo == "" || c.Local.License == "" || c.Local.Attribution == "") {
 		return fmt.Errorf("config: local needs topo, license and attribution")
 	}
@@ -194,27 +206,27 @@ type Manifest struct {
 		Version string `json:"version"`
 		GDAL    string `json:"gdal"`
 	} `json:"tool"`
-	InputKey string `json:"input_key"` // hash of config, tool/algorithm versions and every resolved input: equal keys mean equal outputs
-	Config   Config `json:"config"`
-	CRS      CRS    `json:"crs"`
-	Vertical struct {
-		Unit  string `json:"unit"`
-		Datum string `json:"datum"`
-		Note  string `json:"note"`
-	} `json:"vertical"`
+	InputKey     string             `json:"input_key"` // hash of config, tool/algorithm versions and every resolved input: equal keys mean equal outputs
+	Config       Config             `json:"config"`
+	CRS          CRS                `json:"crs"`
+	Vertical     VerticalInfo       `json:"vertical"`
 	Grid         Grid               `json:"grid"`
 	Height       HeightEncoding     `json:"height_encoding"`
 	DepthClasses []DepthClass       `json:"depth_classes"`
 	SourceLayers []SourceLayer      `json:"source_layers"`
 	LOD          LODInfo            `json:"lod"`
 	Sources      []fetch.Provenance `json:"sources"`
-	Resampling   Resampling         `json:"resampling"`
-	Tiles        []Tile             `json:"tiles"`
-	Stats        Stats              `json:"stats"`
-	Refinement   *RefineStats       `json:"refinement,omitempty"`
-	Checkpoints  []Checkpoint       `json:"checkpoints"`
-	Files        map[string]string  `json:"files"`
-	Attribution  []string           `json:"attribution"`
+	Datasets     []DatasetInfo      `json:"datasets,omitempty"` // elevation datasets and processing steps that supplied samples; see tiles/*/*.dataset.png
+	// FormatRevision counts additive changes within schema_version 2: 1 adds the datasets list and the per-tile
+	// dataset layer. Readers that do not know a revision ignore what it adds.
+	FormatRevision int               `json:"format_revision,omitempty"`
+	Resampling     Resampling        `json:"resampling"`
+	Tiles          []Tile            `json:"tiles"`
+	Stats          Stats             `json:"stats"`
+	Refinement     *RefineStats      `json:"refinement,omitempty"`
+	Checkpoints    []Checkpoint      `json:"checkpoints"`
+	Files          map[string]string `json:"files"`
+	Attribution    []string          `json:"attribution"`
 }
 
 // Checkpoint is a world vertex with its expected elevation as stored in the
@@ -224,6 +236,14 @@ type Checkpoint struct {
 	Easting    float64 `json:"easting"`
 	Northing   float64 `json:"northing"`
 	ElevationM float64 `json:"elevation_m"`
+}
+
+// VerticalInfo states the vertical reference of the heights. Per-dataset operations are in datasets[].vertical.
+type VerticalInfo struct {
+	Unit  string `json:"unit"`
+	Datum string `json:"datum"` // one datum from the vocabulary, "mixed" (datasets differ, accepted explicitly) or "unknown"
+	Note  string `json:"note"`
+	Mixed bool   `json:"mixed,omitempty"`
 }
 
 type CRS struct {
@@ -286,8 +306,8 @@ type DepthClass struct {
 
 type Resampling struct {
 	Method      string  `json:"method"`
-	SourceResM  float64 `json:"source_native_res_m"` // mean ground size of one delivered GMRT cell
-	FillResM    float64 `json:"unmeasured_res_m"`    // true resolution of water cells without survey data (the primary source's background grid)
+	SourceResM  float64 `json:"source_native_res_m"`        // mean ground size of one delivered GMRT cell
+	FillResM    float64 `json:"unmeasured_res_m,omitempty"` // true resolution of water cells without survey data, when the source documents it (GMRT: GEBCO 30 arc-seconds)
 	OutputCellM float64 `json:"output_cell_m"`
 	Upsampled   bool    `json:"upsampled"` // output finer than source: values are interpolated, not measured
 }
@@ -311,6 +331,7 @@ type Tile struct {
 	Depth      string            `json:"depth_class"`
 	Shore      string            `json:"shore_mask"`
 	Source     string            `json:"source"`
+	Dataset    string            `json:"dataset,omitempty"` // dataset-index layer (revision 1)
 	SHA256     TileHashes        `json:"sha256"`
 	Parent     string            `json:"parent,omitempty"`     // id of the tile one level up that contains this one
 	Neighbours map[string]string `json:"neighbours,omitempty"` // n, s, e, w tile ids at the same level, when they exist
@@ -332,6 +353,9 @@ type Stats struct {
 	Seamarks       *SeamarkStats  `json:"seamarks,omitempty"`
 	CoastConform   *ConformStats  `json:"coast_conform,omitempty"`
 	Regional       *RegionalStats `json:"regional_bathymetry,omitempty"`
+	// Composition explains which datasets supplied the cells and how they agree where they overlap.
+	Composition    *CompositionStats `json:"composition,omitempty"`
+	CellsByDataset map[string]int    `json:"cells_by_dataset,omitempty"` // level-0 cells per dataset id in the final output
 }
 
 // SeamarkStats summarises seamarks.geojson. Floating marks (buoys, light vessels) that the DEM

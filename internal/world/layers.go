@@ -2,15 +2,8 @@ package world
 
 import (
 	"crypto/sha256"
-	"encoding/binary"
 	"encoding/hex"
 	"fmt"
-	"image"
-	"math"
-	"os"
-	"path/filepath"
-	"runtime"
-	"sync"
 )
 
 // Per-cell source codes written to the source layer (tiles/<level>/<id>.source.png). The numbers are part of
@@ -90,6 +83,7 @@ type raster struct {
 	W, H   int
 	dem    []float32
 	src    []uint8
+	prov   []uint8 // dataset index (1-based) per cell
 	class  []uint8
 	shore  []uint8
 	shores int // shore cell count
@@ -161,31 +155,6 @@ func autoLevels(g *Grid) int {
 	return MaxLOD
 }
 
-// decimate builds level k's raster from level 0 by taking every 2^k-th vertex. A level vertex sits exactly on a
-// level-0 vertex, so a value is a real sample (never an average or an interpolation) and shared edges between
-// tiles and levels agree by construction. Vertices outside the world are nodata.
-func decimate(base *raster, g *Grid, p levelPlan) *raster {
-	r := &raster{W: p.W, H: p.H, dem: make([]float32, p.W*p.H), src: make([]uint8, p.W*p.H)}
-	N := g.TileCells
-	// level vertex (row, col) is level-0 cell column X0*N*f + col*f - FirstTileX*N, and
-	// row (FirstTileY+TilesY)*N - ((Y1+1)*N*f - row*f), counted from the north edge of the world.
-	colBase := p.X0*N*p.Factor - g.FirstTileX*N
-	rowBase := (g.FirstTileY+g.TilesY)*N - (p.Y1+1)*N*p.Factor
-	for row := 0; row < p.H; row++ {
-		wr := rowBase + row*p.Factor
-		for c := 0; c < p.W; c++ {
-			wc := colBase + c*p.Factor
-			i := row*p.W + c
-			if wr < 0 || wr >= base.H || wc < 0 || wc >= base.W {
-				r.dem[i], r.src[i] = noData, SrcNoData
-				continue
-			}
-			r.dem[i], r.src[i] = base.dem[wr*base.W+wc], base.src[wr*base.W+wc]
-		}
-	}
-	return r
-}
-
 // tileSlot is one planned tile of a level, with its corner coordinates once transformed.
 type tileSlot struct {
 	plan     levelPlan
@@ -217,113 +186,11 @@ type TileHashes struct {
 	Depth  string `json:"depth_class"`
 	Shore  string `json:"shore_mask"`
 	Source string `json:"source"`
+	// Dataset is the hash of the optional per-sample dataset layer (absent in worlds built before 0.3).
+	Dataset string `json:"dataset,omitempty"`
 }
 
 func hashHex(b []byte) string { s := sha256.Sum256(b); return hex.EncodeToString(s[:]) }
-
-// writeLevelTiles slices a level raster into tiles, writes the four files per tile in parallel into fixed slots,
-// and returns the tiles (tiles that hold no valid sample are dropped).
-func writeLevelTiles(out string, cfg *Config, g *Grid, p levelPlan, r *raster, slots []tileSlot) ([]Tile, error) {
-	dir := "tiles/" + fmt.Sprint(p.Level)
-	if err := os.MkdirAll(filepath.Join(out, dir), 0o755); err != nil {
-		return nil, err
-	}
-	tiles := make([]Tile, len(slots))
-	keep := make([]bool, len(slots))
-	errs := make([]error, len(slots))
-	var wg sync.WaitGroup
-	sem := make(chan struct{}, runtime.NumCPU())
-	for i := range slots {
-		wg.Add(1)
-		sem <- struct{}{}
-		go func(i int) {
-			defer wg.Done()
-			defer func() { <-sem }()
-			keep[i], errs[i] = writeTile(&tiles[i], &slots[i], cfg, r, dir, out)
-		}(i)
-	}
-	wg.Wait()
-	var res []Tile
-	for i := range slots {
-		if errs[i] != nil {
-			return nil, errs[i]
-		}
-		if keep[i] {
-			res = append(res, tiles[i])
-		}
-	}
-	return res, nil
-}
-
-// writeTile writes one tile's files and fills its index entry. It reports false (and writes nothing) when the
-// tile holds no valid sample, which only happens in padded upper-level tiles.
-func writeTile(t *Tile, s *tileSlot, cfg *Config, r *raster, dir, out string) (bool, error) {
-	N := cfg.TileCells
-	S := N + 1
-	p := s.plan
-	id := tileID(p.Level, s.x, s.y)
-	hbuf := make([]byte, S*S*4)
-	cls := image.NewGray(image.Rect(0, 0, S, S))
-	shr := image.NewGray(image.Rect(0, 0, S, S))
-	src := image.NewGray(image.Rect(0, 0, S, S))
-	mn, mx := math.Inf(1), math.Inf(-1)
-	var nd, water, measured int
-	for i := 0; i < S; i++ {
-		for j := 0; j < S; j++ {
-			gi := (s.row*N+i)*r.W + s.col*N + j
-			v := r.dem[gi]
-			if v <= noData+1 {
-				v = noData
-				nd++
-			} else {
-				mn, mx = math.Min(mn, float64(v)), math.Max(mx, float64(v))
-				if v < 0 {
-					water++
-					if r.src[gi] == SrcSurvey {
-						measured++
-					}
-				}
-			}
-			binary.LittleEndian.PutUint32(hbuf[(i*S+j)*4:], math.Float32bits(v))
-			cls.Pix[i*S+j], shr.Pix[i*S+j], src.Pix[i*S+j] = r.class[gi], r.shore[gi], r.src[gi]
-		}
-	}
-	if nd == S*S {
-		return false, nil
-	}
-	*t = Tile{ID: id, Level: p.Level, X: s.x, Y: s.y, Col: s.col, Row: s.row,
-		Height: dir + "/" + id + ".height.f32", Depth: dir + "/" + id + ".depth.png",
-		Shore: dir + "/" + id + ".shore.png", Source: dir + "/" + id + ".source.png",
-		MinM: mn, MaxM: mx, NoData: float64(nd) / float64(S*S), Water: float64(water) / float64(S*S)}
-	t.BoundsUTM = [4]float64{p.OriginE + float64(s.col)*p.SpanM, p.OriginN - float64(s.row+1)*p.SpanM,
-		p.OriginE + float64(s.col+1)*p.SpanM, p.OriginN - float64(s.row)*p.SpanM}
-	if len(s.corners) == 4 {
-		var lo, la []float64
-		for _, c := range s.corners {
-			lo, la = append(lo, c[0]), append(la, c[1])
-		}
-		t.BoundsWGS = [4]float64{minF(lo), minF(la), maxF(lo), maxF(la)}
-	}
-	if water > 0 {
-		t.Measured = float64(measured) / float64(water)
-	}
-	t.SHA256.Height = hashHex(hbuf)
-	if err := os.WriteFile(filepath.Join(out, t.Height), hbuf, 0o644); err != nil {
-		return false, err
-	}
-	for _, f := range []struct {
-		path string
-		img  *image.Gray
-		hash *string
-	}{{t.Depth, cls, &t.SHA256.Depth}, {t.Shore, shr, &t.SHA256.Shore}, {t.Source, src, &t.SHA256.Source}} {
-		h, err := writePNG(filepath.Join(out, f.path), f.img)
-		if err != nil {
-			return false, err
-		}
-		*f.hash = h
-	}
-	return true, nil
-}
 
 // linkTiles fills parent and edge-neighbour ids from tile indices. The rule is also documented in the format
 // spec, so a reader can derive the same links without them.
