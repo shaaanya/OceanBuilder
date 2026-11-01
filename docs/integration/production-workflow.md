@@ -7,7 +7,7 @@ Target workflow once [implementation-plan.md](implementation-plan.md) M1 is done
 | Layer | Owns | Does not own |
 |---|---|---|
 | OceanBuilder CLI (Go) | fetching, caching, locking sources; warping to the game's frame; depth/height/class/source grids; seamark extraction; validation; manifest and attribution | rendering, physics, Unity assets, boat data |
-| OB Unity package (`com.oceancompiler.world`, runtime only) | `DepthSampler` (geo → depth, double precision, unknown-safe), data container types | streaming policy, Terrain generation (the old importer stays in the demo only) |
+| OB Unity package (`com.oceancompiler.world`, runtime only) | `DepthSampler` (leg-frame x,y → depth, double precision, unknown-safe), data container types | streaming policy, Terrain generation (the old importer stays in the demo only) |
 | Game editor tools (G-7) | importing OB output into the game's Addressables groups, idempotently | geography |
 | The game | draught, grounding rule, echo sounder, Crest depth input, chart layer, seamark prefabs, streaming, save/load, rendering | geodesy, data fetching |
 
@@ -24,7 +24,7 @@ Rule: the game references places by **geo coordinates**, never by OB tile ids. R
 7. **Import into Unity.** `Unity -batchmode -executeMethod ...ImportOceanBuilderRegion <dir>` creates `OceanRegionData` and bakes the Crest depth cache **[planned: G-7, G-4]**. Today the OB importer builds Terrains for the demo project only **[exists; wrong shape for the game]**.
 8. **Addressables.** The import registers the asset under `world/<legId>/ocean/<cluster>` in the existing `World_<legId>` group; the normal Addressables build ships it **[planned: G-7]**. The game's own tile import needs a menu click per pack **[manual today]**.
 9. **Load the world.** Region data is small (tens of MB per cluster); `WorldScroller.SetRaceStart` also loads the active leg's clusters within the load radius **[planned: G-7]**. No OB streamer.
-10. **Gameplay access.** `DepthSampler.TryDepth(geo)` from `BoatGrounding` (draught), the HUD (echo sounder), the chart layer, bots and tests **[planned: P-5, G-1, G-2, G-3]**. Unknown means "do not ground, show no reading".
+10. **Gameplay access.** `DepthSampler.TryDepthGrid(x, y)`, fed through the game's world→grid inverse of the tile transform, from `BoatGrounding` (draught), the HUD (echo sounder), the chart layer, bots and tests **[planned: P-5, G-1, G-2, G-3]**. Unknown means "do not ground, show no reading".
 11. **Update a region.** Change the region file or sources → `ocean region build` → compare `build_id`s → import. Unchanged clusters reproduce byte-identically (per world **[exists]**, per region **[planned]**), so the Git diff and Addressables delta are exactly the changed clusters. Saves hold geo, so they survive.
 12. **Debug, inspect, validate.** `ocean validate` and `ocean preview` per cluster **[exists]**; per-cell source/class overlay in the game's dev tooling **[planned: G-5]**; EditMode tests for frame and sampler **[planned: G-6]**; `docs/integration/evidence/*.py` re-run to check coastline and projection agreement.
 
