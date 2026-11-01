@@ -2,6 +2,7 @@ package export
 
 import (
 	"encoding/binary"
+	"encoding/xml"
 	"fmt"
 	"math"
 	"os"
@@ -96,10 +97,10 @@ func GeoTIFF(worldDir, destDir string, level int) ([]string, error) {
 			return nil, err
 		}
 		vrt := filepath.Join(tmp, l.name+".vrt")
-		xml := fmt.Sprintf(`<VRTDataset rasterXSize="%d" rasterYSize="%d"><SRS>EPSG:%d</SRS><GeoTransform>%s</GeoTransform>
+		xml := fmt.Sprintf(`<VRTDataset rasterXSize="%d" rasterYSize="%d"><SRS>%s</SRS><GeoTransform>%s</GeoTransform>
 <VRTRasterBand dataType="%s" band="1" subClass="VRTRawRasterBand"><NoDataValue>%s</NoDataValue>
 <SourceFilename relativeToVRT="1">%s.raw</SourceFilename><ImageOffset>0</ImageOffset><PixelOffset>%d</PixelOffset><LineOffset>%d</LineOffset><ByteOrder>LSB</ByteOrder></VRTRasterBand></VRTDataset>`,
-			W, H, w.M.CRS.EPSG, gt, l.dtype, l.nodata, l.name, l.pix, l.pix*W)
+			W, H, xmlEsc(srsOf(w.M.CRS.Kind, w.M.CRS.EPSG, w.M.CRS.Proj4)), gt, l.dtype, l.nodata, l.name, l.pix, l.pix*W)
 		if err := os.WriteFile(vrt, []byte(xml), 0o644); err != nil {
 			return nil, err
 		}
@@ -111,4 +112,17 @@ func GeoTIFF(worldDir, destDir string, level int) ([]string, error) {
 		out = append(out, dst)
 	}
 	return out, nil
+}
+
+func srsOf(kind string, epsg int, proj4 string) string {
+	if kind == "tmerc" {
+		return proj4
+	}
+	return fmt.Sprintf("EPSG:%d", epsg)
+}
+
+func xmlEsc(s string) string {
+	var b strings.Builder
+	_ = xml.EscapeText(&b, []byte(s))
+	return b.String()
 }

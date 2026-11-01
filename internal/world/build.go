@@ -180,7 +180,7 @@ func inputKey(cfg *Config, srcs []fetch.Provenance, regional *fetch.Provenance, 
 // reusable returns the manifest in dir when it was built from the same inputs and every tile file is intact.
 func reusable(dir, key string) *Manifest {
 	m, err := LoadManifest(dir)
-	if err != nil || m.SchemaVersion != SchemaVersion || m.InputKey != key {
+	if err != nil || (m.SchemaVersion != SchemaVersion && m.SchemaVersion != SchemaVersionTM) || m.InputKey != key {
 		return nil
 	}
 	for _, t := range m.Tiles {

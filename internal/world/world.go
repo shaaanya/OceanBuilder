@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/ocean-compiler/ocean/internal/emodnet"
 	"github.com/ocean-compiler/ocean/internal/fetch"
@@ -14,8 +15,11 @@ import (
 
 const (
 	SchemaVersion = 2
-	ToolVersion   = "0.3.0-dev"
-	ManifestFile  = "world.manifest.json"
+	// SchemaVersionTM is written for worlds in a local transverse Mercator grid (crs.kind "tmerc"). It differs from
+	// schema 2 only in the crs block; UTM worlds stay at 2.
+	SchemaVersionTM = 3
+	ToolVersion     = "0.3.0-dev"
+	ManifestFile    = "world.manifest.json"
 )
 
 // Algorithm versions of the optional steps that change output. They are hashed into the build id only when
@@ -62,6 +66,9 @@ type Config struct {
 	// UTMEPSG forces the projected CRS (32601..32660 north, 32701..32760 south). Empty/0 picks the zone of the
 	// bbox centre. A bbox that reaches far from the zone's central meridian is distorted: see Stats.UTMScale.
 	UTMEPSG int `json:"utm_epsg,omitempty"`
+	// Projection: "" or "auto" uses UTM when the bbox fits one zone within MaxUTMScaleError and otherwise a local
+	// transverse Mercator centred on the bbox (schema 3); "utm" refuses wide boxes; "tmerc" forces the local grid.
+	Projection string `json:"projection,omitempty"`
 	// Refinement is the path of a refinement.json from `ocean libreterrain import`, relative
 	// to this config file. Its land-elevation edits are applied on top of the sources.
 	Refinement string `json:"refinement,omitempty"`
@@ -103,14 +110,44 @@ func LoadConfig(path string) (*Config, error) {
 	return &c, c.Normalize()
 }
 
+// checkAntimeridian refuses antimeridian boxes (east > 180) whose sources have not been verified across 180.
+func (c *Config) checkAntimeridian() error {
+	e := c.BBox[2]
+	if e > 180 {
+		// ponytail: sources are fetched and clipped in -180..180; a box past 180 would need split requests per service.
+		// Only local files and no OSM/EMODnet products are accepted until each fetcher is verified across 180.
+		if c.Coastline != "none" || c.Seamarks || c.RegionalBathymetry != "" {
+			return fmt.Errorf("config: bbox east %.3f > 180 (crosses the antimeridian): set coastline \"none\" and drop seamarks/regional_bathymetry; network fetchers are not verified across 180", e)
+		}
+		for _, sp := range c.Sources {
+			if sp.Type != "geotiff" || strings.HasPrefix(sp.Path, "http") {
+				return fmt.Errorf("config: source %q: antimeridian worlds (east > 180) accept only local geotiff sources, other source types are not verified across 180", sp.ID)
+			}
+		}
+		if len(c.Sources) == 0 {
+			return fmt.Errorf("config: bbox east %.3f > 180: antimeridian worlds need explicit local geotiff \"sources\"", e)
+		}
+	}
+	return nil
+}
+
 // Normalize applies defaults and rejects invalid values.
 func (c *Config) Normalize() error {
 	if c.Name == "" {
 		return fmt.Errorf("config: name is required")
 	}
 	w, s, e, n := c.BBox[0], c.BBox[1], c.BBox[2], c.BBox[3]
-	if !(w < e && s < n && w >= -180 && e <= 180 && s >= -85 && n <= 85) {
-		return fmt.Errorf("config: bbox must be [west,south,east,north] within lon ±180, lat ±85 with west<east, south<north")
+	// east may exceed 180 to cross the antimeridian (west 179, east 181 is a 2 degree box); the width is capped at 180.
+	if !(w < e && s < n && w >= -180 && e <= 360 && e-w <= 180 && s >= -85 && n <= 85) {
+		return fmt.Errorf("config: bbox must be [west,south,east,north] with west in ±180, west<east, width <= 180 degrees (east > 180 crosses the antimeridian), lat within ±85, south<north")
+	}
+	switch c.Projection {
+	case "", "auto", "utm", "tmerc":
+	default:
+		return fmt.Errorf("config: projection %q not one of auto|utm|tmerc", c.Projection)
+	}
+	if c.Projection == "tmerc" && c.UTMEPSG != 0 {
+		return fmt.Errorf("config: utm_epsg and projection \"tmerc\" contradict each other")
 	}
 	if c.CellM <= 0 {
 		return fmt.Errorf("config: cell_m must be > 0")
@@ -247,8 +284,23 @@ type VerticalInfo struct {
 }
 
 type CRS struct {
-	EPSG int    `json:"epsg"`
+	EPSG int    `json:"epsg"` // 0 for a local transverse Mercator grid
 	Name string `json:"name"`
+	// Kind is "utm" (EPSG set) or "tmerc": WGS 84 transverse Mercator with the parameters below.
+	Kind          string  `json:"kind,omitempty"`
+	Lon0          float64 `json:"lon_0,omitempty"`
+	K0            float64 `json:"k_0,omitempty"`
+	FalseEasting  float64 `json:"false_easting,omitempty"`
+	FalseNorthing float64 `json:"false_northing,omitempty"`
+	Proj4         string  `json:"proj4,omitempty"` // GDAL/PROJ definition of a tmerc grid
+}
+
+// SRS is the CRS as GDAL accepts it: "EPSG:n" for UTM, the PROJ string for a local grid.
+func (c CRS) SRS() string {
+	if c.Kind == "tmerc" {
+		return c.Proj4
+	}
+	return fmt.Sprintf("EPSG:%d", c.EPSG)
 }
 
 type Grid struct {

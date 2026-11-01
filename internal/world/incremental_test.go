@@ -154,12 +154,19 @@ func TestCancelledBuildLeavesOutputUntouched(t *testing.T) {
 	}
 }
 
-// A bbox spanning several UTM zones is refused with advice instead of being silently distorted.
+// A bbox spanning several UTM zones is refused with advice instead of being silently distorted when UTM is demanded,
+// and when even a local transverse Mercator cannot hold it. (0.2.0 refused the 20 degree box in any case; 0.3.0 plans it
+// as a local grid, see ADR 0006.)
 func TestWideBBoxRefusedAndNarrowOneReportsScale(t *testing.T) {
 	wide := cfgFor([4]float64{-20, 50.15, 0, 50.185}) // 20 degrees wide: the far edge is 11 degrees off the central meridian
+	wide.Projection = "utm"
 	_, err := world.Build(wide, world.Options{CacheDir: t.TempDir(), OutDir: filepath.Join(t.TempDir(), "w")})
 	if err == nil || !strings.Contains(err.Error(), "scale distortion") {
 		t.Fatalf("want a distortion refusal, got %v", err)
+	}
+	tooWide := cfgFor([4]float64{-60, 50.15, 60, 50.185})
+	if _, err = world.Build(tooWide, world.Options{CacheDir: t.TempDir(), OutDir: filepath.Join(t.TempDir(), "w")}); err == nil || !strings.Contains(err.Error(), "scale distortion") {
+		t.Fatalf("want a distortion refusal for a 120 degree box, got %v", err)
 	}
 	m, err := world.Build(cfgFor(box), world.Options{CacheDir: t.TempDir(), OutDir: filepath.Join(t.TempDir(), "w")})
 	if err != nil {

@@ -153,3 +153,11 @@ Reader query cost (Falmouth fixture, `go test ./pkg/oceanworld -bench . -run x`)
 - Multi-source merge with precedence, multi-zone worlds, windowed processing, vertical datum conversion.
 - Unity standalone player build; Unity importer reads level 0 only.
 - EMODnet licence text was not read.
+
+## 2026-11-01: 0.3.0 work, projection and tests
+
+- Added tests for composition (precedence, overlap statistics, nodata hole, per-sample dataset layer, `auto` precedence), vertical refusals, EGM96→EGM2008 shift against `gdaltransform`, window-size independence (0/1/2/3 tiles per window: byte-identical tiles) and validator tamper detection.
+- Bug found by the vertical test: a compound-CRS shift left the vertical CRS on the shifted file, so the later warp converted heights again (EGM96 −50 m became +3.1 m). The shifted file now carries only the horizontal CRS. Files that embed a vertical CRS are warped with an explicit horizontal source CRS.
+- Open: the installed EGM96 grid differs from PROJ's published regression values by 0.37 m (12.5E 55.5N) and 0.40 m (180E 0N). Cause not established (file variant, registration or interpolation). The test only checks sign and magnitude within 0.5 m.
+- Local transverse Mercator (ADR 0006). Tested: single zone stays UTM; zone boundary; wide box; equator (negative northings); antimeridian planning; the reader's projection against PROJ at 3 CRSs (< 1 cm); an end-to-end synthetic build across 180 that validates and samples correctly on both sides. Not tested: any network source across 180, Unity, LibreTerrain with schema 3.
+- Source probes written to research/source-probes.md (dated 2026-11-01, by a research subagent; not re-verified by me).

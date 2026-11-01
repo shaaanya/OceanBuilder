@@ -33,6 +33,7 @@ type Manifest struct {
 		K0            float64 `json:"k_0"`
 		FalseEasting  float64 `json:"false_easting"`
 		FalseNorthing float64 `json:"false_northing"`
+		Proj4         string  `json:"proj4"`
 	} `json:"crs"`
 	Grid struct {
 		CellM          float64    `json:"cell_m"`

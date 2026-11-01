@@ -114,7 +114,7 @@ func colorize(v, shade float64) color.RGBA {
 func drawCoast(img *image.RGBA, geojson string, m *world.Manifest, scale, W, H int) error {
 	tmp := filepath.Join(os.TempDir(), fmt.Sprintf("ocean-coast-%d.geojson", os.Getpid()))
 	defer os.Remove(tmp)
-	if _, err := gdal.Run("ogr2ogr", "-f", "GeoJSON", "-t_srs", fmt.Sprintf("EPSG:%d", m.CRS.EPSG), tmp, geojson); err != nil {
+	if _, err := gdal.Run("ogr2ogr", "-f", "GeoJSON", "-t_srs", m.CRS.SRS(), tmp, geojson); err != nil {
 		return err
 	}
 	b, err := os.ReadFile(tmp)

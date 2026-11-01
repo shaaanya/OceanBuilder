@@ -10,11 +10,11 @@ Labels: **OBSERVED** = I made the request and looked at the result. **DOCUMENTED
 |---|---|---|---|---|---|---|---|
 | 1 | NOAA gis.ngdc ImageServer (DEM_global_mosaic) | yes, exportImage | mosaic: 1/9" (US, CUDEM) down to 15" (ETOPO 2022) elsewhere | **mixed per item** (NAVD 88, MHW, MHHW, sea level, ...) | none in output; per-item catalog via `identify` | no licence text in service; underlying NCEI = public domain | usable but datum-ambiguous |
 | 2 | NOAA CUDEM 1/9" tiles (S3 COG) | yes, `/vsicurl` window reads | 3.0864e-5 deg (1/9") | NAVD88 height (OBSERVED in file CRS) | none (1 band) | "Not subject to copyright protection within the United States" | best US source |
-| 3 | GEBCO_2026 | yes via undocumented `download.gebco.net/api` | 15" (0.0041667 deg) | "assumed MSL", WGS84 | **TID grid** (OBSERVED, per cell) | public domain, attribution required | best global provenance |
-| 4 | ETOPO 2022 | yes, `/vsicurl` on 15 deg tiles | 15" | EGM2008 geoid (~MSL) | **SID tile** (OBSERVED) | NOAA/NCEI, cite DOI | stable, simple fallback |
+| 3 | GEBCO_2026 | yes via undocumented `download.gebco.net/api` | 15" (0.0041667 deg) | "assumed MSL", WGS84 | **TID grid** (OBSERVED, per cell; the only per-cell measured-vs-indirect layer in this report) | public domain, attribution required | best global provenance |
+| 4 | ETOPO 2022 | yes, `/vsicurl` on 15 deg tiles | 15" | EGM2008 geoid (~MSL) | **SID tile** (OBSERVED; dataset provenance only, not a measured/interpolated flag; codes not decoded) | NOAA/NCEI, cite DOI | stable, simple fallback |
 | 5a | Seascape tiles | tile fetch | 512 px tiles, z0..z18 | varies by source (not normalised) | coverage.json tiles only | CC BY 4.0 + per-source | lossy, mixed datum |
 | 5b | AWS Terrarium | tile fetch | 256 px; ocean from ETOPO1 1' (DOCUMENTED) | not stated | none | attribution required | not suitable |
-| 6 | EMODnet DTM WCS | yes (in use) | 1/16' = 0.0010417 deg | **LAT** (DOCUMENTED) | none in WCS | CC BY 4.0 | keep (Europe) |
+| 6 | EMODnet DTM WCS | yes (in use) | 1/16' = 0.0010417 deg | **LAT** documented for the DTM; an MSL variant exists only as downloadable ESRI ASCII tiles; which one the WCS `emodnet__mean` serves is not stated in capabilities (UNKNOWN, page says LAT) | none in WCS (full DTM download has std dev, count, interpolation flag, source ref) | CC BY 4.0 | keep (Europe) |
 | 7 | GMRT GridServer | yes (in use) | ~61 m at equator zoom, equal-metre nodes | **not stated** on pages read | `topo-mask` | CC BY 4.0 | keep, with caveats |
 
 ---
@@ -182,7 +182,7 @@ Fixtures: `fixtures/sea_falmouth_z10.webp` (16 KB), `fixtures/aws_falmouth_z10.p
 - GetCoverage that worked (OBSERVED): `...wcs?service=WCS&version=2.0.1&request=GetCoverage&coverageId=emodnet__mean&format=image/tiff&subset=Lat(50.05,50.20)&subset=Long(-5.20,-5.00)` returned 192x144 Float32, 110,976 B, origin (-5.2, 50.2), pixel 0.0010417, min -63.85, max 205.13 (land included as positive). The same request for Key West returned an OWS ExceptionReport (404): outside coverage.
 - Mean-depth layer description (OBSERVED in capabilities): "Mean depth based on source resolution of 1/16 arc minute (~125 meter)". Older coverages: `_2016`, `_2020`, `_2022` abstracts mention 1/16 or 1/8 arc minute; I did not pull the release-to-year mapping.
 
-**Vertical datum (DOCUMENTED, https://emodnet.ec.europa.eu/en/bathymetry):** "Mean depth full coverage with water depth to Lowest Astronomical Tide (LAT) reference from EMODnet DTM ... complemented by land DTM and GEBCO coverage." And: "The bathymetric data as collected from the data providers, are supposed to be referenced at the Lowest Astronomical Tide (LAT) (International Hydrographic Office (IHO) resolution 3/1919) ... the EMODnet Digital Terrain Model has been developed and is published for viewing and downloading in LAT." A separate LAT-to-MSL conversion product exists (GTSM tide model by Deltares); I did not check if `emodnet__mean` is the LAT or the MSL version. The vertical reference of the land and "grey areas derived from GEBCO" parts is not stated (UNKNOWN).
+**Vertical datum (DOCUMENTED, https://emodnet.ec.europa.eu/en/bathymetry): LAT for the DTM; MSL exists only as a separate download.** "Mean depth full coverage with water depth to Lowest Astronomical Tide (LAT) reference from EMODnet DTM ... complemented by land DTM and GEBCO coverage." And: "The bathymetric data as collected from the data providers, are supposed to be referenced at the Lowest Astronomical Tide (LAT) (International Hydrographic Office (IHO) resolution 3/1919) ... the EMODnet Digital Terrain Model has been developed and is published for viewing and downloading in LAT." The same page states: "Note: The water depth values are in metres with reference to LAT", and that an MSL version (LAT plus a GTSM/Deltares tide-model offset) "applies for the DTM tiles in the ESRI ASCII format, which are downloadable both in LAT and MSL". So the MSL variant is a tile download, not a WCS product; the WCS capabilities and DescribeCoverage contain no LAT/MSL string (grep OBSERVED), so the WCS datum is **documented only indirectly (page: LAT)**. The vertical reference of the land part and the GEBCO fill (2024 30" + IBCAO V4) is not stated (UNKNOWN). The full DTM cell record (DOCUMENTED) has min/avg/max depth, standard deviation, number of values, an interpolation flag marking extrapolated cells, a smoothed depth and "reference to the prevailing source of data"; none of these are exposed by the WCS. Do not trust the DescribeCoverage unit field: it declares `swe:uom code="W.m-2.Sr-1"` (a radiance unit) for depth (OBSERVED).
 
 **Licence/citation (DOCUMENTED, https://emodnet.ec.europa.eu/en/terms-use-emodnet-online-services-data-and-data-products):** "Unless indicated otherwise, data products created by EMODnet are owned by the EU and therefore licensed under Creative Commons CC-BY 4.0." Users should "verify any metadata ... to properly cite the data originator and consult any use restrictions or licences of individual data originators." Citation: "EMODnet Digital Bathymetry (DTM 2024). EMODnet Bathymetry Consortium https://doi.org/10.12770/cf51df64-56f9-4a99-b1aa-36b8d7b743a1".
 
@@ -194,7 +194,7 @@ Fixture: `fixtures/emod_falmouth.tif` (111 KB).
 
 **Docs (OBSERVED, read):** https://www.gmrt.org/services/gridserverinfo.php. Endpoint `https://www.gmrt.org/services/GridServer` (matches `internal/gmrt/gmrt.go`); metadata at `.../GridServer/metadata?...&mformat=json` (JSON includes `meters_per_node`, `width`, `height`, `nodes`, `file_size_netcdf`, `gmrt_version` 4.5.0, `gmrt_release_date` "June 2026").
 
-**(a) Vertical reference:** **UNKNOWN.** I read the GridServer info page, Terms of Use, and About page and found no vertical-datum statement. The only related text: unmasked `topo` is "filled with GEBCO_08 where high-resolution data do not exist in the ocean" (GEBCO's own statement is "assuming ... Mean Sea Level" for its grids, see section 3, for a different release).
+**(a) Vertical reference:** **UNKNOWN.** I read the GridServer info page, Terms of Use, and About page, and grepped the XML metadata response (`GridServer/metadata?...&mformat=xml`) for "datum", "vertical" and "sea level"; nothing found. The only related text: unmasked `topo` is "filled with GEBCO_08 where high-resolution data do not exist in the ocean" (GEBCO's own statement is "assuming ... Mean Sea Level" for its grids, see section 3, for a different release).
 
 **(b) `resolution=max` on large bboxes (OBSERVED):**
 
@@ -205,7 +205,7 @@ Fixture: `fixtures/emod_falmouth.tif` (111 KB).
 | 0..10, 40..50 | 9103 x 12923, 117,638,069 | **122.30 / 512** | 470,553,004 | metadata only (budget) |
 | -180..180, -80..80 (metadata) | 10240 x 7942, 81,326,080 | 3913.58 / 16 | n/a | metadata only |
 
-- 2x2 deg delivered exactly what its metadata predicted. The 10x10 deg request is **silently coarsened by one zoom level (61 m to 122 m)**; no error, `lessThanMaxNodes: true`. The only signal is `meters_per_node` / `zoom_level` in the metadata. It contradicts the doc's "up to 2GB, ~20 by 20 degrees at 100 m" (the observed cap looks like roughly 117M nodes, about 470 MB, not 2 GB). I did not download the 5x5 or 10x10 files, so their delivered pixel sizes are inferred from metadata (the 2x2 case matched exactly).
+- 2x2 deg delivered what its metadata predicted, within one row (4827 vs 4826 rows). The 10x10 deg request is **silently coarsened by one zoom level (61 m to 122 m)** in the metadata; no error, `lessThanMaxNodes: true`. The only signal is `meters_per_node` / `zoom_level`. The node cap is only bracketed by my data: accepted 117.6M nodes (10x10 at zoom 512) and 112.5M (5x5 at zoom 1024); rejected (coarsened) about 450M (10x10 at zoom 1024) and the global box (which fell to zoom 16, finer zoom 32 would be about 325M). So the cap lies between about 118M and 325M nodes (about 470 MB), well under the documented "up to 2GB, ~20 by 20 degrees at 100 m". I did not download the 5x5 or 10x10 files, so their delivered pixel sizes are inferred from metadata (the 2x2 case matched exactly).
 - `grid_bounds` expand past the request (2x2: west -0.000275, north 42.0005); read the geotransform.
 - **Pixels are not square in degrees**: nodes are equal-metre. Falmouth lon step 0.000550826, lat step 0.000352998 (ratio 0.641 = cos 50.12 deg); 41N: 0.000549467 vs 0.000414608 (0.755 = cos 41 deg). So "61 m" is the equator figure; at Falmouth nodes are about 39 m. Any code assuming square degree pixels will be wrong.
 - `mresolution=300` for the Falmouth box returned the **identical** 365x429 grid as `resolution=max` (docs say `mresolution` overrides `resolution`); why is UNKNOWN. `resolution=default` for the 1-deg Fiji box returned 914x951 (<1000 nodes, as documented).
@@ -218,7 +218,7 @@ Fixture: `fixtures/emod_falmouth.tif` (111 KB).
 
 **Bytes for test area:** Falmouth 0.2x0.15 deg: 627,394 B (365x429 Float32).
 
-Fixtures are over the 300 KB target (Falmouth 627 KB), so not recommended: `fixtures/gmrt_falmouth_topo_mres300.tif`, `fixtures/gmrt_falmouth_topomask_mres300.tif`, `fixtures/gmrt_antimeridian_179.5_to_-179.5_mres3000.tif` (3.5 MB).
+Fixtures are over the 300 KB target (Falmouth 627 KB), so not recommended: `fixtures/gmrt_falmouth_topo_mres300.tif`, `fixtures/gmrt_falmouth_topomask_mres300.tif`, `fixtures/gmrt_antimeridian_179.5_to_-179.5_mres3000.tif` (3.5 MB). **Naming warning:** the `mres300` files are really the max grid (365x429, about 39 m at Falmouth, because `mresolution` was ignored) and the `mres3000` file is the `resolution=default` grid (914x951); do not write tests assuming 300 m or 3000 m. A stray 70 MB `gmrt/big2.tif` (2x2 deg download) also remains in the scratch dir.
 
 ---
 
@@ -240,7 +240,7 @@ Fixtures are over the 300 KB target (Falmouth 627 KB), so not recommended: `fixt
 | ETOPO 2022 | **EGM2008 geoid** (EPSG:3855/9518); "adequate approximation of mean sea level" | User Guide + file CRS |
 | Seascape | **Varies per source**, LAT/MLLW for some, approx MSL for others; not normalised | repo README |
 | AWS Terrarium | Not stated in the pages read (underlying ETOPO1 etc.) | UNKNOWN |
-| EMODnet DTM | **LAT** (IHO 3/1919); an LAT-to-MSL conversion exists as a separate effort; land/GEBCO fill reference not stated | emodnet.ec.europa.eu/en/bathymetry |
+| EMODnet DTM | **LAT** (IHO 3/1919) for the published DTM; an MSL version is offered only as ESRI ASCII tile downloads; the WCS coverage itself declares no datum (UNKNOWN); land/GEBCO fill reference not stated | emodnet.ec.europa.eu/en/bathymetry |
 | GMRT | **Not stated** on the pages read | UNKNOWN |
 
 Implication: nothing here shares one datum. The manifest should record `vertical_datum` per source (and per CUDEM/NOAA-catalog item) and refuse to merge sources with different datums without an explicit conversion; GEBCO/ETOPO are the closest to a common MSL-like surface, CUDEM is NAVD88, EMODnet is LAT.

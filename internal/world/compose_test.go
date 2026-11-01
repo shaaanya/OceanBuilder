@@ -13,6 +13,7 @@ import (
 
 	"github.com/ocean-compiler/ocean/internal/validate"
 	"github.com/ocean-compiler/ocean/internal/world"
+	"github.com/ocean-compiler/ocean/pkg/oceanworld"
 )
 
 // mkTif writes a Float32 GeoTIFF (EPSG:4326) covering w,s,e,n with n x m cells holding value; holeGeoJSON, when
@@ -355,5 +356,35 @@ func TestValidatorChecksDatasetLayer(t *testing.T) {
 	rep, err = validate.Run(out)
 	if err != nil || rep.Result != "FAILED" {
 		t.Fatalf("tampered dataset layer must be an error: %v %+v", err, rep)
+	}
+}
+
+// A world across the antimeridian in a local transverse Mercator grid (schema 3) builds from a local source, validates,
+// and the reader answers on both sides of 180 with the same projection the builder used.
+func TestAntimeridianLocalTMBuild(t *testing.T) {
+	dir := t.TempDir()
+	mkTif(t, filepath.Join(dir, "a.tif"), 179.88, -16.12, 180.12, -15.88, 120, 120, -37, "")
+	cfg := &world.Config{Name: "am", BBox: [4]float64{179.9, -16.1, 180.1, -15.9}, CellM: 100, TileCells: 32, Coastline: "none", Projection: "tmerc",
+		Sources: []world.SourceSpec{{ID: "a", Type: "geotiff", Path: filepath.Join(dir, "a.tif"), Quality: "survey", License: "test", Attribution: "synthetic", Vertical: &world.VerticalRef{Datum: "EGM2008"}}}}
+	m, out := buildIt(t, cfg)
+	if m.SchemaVersion != world.SchemaVersionTM || m.CRS.Kind != "tmerc" || m.CRS.EPSG != 0 || m.CRS.Lon0 != 180 || m.CRS.Proj4 == "" {
+		t.Fatalf("manifest crs %+v schema %d", m.CRS, m.SchemaVersion)
+	}
+	rep, err := validate.Run(out)
+	if err != nil || rep.Result == "FAILED" {
+		t.Fatalf("validate: %v\n%s", err, rep.Format())
+	}
+	w, err := oceanworld.Open(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, lon := range []float64{179.95, 180.05, -179.95} {
+		s, err := w.SampleLonLat(lon, -16, 0)
+		if err != nil || !s.Valid || math.Abs(s.ElevationM+37) > 0.05 || s.Dataset != "a" {
+			t.Errorf("lon %v: %+v %v", lon, s, err)
+		}
+	}
+	if s, _ := w.SampleLonLat(179.5, -16, 0); s.Valid {
+		t.Errorf("outside the world must be invalid: %+v", s)
 	}
 }

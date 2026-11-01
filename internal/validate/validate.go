@@ -116,7 +116,7 @@ func Run(dir string) (*Report, error) {
 		return nil, fmt.Errorf("cannot read manifest: %w", err)
 	}
 	r := &Report{World: m.Name, BuildID: m.BuildID, Tiles: len(m.Tiles), Metrics: map[string]float64{}}
-	if m.SchemaVersion != world.SchemaVersion {
+	if m.SchemaVersion != world.SchemaVersion && m.SchemaVersion != world.SchemaVersionTM {
 		r.add(Error, "schema", "manifest schema_version %d, tool understands %d", m.SchemaVersion, world.SchemaVersion)
 		return r.finish(), nil
 	}

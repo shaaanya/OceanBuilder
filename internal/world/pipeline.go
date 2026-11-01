@@ -116,7 +116,11 @@ func build(cfg *Config, opt Options) (*Manifest, bool, error) {
 	if err != nil {
 		return nil, false, err
 	}
+	if err := cfg.checkAntimeridian(); err != nil {
+		return nil, false, err
+	}
 	epsg, srs := plan.EPSG, plan.SRS
+	m.SchemaVersion = plan.schema()
 	W, H, tx, ty := plan.W, plan.H, plan.Grid.TilesX, plan.Grid.TilesY
 	originE, originN := plan.Grid.OriginE, plan.Grid.OriginN
 	m.Stats.UTMScaleMin, m.Stats.UTMScaleMax = plan.ScaleMin, plan.ScaleMax
@@ -401,7 +405,7 @@ func build(cfg *Config, opt Options) (*Manifest, bool, error) {
 
 	// 6. Manifest.
 	m.Tool.Version, m.Tool.GDAL = ToolVersion, gdal.Version()
-	m.CRS = CRS{EPSG: epsg, Name: fmt.Sprintf("WGS 84 / UTM zone %d%s", epsg%100, map[bool]string{true: "N", false: "S"}[epsg < 32700])}
+	m.CRS = plan.CRS()
 	m.Vertical = vinfo
 	m.Height = HeightEncoding{Type: "float32", ByteOrder: "little", RowOrder: "north_to_south", Unit: "metre", NoData: noData, MinM: ws.zmin, MaxM: ws.zmax,
 		Note: "IEEE-754 float32 metres, positive up, zero = land/water boundary. Cells without a value are exactly nodata and have depth class 255 and source 0"}
