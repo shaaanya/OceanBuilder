@@ -325,16 +325,24 @@ func gdalTransformFull(t *testing.T, from, to string, x, y, z float64) [3]float6
 	return r
 }
 
-// Published reference points for the EGM96 undulation, from PROJ's regression suite (test/gie/more_builtins.gie,
-// vgridshift egm96_15.gtx): N = +36.394 m at 12.5E 55.5N and +20.757 m at 180E 0N. The installed grid file
-// (us_nga_egm96_15.tif) differs from those by 0.37 and 0.40 m; the cause (file variant, registration, interpolation) is
-// not established, so this test only asserts what it can: right sign and magnitude within 0.5 m. It catches a no-op
-// (0 m) or a sign error, not centimetre-level agreement. Recorded as an open item in the development log.
-func TestEGM96PublishedReferencePoints(t *testing.T) {
-	for _, p := range []struct{ lon, lat, n float64 }{{12.5, 55.5, 36.394}, {180, 0, 20.757}} {
+// EGM96 undulation, checked against references that do not come from the installed grid file (investigation of
+// 2026-11-02, docs/research/egm96-discrepancy.md):
+//   - NGA's own EGM96 test file (five points, as reproduced in Orekit's GeoidTest): the 15' grid is bilinear-interpolated
+//     by PROJ, so it agrees to a few centimetres (largest observed 0.056 m); the tolerance is 0.10 m.
+//   - Spherical-harmonic synthesis from the EGM96 coefficients (GeographicLib `Gravity -n egm96 -H`) at two grid nodes,
+//     where interpolation plays no role: 36.0213 m at 12.5E 55.5N and 21.1533 m at 180E 0N; tolerance 2 mm.
+// PROJ's own gie file lists 36.394 and 20.757 for the same two points; the installed grid, GeographicLib's grid and the
+// coefficient synthesis all disagree with those by 0.37 and 0.40 m, so they are not EGM96 undulations of these points
+// and are deliberately not asserted.
+func TestEGM96IndependentReferences(t *testing.T) {
+	for _, p := range []struct{ lon, lat, n, tol float64 }{
+		{12.5, 55.5, 36.0213, 0.002}, {180, 0, 21.1533, 0.002}, // coefficient synthesis, grid nodes
+		{269.7791550 - 360, 38.6281550, -31.628, 0.10}, {305.0211140 - 360, -14.6212170, -2.969, 0.10}, // NGA test file
+		{102.4487290, 46.8743190, -43.575, 0.10}, {133.8747120, -23.6174460, 15.871, 0.10}, {359.9995000 - 360, 38.6254730, 50.066, 0.10},
+	} {
 		got := gdalTransformZ(t, "EPSG:4326+5773", "EPSG:4979", p.lon, p.lat, 0)
-		if math.Abs(got-p.n) > 0.5 {
-			t.Errorf("EGM96 N at %g,%g = %.3f, published %.3f", p.lon, p.lat, got, p.n)
+		if math.Abs(got-p.n) > p.tol {
+			t.Errorf("EGM96 N at %g,%g = %.4f, reference %.4f (tolerance %.3f)", p.lon, p.lat, got, p.n, p.tol)
 		}
 	}
 }
