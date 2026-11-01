@@ -318,12 +318,10 @@ func build(cfg *Config, opt Options) (*Manifest, bool, error) {
 		}
 	}
 	corners, err := gdal.Transform(srs, "EPSG:4326", all)
-	// Longitudes come back in -180..180; a world across the antimeridian is expressed on the branch that starts at the
-	// bbox west edge (east above 180), so no tile envelope spans 360 degrees.
+	// Longitudes come back in -180..180; they are expressed on the branch nearest the bbox centre, so a world across
+	// the antimeridian has east above 180 and no tile envelope (coarse tiles reach far past the bbox) spans 360 degrees.
 	for i := range corners {
-		for corners[i][0] < w-1 {
-			corners[i][0] += 360
-		}
+		corners[i][0] = (w+e)/2 + wrapLon(corners[i][0]-(w+e)/2)
 	}
 	if err != nil {
 		return nil, false, err

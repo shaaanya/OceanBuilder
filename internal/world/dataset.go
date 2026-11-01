@@ -10,9 +10,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ocean-compiler/ocean/internal/cudem"
 	"github.com/ocean-compiler/ocean/internal/emodnet"
+	"github.com/ocean-compiler/ocean/internal/etopo"
 	"github.com/ocean-compiler/ocean/internal/fetch"
 	"github.com/ocean-compiler/ocean/internal/gdal"
+	"github.com/ocean-compiler/ocean/internal/gebco"
 	"github.com/ocean-compiler/ocean/internal/gmrt"
 )
 
@@ -87,6 +90,10 @@ func (c *Config) normalizeSources() error {
 			if s.Quality == "" {
 				s.Quality = "regional"
 			}
+		case "etopo2022", "gebco", "cudem":
+			if s.Quality == "" {
+				s.Quality = "compiled"
+			}
 		case "geotiff":
 			if s.Path == "" || s.License == "" || s.Attribution == "" {
 				return fmt.Errorf("config: sources[%d] (%s): geotiff needs path, license and attribution", i, s.ID)
@@ -98,7 +105,7 @@ func (c *Config) normalizeSources() error {
 				s.Quality = "compiled"
 			}
 		default:
-			return fmt.Errorf("config: sources[%d]: type %q not one of gmrt|geotiff|emodnet", i, s.Type)
+			return fmt.Errorf("config: sources[%d]: type %q not one of gmrt|geotiff|emodnet|etopo2022|gebco|cudem", i, s.Type)
 		}
 		switch s.Quality {
 		case "survey", "compiled", "regional", "background":
@@ -108,7 +115,7 @@ func (c *Config) normalizeSources() error {
 		switch s.Part {
 		case "", "all":
 		case "survey", "background":
-			if s.Type == "emodnet" || s.Type == "geotiff" && s.Mask == "" {
+			if s.Type == "emodnet" || s.Type == "etopo2022" || s.Type == "cudem" || s.Type == "geotiff" && s.Mask == "" {
 				return fmt.Errorf("config: sources[%d] (%s): part %q needs a survey mask (gmrt, or a geotiff with mask)", i, s.ID, s.Part)
 			}
 		default:
@@ -214,6 +221,30 @@ func resolveDatasets(cfg *Config, fb gmrt.BBox, opt Options) ([]*dataset, error)
 			}
 			d.vals = []*fetch.Provenance{p}
 			d.vref = VerticalRef{Datum: "unknown"}
+		case "etopo2022":
+			opt.logf("reading ETOPO 2022 window")
+			p, err := etopo.Fetch(opt.CacheDir, fb.W, fb.S, fb.E, fb.N)
+			if err != nil {
+				return nil, fmt.Errorf("source %s: %w", sp.ID, err)
+			}
+			d.vals = []*fetch.Provenance{p}
+			d.vref = VerticalRef{Datum: "EGM2008"} // User Guide: heights relative to the EGM2008 geoid
+		case "gebco":
+			opt.logf("requesting GEBCO subset (download.gebco.net)")
+			elev, mask, err := gebco.Fetch(opt.CacheDir, fb.W, fb.S, fb.E, fb.N)
+			if err != nil {
+				return nil, fmt.Errorf("source %s: %w", sp.ID, err)
+			}
+			d.vals, d.masks = []*fetch.Provenance{elev}, []*fetch.Provenance{mask}
+			d.vref = VerticalRef{Datum: "MSL"} // GEBCO: "assumed to be referred to Mean Sea Level", shallow-water sources may differ
+		case "cudem":
+			opt.logf("reading CUDEM 1/9 arc-second window")
+			p, err := cudem.Fetch(opt.CacheDir, fb.W, fb.S, fb.E, fb.N)
+			if err != nil {
+				return nil, fmt.Errorf("source %s: %w", sp.ID, err)
+			}
+			d.vals = []*fetch.Provenance{p}
+			d.vref = VerticalRef{Datum: "NAVD88"}
 		case "geotiff":
 			key := "geotiff|" + sp.Path + "|" + sp.Mask
 			v, ok := cache[key]

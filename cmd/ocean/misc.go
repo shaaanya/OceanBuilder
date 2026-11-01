@@ -16,6 +16,9 @@ type sourceInfo struct {
 
 var sources = []sourceInfo{
 	{"gmrt", "bathymetry+topography (merged, with survey mask)", "global; up to ~1 m where multibeam exists", "GridServer HTTP API, no key", "CC BY 4.0 for GMRT; contributed grids carry own credits"},
+	{"gebco", "global bathymetry+topography, 15 arc-second, with per-cell TID (type identifier): TID 10-17 (direct measurement) becomes the survey mask; type \"gebco\" in sources[]", "global; uses an undocumented REST API behind download.gebco.net (observed 2026-11-01)", "download.gebco.net API, no key", "public domain, acknowledge the source, not for navigation. Datum assumed MSL (some shallow sources differ)"},
+	{"etopo2022", "global relief 15 arc-second (EGM2008 heights); type \"etopo2022\" in sources[]", "global", "static GeoTIFF tiles read with /vsicurl, no key", "NOAA NCEI; product page states no copyright restrictions (terms not reviewed by this tool)"},
+	{"cudem", "NOAA CUDEM 1/9 arc-second topobathy (~3 m, NAVD88); type \"cudem\" in sources[]; windows up to 0.5 degrees", "US coasts and territories only", "anonymous S3 bucket noaa-nos-coastal-lidar-pds, /vsicurl", "not subject to copyright in the US; not for navigation. NAVD88 has no verified transformation here: use it alone or with vertical.allow_mixed"},
 	{"osm-coastline", "coastline vectors (natural=coastline)", "global", "Overpass API (public mirrors)", "ODbL 1.0, © OpenStreetMap contributors"},
 	{"osm-seamarks", "OpenSeaMap seamark points (seamark:type), opt-in \"seamarks\": true", "global, uneven", "Overpass API (public mirrors)", "ODbL 1.0, © OpenStreetMap contributors"},
 	{"emodnet", "regional bathymetry fill (~115 m), opt-in \"regional_bathymetry\"", "European seas", "EMODnet WCS, no key", "service declares no fees or access constraints; Terms of Use not reviewed"},

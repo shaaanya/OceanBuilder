@@ -121,3 +121,61 @@ func SHA256File(path string) (string, error) {
 	}
 	return hex.EncodeToString(h.Sum(nil)), nil
 }
+
+// Derived caches files that a function produces from a remote service (a window read from a COG, an unzipped subset,
+// a mask computed from a layer). The result is stored like a download: cacheDir/<source>/<hash of key>/<name> with a
+// sidecar holding url (a description of what was requested), retrieval time and the sha256 of the produced file, so a
+// later run reuses it only while the bytes still match. produce writes every file in names into dir.
+func Derived(cacheDir, source, key, url, license, attribution string, names []string, produce func(dir string) error) ([]*Provenance, error) {
+	ksum := sha256.Sum256([]byte(key))
+	dir := filepath.Join(cacheDir, source, hex.EncodeToString(ksum[:8]))
+	read := func() ([]*Provenance, bool) {
+		var out []*Provenance
+		for _, n := range names {
+			b, err := os.ReadFile(filepath.Join(dir, n+".json"))
+			if err != nil {
+				return nil, false
+			}
+			var p Provenance
+			if json.Unmarshal(b, &p) != nil {
+				return nil, false
+			}
+			file := filepath.Join(dir, n)
+			if sum, err := SHA256File(file); err != nil || sum != p.SHA256 {
+				return nil, false
+			}
+			p.License, p.Attribution, p.File = license, attribution, file
+			out = append(out, &p)
+		}
+		return out, true
+	}
+	if out, ok := read(); ok {
+		return out, nil
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return nil, err
+	}
+	if err := produce(dir); err != nil {
+		return nil, fmt.Errorf("%s: %w", source, err)
+	}
+	var out []*Provenance
+	now := time.Now().UTC().Format(time.RFC3339)
+	for _, n := range names {
+		file := filepath.Join(dir, n)
+		fi, err := os.Stat(file)
+		if err != nil {
+			return nil, fmt.Errorf("%s: expected output %s: %w", source, n, err)
+		}
+		sum, err := SHA256File(file)
+		if err != nil {
+			return nil, err
+		}
+		p := &Provenance{Source: source, URL: url, RetrievedAt: now, SHA256: sum, Bytes: fi.Size(), License: license, Attribution: attribution, File: file}
+		b, _ := json.MarshalIndent(p, "", "  ")
+		if err := os.WriteFile(file+".json", b, 0o644); err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, nil
+}
