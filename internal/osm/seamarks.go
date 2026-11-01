@@ -29,7 +29,7 @@ func FetchSeamarks(cacheDir string, w, s, e, n float64) (*fetch.Provenance, []Se
 	var prov *fetch.Provenance
 	var err error
 	for _, m := range Mirrors {
-		prov, err = fetch.Get(cacheDir, "osm-seamarks", m, form, "overpass.json",
+		prov, err = fetch.GetTimeout(overpassTimeout, cacheDir, "osm-seamarks", m, form, "overpass.json",
 			"ODbL 1.0", "© OpenStreetMap contributors (OpenSeaMap tagging), https://www.openstreetmap.org/copyright")
 		if err == nil {
 			break

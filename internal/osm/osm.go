@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/ocean-compiler/ocean/internal/fetch"
 )
@@ -19,6 +20,10 @@ var Mirrors = []string{
 	"https://overpass.kumi.systems/api/interpreter",
 	"https://overpass.private.coffee/api/interpreter",
 }
+
+// overpassTimeout bounds one mirror attempt: the query asks the server for 60-90 s, so a mirror silent for
+// longer is down or overloaded and the next one should be tried.
+const overpassTimeout = 100 * time.Second
 
 type overpass struct {
 	Elements []struct {
@@ -40,7 +45,7 @@ func FetchCoastline(cacheDir string, w, s, e, n float64) (*fetch.Provenance, str
 	var prov *fetch.Provenance
 	var err error
 	for _, m := range Mirrors {
-		prov, err = fetch.Get(cacheDir, "osm-coastline", m, form, "overpass.json",
+		prov, err = fetch.GetTimeout(overpassTimeout, cacheDir, "osm-coastline", m, form, "overpass.json",
 			"ODbL 1.0", "© OpenStreetMap contributors, https://www.openstreetmap.org/copyright")
 		if err == nil {
 			break

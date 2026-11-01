@@ -90,6 +90,58 @@ Ran LibreTerrain's headless MCP bridge and measured it (`docs/research/libreterr
 - Negative result: Falmouth with `regional_release: 2022` is REFUSED by the misregistration guard (rms 0.7 m when moved one cell vs 1.2 m aligned). Both WCS files carry the same geotransform (origin -5.303125, 50.286458, 0.0010417 deg, AREA), which shows only how they are georeferenced, not that their content is registered the same: the measurement says the 2022 content is offset against GMRT by about one 48 m cell, while the current coverage is not, so `emodnet__mean` is a different compilation from `_2022` at Falmouth. Cause not established; hypothesis to test: a pixel-centre vs corner convention change (half an EMODnet pixel is ~58 m N-S, ~37 m E-W at 50N). The guard was not loosened: dated releases are selectable but a release can fail validation, which is the intended behaviour. The current `emodnet__mean` passes (1.62 vs 1.42 m).
 - Advisor review 4 fixes: the lock was applied before the EMODnet/refinement sources joined `m.Sources`, so it pinned only GMRT+coastline; `applyLock` now runs last (also no lock for a failed build) and a test asserts lock entries == manifest sources. Regional caveats were dropped when >5% GEBCO water remained; now always emitted. README notes committed locks fail on fresh clones.
 
-## 2026-11-01: sailing game integration audit
+## 2026-11-01: sailing game integration audit (superseded)
 
-Found the game (ALONE, `~/Documents/projects/Unity/Alone`). It has its own world pipeline and has never loaded OB output. Wrote `docs/integration/` (audit, requirements matrix, workflow, implementation plan) and `docs/integration/evidence/` (three scripts and their outputs: coastline agreement, projection placement error and leg sizes, pack relief and cluster sizes). Ran `go vet` and `go test ./...` (pass) and rebuilt Falmouth (byte-identical heights, same build_id). The game repo was not modified. Unverified: any OB output inside the game, Play, Player build. Details in the audit, section 9.
+An audit of one particular game and an integration plan were written and then removed the same day: the tool is engine-independent and must not be designed around one project ([ADR 0004](decisions/0004-engine-agnostic-scope.md)). The text remains in git history (commit `adabe69` and earlier). Nothing in the code or format depends on it.
+
+
+## 2026-11-01: engine-agnostic 0.2 (format v2, LOD, incremental builds, reader)
+
+Done, each tested (`go vet ./... && go test ./...`):
+
+- **Format v2** ([spec](formats/world-v2.md), [ADR 0005](decisions/0005-format-v2-float32-source-layer-decimated-lod.md)): float32 heights, per-sample source layer, per-file sha256, LOD pyramid by exact vertex decimation (`L<k>_<x>_<y>`, parent/neighbour links). Validator checks layers against heights, shared edges at every level, parent/child samples, statistics recomputed from files.
+- **Builds**: `input_key` skip, warp stage cache, atomic output swap, SIGINT/SIGTERM cancellation, UTM point-scale limits (warn 0.15 %, refuse 0.5 %, `utm_epsg` override), `PlanGrid` used by `world check`.
+- **Reader** `pkg/oceanworld` (no GDAL, pure-Go UTM series): agrees with GDAL to 1 mm; GeoTIFF export agrees with `gdallocationinfo`.
+- **CLI**: `info`, `sample`, `diff`, `world check`, `export -target geotiff|unity`, `build -force -q -log-json`, `cache clean -stages`, per-command help.
+- **Ground-truth tests** with an analytic cone island: southern hemisphere (UTM 56S, worst error 0.24 m over 600 points), the same terrain delivered in Web Mercator (0.37 m), and a nodata hole that must stay nodata (class 255, source `nodata`).
+- **Unity** (6000.4.0f1, URP 17.4), float32 importer, level 0 only: batchmode import of Falmouth (31 manifest tiles, 16 imported), six checkpoints max error 2.8 mm, Addressables build (16 tiles), PlayMode tests 4/4 pass. Editor only: no standalone player build was run.
+
+### Measurements (Apple silicon, 10 cores, GDAL 3.13, Go 1.26, network live)
+
+Region builds from `examples/regions/` (each `ocean build ... -lock off`, cold download):
+
+| region | EPSG | cell | level 0 tiles | LOD levels | survey share of water | cold build | peak RSS | disk |
+|--------|------|-----:|--------------:|-----------:|----------------------:|-----------:|---------:|-----:|
+| geiranger (fjord, N. hemisphere, steep) | 32632 | 32 m | 20 | 6 | 28.1 % | 81.4 s | 55 MB | 3.1 MB |
+| moorea (reef, S. hemisphere, 17.5°S) | 32706 | 48 m | 25 | 7 | 63.3 % | 470.5 s (6 min lost to Overpass) | 55 MB | 4.1 MB |
+| kona (volcano flank) | 32605 | 100 m | 9 | 6 | 93.6 % | 79.6 s | 59 MB | 1.8 MB |
+| bahamas-bank (shallow bank) | 32618 | 100 m | 20 | 5 | 29.7 % | 78.2 s | 71 MB | 3.3 MB |
+
+All four: `validate` 0 errors, 0 edge mismatches, 0 level mismatches; warnings are the intended ones (background-fill share, steep-slope discontinuity 1.56 % in the fjord, upsampling at Moorea where 48 m is finer than the ≈58 m delivered cell). Cold time is almost entirely GMRT/Overpass network time; CPU time is 1.5–2.0 s user.
+
+Cache effectiveness and incremental behaviour (geiranger, bahamas-bank):
+
+| case | time |
+|------|-----:|
+| cold | 81.4 s / 78.2 s |
+| `-force` rebuild with warm download cache | 1.9 s / 1.7 s |
+| rebuild with unchanged inputs (`input_key` match) | 0.53 s |
+| Falmouth, only `depth_bands` changed (warp stage cache hit) | 1.4 s vs 1.9 s for the first build of that world (download cache warm both times) |
+
+A forced rebuild into a different output directory reproduced the identical `build_id` and manifest (and the tests assert byte-identical tiles). Download cache for all runs: 60 MB.
+
+Reader query cost (Falmouth fixture, `go test ./pkg/oceanworld -bench . -run x`): warm `SampleUTM` 40 ns, 0 allocs; cold tile load (file + 3 PNG decodes, 17×17 samples) 0.32 ms; 100-point profile 6.6 µs. Fixture tiles are tiny; a real 129×129 tile decode was not benchmarked.
+
+### Findings
+
+- Overpass was unreliable: for Moorea all three mirrors timed out at the old 3 min client timeout (9 min worst case). The build correctly continued without a coastline and said so (`no-coastline` in `validate`). Each mirror attempt is now capped at 100 s (the query asks the server for 60–90 s). Seamarks for Moorea succeeded on the same day, so it was query weight or mirror load, not network.
+- `info`-level `coast-coverage` is expected: Overpass returns whole ways, so many coastline samples lie outside the bbox.
+- Repeated `gdalinfo --version` calls cost about 0.5 s each; the version is now memoised.
+- `validate` and the libreterrain tests got slower (validate ≈55 s, libreterrain ≈75 s for the full package tests); not diagnosed beyond the memoised version fix, possibly machine load.
+
+### Not done / unverified
+
+- NOAA CUDEM, Seascape, GEBCO direct: surveyed only ([research/ecosystem.md](research/ecosystem.md)); not implemented.
+- Multi-source merge with precedence, multi-zone worlds, windowed processing, vertical datum conversion.
+- Unity standalone player build; Unity importer reads level 0 only.
+- EMODnet licence text was not read.

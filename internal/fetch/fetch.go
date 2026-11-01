@@ -34,6 +34,11 @@ type Provenance struct {
 // Get downloads a URL (GET, or POST form when form != nil) into
 // cacheDir/<source>/<hash of request>/<name>. A cached copy is reused.
 func Get(cacheDir, source, rawURL string, form url.Values, name, license, attribution string) (*Provenance, error) {
+	return GetTimeout(3*time.Minute, cacheDir, source, rawURL, form, name, license, attribution)
+}
+
+// GetTimeout is Get with an explicit whole-request timeout.
+func GetTimeout(timeout time.Duration, cacheDir, source, rawURL string, form url.Values, name, license, attribution string) (*Provenance, error) {
 	key := rawURL + "?" + form.Encode()
 	ksum := sha256.Sum256([]byte(key))
 	dir := filepath.Join(cacheDir, source, hex.EncodeToString(ksum[:8]))
@@ -68,7 +73,7 @@ func Get(cacheDir, source, rawURL string, form url.Values, name, license, attrib
 	}
 	req.Header.Set("User-Agent", UserAgent)
 	req.Header.Set("Accept", "*/*")
-	resp, err := (&http.Client{Timeout: 3 * time.Minute}).Do(req)
+	resp, err := (&http.Client{Timeout: timeout}).Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", source, err)
 	}

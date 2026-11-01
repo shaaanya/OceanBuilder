@@ -11,7 +11,7 @@ import (
 	"github.com/ocean-compiler/ocean/pkg/oceanworld"
 )
 
-func buildFixture(t *testing.T) (string, *world.Manifest) {
+func buildFixture(t testing.TB) (string, *world.Manifest) {
 	t.Helper()
 	fx := "../../testdata/falmouth/"
 	cfg := &world.Config{Name: "fixture", BBox: [4]float64{-5.12, 50.155, -5.085, 50.185}, CellM: 100, TileCells: 16, Resampling: "average",
