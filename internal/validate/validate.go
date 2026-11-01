@@ -553,6 +553,11 @@ func checkBounds(r *Report, m *world.Manifest) {
 }
 
 func checkProvenance(r *Report, m *world.Manifest, dir string) {
+	if m.Licensing == nil {
+		r.add(Warn, "licensing-missing", "manifest has no licensing record (built by a tool older than 0.3.0): attribution and notices must be assembled by hand from sources[]")
+	} else if len(m.Licensing.Sources) == 0 || len(m.Licensing.RequiredNotices) == 0 {
+		r.add(Error, "licensing", "licensing record is empty")
+	}
 	if len(m.Sources) == 0 {
 		r.add(Error, "provenance", "manifest has no sources")
 	}

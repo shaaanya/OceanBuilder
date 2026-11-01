@@ -60,6 +60,9 @@ type Config struct {
 	CoastConformMaxM float64 `json:"coast_conform_max_m,omitempty"` // default 300
 	// Seamarks adds OpenSeaMap features (buoys, lights, harbours, wrecks...) from OSM as seamarks.geojson.
 	Seamarks bool `json:"seamarks,omitempty"`
+	// NoCoastlineCopy leaves coastline.wgs84.geojson (an ODbL extract of OpenStreetMap) out of the output. The coastline is
+	// still used for checks and conforming; tiles are unaffected.
+	NoCoastlineCopy bool `json:"no_coastline_copy,omitempty"`
 	// LODLevels is the number of coarser levels above level 0: 0 = as many as needed until one tile covers the
 	// world, -1 = level 0 only, n>0 = exactly n (at most MaxLOD). Levels are vertex decimations of level 0.
 	LODLevels int `json:"lod_levels,omitempty"`
@@ -275,6 +278,7 @@ type Manifest struct {
 	Checkpoints    []Checkpoint      `json:"checkpoints"`
 	Files          map[string]string `json:"files"`
 	Attribution    []string          `json:"attribution"`
+	Licensing      *Licensing        `json:"licensing,omitempty"` // terms of each source as read on licensing.checked_at; see docs/research/licensing-analysis.md
 }
 
 // Checkpoint is a world vertex with its expected elevation as stored in the

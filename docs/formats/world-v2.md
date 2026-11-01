@@ -7,7 +7,7 @@ A world is a directory.
 ```text
 world.manifest.json                     index, grid, encodings, sources, statistics (required)
 ATTRIBUTION.txt                         credits the sources require; ship it with any redistribution (required)
-coastline.wgs84.geojson                 coastline vectors used for checks/conforming (optional)
+coastline.wgs84.geojson                 coastline vectors used for checks/conforming (optional; ODbL when from OSM; `no_coastline_copy` omits it)
 seamarks.geojson                        OpenSeaMap features (optional, "seamarks": true)
 tiles/<level>/<id>.height.f32           float32 heights
 tiles/<level>/<id>.depth.png            depth class per sample
@@ -92,6 +92,7 @@ Method (`lod.method = "vertex-decimation"`): level `L` keeps every `2^L`-th vert
 | `sources[]` | provenance, see below |
 | `checkpoints[]` | named vertices (highest, lowest, corners) with expected elevation, so an importer can verify its own orientation and placement |
 | `attribution[]`, `files` | credits; optional extra files |
+| `licensing` | what was read about each source's terms (`checked_at`), per source `spdx` (or `LicenseRef-...`), `terms_url`, `attribution_text`, `share_alike`, `navigation_disclaimer`, `endorsement_prohibited`; per output part (`components[]`) which sources it contains and whether it is separable (OSM-derived files are ODbL and separable); `required_notices[]` (attribution, navigation, odbl, no-endorsement) and `unresolved[]` open questions. A record of terms as read, not legal advice |
 
 ### Provenance and licensing
 

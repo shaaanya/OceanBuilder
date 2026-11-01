@@ -99,3 +99,53 @@ func TestGEBCOSourceMeasuredFromTID(t *testing.T) {
 		t.Fatalf("validate: %v\n%s", err, rep.Format())
 	}
 }
+
+// The manifest says what the world must carry: user files are recorded as user-declared, OSM appears only when OSM data
+// was used, and a coastline copy can be left out of the output.
+func TestLicensingRecord(t *testing.T) {
+	cfg, _ := twoSourceCfg(t, []string{"fine", "coarse"}, "")
+	m, out := buildIt(t, cfg)
+	l := m.Licensing
+	if l == nil || l.CheckedAt == "" || len(l.Sources) != 2 {
+		t.Fatalf("licensing %+v", l)
+	}
+	for _, s := range l.Sources {
+		if s.SPDX != "LicenseRef-user-declared" || s.AttributionText != "synthetic" {
+			t.Errorf("source %+v", s)
+		}
+	}
+	for _, n := range l.RequiredNotices {
+		if n == "odbl" {
+			t.Errorf("no OSM data was used but odbl is a required notice: %v", l.RequiredNotices)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(out, "coastline.wgs84.geojson")); err == nil {
+		t.Error("coastline none must not write a coastline file")
+	}
+	// a user-supplied coastline is a separable user-declared component; no_coastline_copy leaves it out of the output
+	dir := t.TempDir()
+	topo, coast := filepath.Join(dir, "t.tif"), filepath.Join(dir, "c.geojson")
+	mkTif(t, topo, -5.125, 50.14, -5.075, 50.18, 50, 40, -30, "")
+	os.WriteFile(coast, []byte(`{"type":"FeatureCollection","features":[{"type":"Feature","properties":{},"geometry":{"type":"LineString","coordinates":[[-5.115,50.16],[-5.085,50.16]]}}]}`), 0o644)
+	for _, omit := range []bool{false, true} {
+		c := &world.Config{Name: "lc", BBox: [4]float64{-5.115, 50.145, -5.085, 50.175}, CellM: 20, TileCells: 16, NoCoastlineCopy: omit,
+			Local: &world.Local{Topo: topo, Coastline: coast, License: "test", Attribution: "synthetic"}}
+		m, out := buildIt(t, c)
+		_, err := os.Stat(filepath.Join(out, "coastline.wgs84.geojson"))
+		if omit != (err != nil) {
+			t.Errorf("no_coastline_copy=%v but file present=%v", omit, err == nil)
+		}
+		var comp int
+		for _, cm := range m.Licensing.Components {
+			if cm.Path == "coastline.wgs84.geojson" {
+				comp++
+				if cm.SPDX != "LicenseRef-user-declared" || !cm.Separable {
+					t.Errorf("component %+v", cm)
+				}
+			}
+		}
+		if comp != map[bool]int{false: 1, true: 0}[omit] {
+			t.Errorf("omit=%v: %d coastline components", omit, comp)
+		}
+	}
+}

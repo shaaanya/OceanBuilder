@@ -193,3 +193,9 @@ Synthetic scene (`internal/world/lod_quality_test.go`): 10 m source, 20 m output
 - Shoal removes the unsafe direction completely (0 m at every level, tested) and pays with a higher rms and wider shoals. It does not stop land/water flips of the interpolated surface near the coast (112 vs 89); the waterline of the *samples* never moves.
 - Binomial smoothing was worse than decimation on rms and max on this scene and has no safety property, so it was removed rather than shipped as an option nobody should pick. Not measured: rough natural seabed, where low-pass behaviour might matter for visual shimmer.
 - Not solved: channel connectivity. A channel narrower than two coarse cells can still disappear (the waterline is not moved to protect it).
+
+### Adapters verified live, licensing record (2026-11-01)
+
+- ETOPO 2022, GEBCO (REST + TID) and CUDEM read from the real services (numbers in [sources.md](sources.md)). A two-source world (GEBCO + ETOPO, `precedence: auto`, 50 m, Falmouth) built in 21 s and validated; GEBCO won every cell (same resolution, list order breaks the tie), 99 % of its water cells carry TID 10-17 and are labelled `survey`. That label means "direct measurement somewhere in a ~380 m cell", not a measurement at 50 m: the `upsampled` warning says so.
+- A test using a fake download API caught nothing wrong in the adapter but a real bug in the builder: tile envelopes were wrapped relative to the bbox west edge, which made coarse (L4) tiles that reach far past the bbox 358° wide. Now wrapped around the bbox centre; the validator rejects envelopes wider than 90°.
+- The manifest has a `licensing` record (what was read on 2026-11-01, per source and per output part). OSM data stays ODbL and separable: `no_coastline_copy` leaves the OSM coastline file out of the output. Default unchanged for compatibility.

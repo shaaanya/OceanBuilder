@@ -373,10 +373,12 @@ func build(cfg *Config, opt Options) (*Manifest, bool, error) {
 		if err != nil {
 			return nil, false, err
 		}
-		if err := os.WriteFile(filepath.Join(opt.OutDir, "coastline.wgs84.geojson"), bb, 0o644); err != nil {
-			return nil, false, err
+		if !cfg.NoCoastlineCopy {
+			if err := os.WriteFile(filepath.Join(opt.OutDir, "coastline.wgs84.geojson"), bb, 0o644); err != nil {
+				return nil, false, err
+			}
+			m.Files["coastline"] = "coastline.wgs84.geojson"
 		}
-		m.Files["coastline"] = "coastline.wgs84.geojson"
 		if b.inMemory() {
 			dem, err := loadDem(lay0)
 			if err != nil {
@@ -454,6 +456,8 @@ func build(cfg *Config, opt Options) (*Manifest, bool, error) {
 		}
 	}
 	m.Attribution = append(m.Attribution, "NOT FOR NAVIGATION: bathymetry here is a game-development dataset (GMRT terms: data should not be used for navigation purposes)")
+	m.Licensing = buildLicensing(cfg, m, dss, regionalSrc != nil)
+	m.Attribution = append(m.Attribution, m.Licensing.attributionLines()...)
 	sort.Strings(m.Attribution)
 	// Last, so m.Sources is complete (regional grid, refinement) and a failed build never writes a lock.
 	if err := applyLock(&opt, m.Sources); err != nil {
