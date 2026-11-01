@@ -1,0 +1,8 @@
+{
+  "name": "bahamas-bank",
+  "bbox": [-77.8, 24.7, -77.4, 25.0],
+  "cell_m": 100,
+  "tile_cells": 128,
+  "coastline": "osm",
+  "seamarks": true
+}

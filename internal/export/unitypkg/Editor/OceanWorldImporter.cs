@@ -286,7 +286,7 @@ public static class OceanWorldImporter
         TilesImported?.Invoke(index, prefabPaths);
         AssetDatabase.SaveAssets();
         Debug.Log("OCEAN_VERIFY checkpoints=" + m.checkpoints.Length + " max_err=" + maxErr.ToString("F4") + " m");
-        Debug.Log("OCEAN_IMPORT_OK " + m.name + " tiles=" + m.tiles.Length + " scene=" + scenePath + " index=" + gen + "/OceanWorldIndex.asset");
+        Debug.Log("OCEAN_IMPORT_OK " + m.name + " tiles=" + index.tiles.Length + " (level 0 of " + m.tiles.Length + " in the manifest) scene=" + scenePath + " index=" + gen + "/OceanWorldIndex.asset");
     }
 
     // Convert each manifest checkpoint (UTM) to Unity space independently of tile placement

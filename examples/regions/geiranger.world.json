@@ -1,0 +1,8 @@
+{
+  "name": "geiranger",
+  "bbox": [7.05, 62.0, 7.30, 62.15],
+  "cell_m": 32,
+  "tile_cells": 128,
+  "coastline": "osm",
+  "seamarks": true
+}

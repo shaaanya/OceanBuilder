@@ -1,0 +1,8 @@
+{
+  "name": "kona",
+  "bbox": [-156.05, 19.45, -155.80, 19.75],
+  "cell_m": 100,
+  "tile_cells": 128,
+  "coastline": "osm",
+  "seamarks": true
+}

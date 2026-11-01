@@ -1,0 +1,8 @@
+{
+  "name": "moorea",
+  "bbox": [-149.95, -17.65, -149.70, -17.45],
+  "cell_m": 48,
+  "tile_cells": 128,
+  "coastline": "osm",
+  "seamarks": true
+}
