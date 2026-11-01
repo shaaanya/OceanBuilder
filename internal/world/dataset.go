@@ -152,6 +152,7 @@ type dataset struct {
 	vref       VerticalRef
 	vapplied   *VerticalApplied
 	offsetM    float64
+	srcSRS     string // explicit horizontal source CRS when the file embeds a vertical one
 	valPath    string // warped full-grid values (float32, nodata -9999)
 	maskPath   string // warped survey mask, nil-equivalent when ""
 }

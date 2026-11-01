@@ -77,6 +77,7 @@ type loaded struct {
 	t               world.Tile
 	h               []float64
 	class, shr, src []uint8
+	dsl             []uint8 // dataset layer (format revision 1), nil when the world has none
 }
 
 func readGray(path string, size int) ([]uint8, error) {
@@ -129,6 +130,11 @@ func Run(dir string) (*Report, error) {
 	var nodataCells, cells int
 	var water, measured float64
 	bySource := map[string]int{}
+	byDataset := map[string]int{}
+	dsName := map[int]string{}
+	for _, d := range m.Datasets {
+		dsName[d.Index] = d.ID
+	}
 	var layerBad int
 	lim := math.Tan(60*math.Pi/180) * m.Grid.CellM
 	for _, t := range m.Tiles {
@@ -173,6 +179,20 @@ func Run(dir string) (*Report, error) {
 		if !ok {
 			continue
 		}
+		if t.Dataset != "" {
+			if hs, _, err := fileHash(filepath.Join(dir, t.Dataset)); err != nil {
+				r.add(Error, "tile-mask", "tile %s: %v", t.ID, err)
+				continue
+			} else if hs != t.SHA256.Dataset {
+				r.add(Error, "tile-hash", "tile %s: dataset layer hash differs from manifest", t.ID)
+			}
+			if L.dsl, err = readGray(filepath.Join(dir, t.Dataset), S); err != nil {
+				r.add(Error, "tile-mask", "tile %s: %v", t.ID, err)
+				continue
+			}
+		} else if m.FormatRevision >= 1 {
+			r.add(Error, "tile-mask", "tile %s: format revision %d requires a dataset layer", t.ID, m.FormatRevision)
+		}
 		if byLevel[t.Level] == nil {
 			byLevel[t.Level] = map[[2]int]*loaded{}
 		}
@@ -185,7 +205,7 @@ func Run(dir string) (*Report, error) {
 		}
 		for i, v := range h {
 			isND := v == nd
-			if isND != (L.class[i] == world.ClassNoData) || isND != (L.src[i] == world.SrcNoData) {
+			if isND != (L.class[i] == world.ClassNoData) || isND != (L.src[i] == world.SrcNoData) || isND && L.dsl != nil && L.dsl[i] != 0 {
 				layerBad++
 				continue
 			}
@@ -211,8 +231,16 @@ func Run(dir string) (*Report, error) {
 			} else if L.src[i] == world.SrcSurvey || L.src[i] == world.SrcBackground || L.src[i] == world.SrcRegional {
 				layerBad++
 			}
+			if L.dsl != nil {
+				if k := int(L.dsl[i]); k == 0 || k > len(m.Datasets) {
+					layerBad++ // a valid sample must name a dataset of the manifest
+				}
+			}
 			if owns(i) {
 				bySource[sourceName(m, int(L.src[i]))]++
+				if L.dsl != nil && L.dsl[i] != 0 {
+					byDataset[dsName[int(L.dsl[i])]]++
+				}
 			}
 		}
 		for i := 1; i < S-1; i++ { // interior shore only: edge samples depend on the neighbouring tile
@@ -287,6 +315,26 @@ func Run(dir string) (*Report, error) {
 	for name, n := range m.Stats.BySource {
 		if bySource[name] != n {
 			r.add(Error, "source-stats", "manifest says %d %q cells, tile files say %d", n, name, bySource[name])
+		}
+	}
+	for name, n := range m.Stats.CellsByDataset {
+		if byDataset[name] != n {
+			r.add(Error, "dataset-stats", "manifest says %d cells from dataset %q, dataset layers say %d", n, name, byDataset[name])
+		}
+	}
+	if m.Vertical.Mixed {
+		r.add(Warn, "vertical-mixed", "datasets with different or unverified vertical references were combined on request (see datasets[].vertical): heights are not comparable across datasets better than their datum differences")
+	}
+	if c := m.Stats.Composition; c != nil {
+		for _, o := range c.Overlaps {
+			if o.Water >= 100 && (o.MedianM > 1 || o.MedianM < -1) {
+				r.add(Warn, "dataset-offset", "datasets %s and %s disagree systematically where they overlap: median %.2f m over %d water cells (rms %.2f m). A vertical datum difference or a registration error is likely", o.Winner, o.Other, o.MedianM, o.Water, o.RMSM)
+			}
+		}
+		for _, sm := range c.Seams {
+			if sm.Pairs >= 50 && sm.P90M > 5 {
+				r.add(Warn, "dataset-seam", "steps of up to %.1f m (p90 %.1f m) across %d places where the supplying dataset changes between %s and %s", sm.MaxM, sm.P90M, sm.Pairs, sm.A, sm.B)
+			}
 		}
 	}
 	// Neighbour consistency per level: shared edges must match exactly (crack-free tiling).

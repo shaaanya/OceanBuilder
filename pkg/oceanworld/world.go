@@ -16,8 +16,9 @@ import (
 	"sync"
 )
 
-// SchemaVersion is the manifest schema this package reads.
-const SchemaVersion = 2
+// SchemaVersion is the highest manifest schema this package reads. Schema 2 worlds are in a UTM zone; schema 3 adds
+// worlds in a local transverse Mercator grid (crs.kind "tmerc"). Otherwise the two are identical.
+const SchemaVersion = 3
 
 // Manifest is the subset of world.manifest.json the reader needs.
 type Manifest struct {
@@ -25,8 +26,13 @@ type Manifest struct {
 	Name          string `json:"name"`
 	BuildID       string `json:"build_id"`
 	CRS           struct {
-		EPSG int    `json:"epsg"`
-		Name string `json:"name"`
+		EPSG          int     `json:"epsg"` // 0 for a local transverse Mercator grid
+		Name          string  `json:"name"`
+		Kind          string  `json:"kind"` // "utm" (or absent) | "tmerc"
+		Lon0          float64 `json:"lon_0"`
+		K0            float64 `json:"k_0"`
+		FalseEasting  float64 `json:"false_easting"`
+		FalseNorthing float64 `json:"false_northing"`
 	} `json:"crs"`
 	Grid struct {
 		CellM          float64    `json:"cell_m"`
@@ -62,6 +68,13 @@ type Manifest struct {
 			Tiles     int     `json:"tiles"`
 		} `json:"levels"`
 	} `json:"lod"`
+	// Datasets names what the per-sample dataset layer indexes (format revision 1); empty in older worlds.
+	Datasets []struct {
+		Index int    `json:"index"`
+		ID    string `json:"id"`
+		Type  string `json:"type"`
+		Role  string `json:"role"`
+	} `json:"datasets"`
 	Tiles       []Tile   `json:"tiles"`
 	Attribution []string `json:"attribution"`
 }
@@ -79,6 +92,7 @@ type Tile struct {
 	Depth      string            `json:"depth_class"`
 	Shore      string            `json:"shore_mask"`
 	Source     string            `json:"source"`
+	Dataset    string            `json:"dataset"` // optional layer: which dataset supplied each sample
 	Parent     string            `json:"parent"`
 	Neighbours map[string]string `json:"neighbours"`
 }
@@ -89,14 +103,15 @@ type Data struct {
 	Class  []uint8
 	Shore  []uint8
 	Source []uint8
+	// Dataset holds, per sample, the index into Manifest.Datasets (0: none). Nil for worlds without the layer.
+	Dataset []uint8
 }
 
 // World is an opened world. It is safe for concurrent use.
 type World struct {
 	M      Manifest
 	Dir    string
-	zone   int
-	north  bool
+	proj   TM
 	byID   map[string]*Tile
 	byPos  map[pos]*Tile
 	mu     sync.Mutex
@@ -123,15 +138,21 @@ func Open(dir string) (*World, error) {
 		return nil, fmt.Errorf("world.manifest.json: %w", err)
 	}
 	m := &w.M
-	if m.SchemaVersion != SchemaVersion {
-		return nil, fmt.Errorf("manifest schema_version %d, this reader understands %d", m.SchemaVersion, SchemaVersion)
+	if m.SchemaVersion < 2 || m.SchemaVersion > SchemaVersion {
+		return nil, fmt.Errorf("manifest schema_version %d, this reader understands 2..%d", m.SchemaVersion, SchemaVersion)
 	}
 	if m.Height.Type != "float32" || m.Height.ByteOrder != "little" || m.Height.RowOrder != "north_to_south" {
 		return nil, fmt.Errorf("unsupported height encoding %+v", m.Height)
 	}
-	var ok bool
-	if w.zone, w.north, ok = ZoneOf(m.CRS.EPSG); !ok {
-		return nil, fmt.Errorf("CRS EPSG:%d is not a WGS 84 / UTM zone; use UTM coordinates directly", m.CRS.EPSG)
+	if m.CRS.Kind == "tmerc" {
+		if m.CRS.K0 <= 0 {
+			return nil, fmt.Errorf("crs kind tmerc without k_0")
+		}
+		w.proj = TM{Lon0: m.CRS.Lon0, K0: m.CRS.K0, FalseEasting: m.CRS.FalseEasting, FalseNorthing: m.CRS.FalseNorthing}
+	} else if zone, north, ok := ZoneOf(m.CRS.EPSG); ok {
+		w.proj = UTMParams(zone, north)
+	} else {
+		return nil, fmt.Errorf("CRS EPSG:%d is not a WGS 84 / UTM zone and crs.kind is %q; use the grid coordinates directly", m.CRS.EPSG, m.CRS.Kind)
 	}
 	for i := range m.Tiles {
 		t := &m.Tiles[i]
@@ -182,6 +203,11 @@ func (w *World) Load(t *Tile) (*Data, error) {
 			return nil, err
 		}
 	}
+	if t.Dataset != "" {
+		if d.Dataset, err = readGray(filepath.Join(w.Dir, t.Dataset), S); err != nil {
+			return nil, err
+		}
+	}
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.cache[t.ID] = w.lru.PushFront(&cached{t.ID, d})
@@ -218,6 +244,7 @@ type Sample struct {
 	Class      uint8   // depth class of the nearest vertex (0 land, 1..n bands, 255 nodata)
 	Shore      bool    // nearest vertex is a shore cell
 	Source     string  // source layer name of the nearest vertex ("survey", "background", ...)
+	Dataset    string  // id of the dataset that supplied the nearest vertex ("" when the world has no dataset layer)
 	Measured   bool    // nearest vertex is a survey measurement
 	Level      int
 	Tile       string
@@ -261,6 +288,13 @@ func (w *World) SampleUTM(e, n float64, level int) (Sample, error) {
 			s.Source, s.Measured = l.Name, l.Measured
 		}
 	}
+	if d.Dataset != nil {
+		for _, ds := range w.M.Datasets {
+			if ds.Index == int(d.Dataset[in*S+jn]) {
+				s.Dataset = ds.ID
+			}
+		}
+	}
 	for _, x := range h {
 		if x <= nd+1 {
 			return s, nil
@@ -273,10 +307,13 @@ func (w *World) SampleUTM(e, n float64, level int) (Sample, error) {
 }
 
 // ToUTM converts WGS 84 longitude/latitude to the world's grid.
-func (w *World) ToUTM(lon, lat float64) (e, n float64) { return LonLatToUTM(lon, lat, w.zone, w.north) }
+func (w *World) ToUTM(lon, lat float64) (e, n float64) { return LonLatToTM(lon, lat, w.proj) }
 
 // ToLonLat converts the world's grid to WGS 84 longitude/latitude.
-func (w *World) ToLonLat(e, n float64) (lon, lat float64) { return UTMToLonLat(e, n, w.zone, w.north) }
+func (w *World) ToLonLat(e, n float64) (lon, lat float64) { return TMToLonLat(e, n, w.proj) }
+
+// GroundScale is the point scale factor of the world's grid at lon/lat (see the package function).
+func (w *World) GroundScale(lon, lat float64) float64 { return GroundScale(lon, lat, w.proj) }
 
 // SampleLonLat samples at a WGS 84 position.
 func (w *World) SampleLonLat(lon, lat float64, level int) (Sample, error) {

@@ -72,13 +72,32 @@ func cmdInfo(args []string) error {
 	for _, k := range names {
 		fmt.Printf("  %s %.1f%%", k, 100*float64(m.Stats.BySource[k])/float64(m.Stats.Cells))
 	}
-	fmt.Printf("\n  resample  %s from ~%.0f m source cells (%.0f m background grid) to %.0f m", m.Resampling.Method, m.Resampling.SourceResM, m.Resampling.FillResM, m.Resampling.OutputCellM)
+	fmt.Printf("\n  resample  %s from ~%.0f m source cells to %.0f m", m.Resampling.Method, m.Resampling.SourceResM, m.Resampling.OutputCellM)
+	if m.Resampling.FillResM > 0 {
+		fmt.Printf(" (%.0f m background grid)", m.Resampling.FillResM)
+	}
 	if m.Resampling.Upsampled {
 		fmt.Print("  -- UPSAMPLED: detail finer than the source is interpolation")
 	}
 	fmt.Println()
 	if m.Stats.UTMScaleMax != 0 {
 		fmt.Printf("  projection grid metre = %.4f..%.4f ground metres\n", 1/m.Stats.UTMScaleMax, 1/m.Stats.UTMScaleMin)
+	}
+	fmt.Printf("  vertical  %s  (%s)\n", m.Vertical.Datum, m.Vertical.Note)
+	if len(m.Datasets) > 0 {
+		fmt.Println("  datasets (precedence order; cells = level-0 samples in the output)")
+		ds := append([]world.DatasetInfo(nil), m.Datasets...)
+		sort.SliceStable(ds, func(i, j int) bool { return ds[i].Rank < ds[j].Rank })
+		for _, d := range ds {
+			fmt.Printf("    %2d %-14s %-9s %-13s cells %-9d datum %s", d.Rank, d.ID, d.Type, d.Role, m.Stats.CellsByDataset[d.ID], d.DeclaredDtm)
+			if d.Vertical != nil && d.Vertical.Kind != "identity" {
+				fmt.Printf(" -> %s (%s)", d.Vertical.To, d.Vertical.Kind)
+			}
+			if d.NativeResM > 0 {
+				fmt.Printf("  ~%.0f m", d.NativeResM)
+			}
+			fmt.Println()
+		}
 	}
 	fmt.Println("  sources")
 	for _, s := range m.Sources {
@@ -175,7 +194,7 @@ func cmdSample(args []string) error {
 			if s.ElevationM < 0 {
 				kind = fmt.Sprintf("water, depth %.1f m", s.DepthM)
 			}
-			fmt.Printf("%.5f,%.5f  %-24s elevation %+8.2f m  class %d  source %s%s  tile %s\n", where[i][0], where[i][1], kind, s.ElevationM, s.Class, s.Source, map[bool]string{true: " (measured)", false: ""}[s.Measured], s.Tile)
+			fmt.Printf("%.5f,%.5f  %-24s elevation %+8.2f m  class %d  source %s%s%s  tile %s\n", where[i][0], where[i][1], kind, s.ElevationM, s.Class, s.Source, map[bool]string{true: " (measured)", false: ""}[s.Measured], map[bool]string{true: " dataset " + s.Dataset, false: ""}[s.Dataset != ""], s.Tile)
 		}
 	}
 	return nil

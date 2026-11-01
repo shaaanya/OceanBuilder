@@ -233,6 +233,9 @@ type rasterGeom struct {
 	GT     [6]float64
 	EPSG   int // horizontal EPSG code, 0 when the file does not state one
 	NoData *float64
+	// Compound is true when the file's CRS includes a vertical component. A warp to a horizontal-only CRS would then
+	// silently convert the heights to ellipsoidal ones, so such files are warped with an explicit horizontal -s_srs.
+	Compound bool
 }
 
 // inspectRaster reads size, geotransform, horizontal EPSG (0 when absent) and nodata of a raster.
@@ -247,6 +250,9 @@ func inspectRaster(path string) (rasterGeom, error) {
 		STAC struct {
 			EPSG any `json:"proj:epsg"`
 		} `json:"stac"`
+		CS struct {
+			WKT string `json:"wkt"`
+		} `json:"coordinateSystem"`
 		Bands []struct {
 			NoData any `json:"noDataValue"`
 		} `json:"bands"`
@@ -256,6 +262,7 @@ func inspectRaster(path string) (rasterGeom, error) {
 	}
 	g := rasterGeom{W: info.Size[0], H: info.Size[1]}
 	copy(g.GT[:], info.GT)
+	g.Compound = strings.Contains(info.CS.WKT, "VERT_CS") || strings.Contains(info.CS.WKT, "VERTCRS") || strings.HasPrefix(strings.TrimSpace(info.CS.WKT), "COMPD_CS") || strings.HasPrefix(strings.TrimSpace(info.CS.WKT), "COMPOUNDCRS")
 	if e, ok := info.STAC.EPSG.(float64); ok {
 		g.EPSG = int(e)
 	}
@@ -282,7 +289,14 @@ func (a *VerticalApplied) shiftRaster(src, dst string, geom rasterGeom) error {
 	if geom.NoData != nil {
 		args = append(args, "-srcnodata", fmt.Sprint(*geom.NoData), "-dstnodata", fmt.Sprint(*geom.NoData))
 	}
-	_, err := gdal.Run("gdalwarp", append(args, src, dst)...)
+	tmp := dst + ".compound.tif"
+	defer os.Remove(tmp)
+	if _, err := gdal.Run("gdalwarp", append(args, src, tmp)...); err != nil {
+		return err
+	}
+	// The result is in the target vertical datum; drop the vertical part of its CRS so that the world warp does not
+	// convert it again (GDAL treats "no vertical CRS" as ellipsoidal height).
+	_, err := gdal.Run("gdal_translate", "-q", "-a_srs", fmt.Sprintf("EPSG:%d", geom.EPSG), "-co", "COMPRESS=DEFLATE", tmp, dst)
 	return err
 }
 
@@ -329,6 +343,13 @@ func resolveVerticalSet(cfg *Config, dss []*dataset, opt Options) (VerticalInfo,
 				return info, err
 			}
 			horiz = g.EPSG
+			if g.Compound {
+				if g.EPSG == 0 {
+					return info, fmt.Errorf("source %s: the file has a compound CRS (horizontal + vertical) without an EPSG horizontal part; re-project or strip its vertical CRS first", d.spec.ID)
+				}
+				d.srcSRS = fmt.Sprintf("EPSG:%d", g.EPSG)
+				opt.logf("source %s embeds a vertical CRS; it is ignored for warping and the declared datum %s is used", d.spec.ID, d.datumName())
+			}
 		}
 		ap, err := planVertical(d.vref, target, horiz)
 		if err != nil {

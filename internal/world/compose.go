@@ -141,7 +141,7 @@ func (b *bctx) warpDataset(d *dataset) error {
 			return "", err
 		}
 		h := sha256.New()
-		fmt.Fprint(h, hashes, "|", kind, "|", method, "|", b.te, "|", b.W, "x", b.H, "|", b.srs, "|", b.gver, "|", vkey, "|", d.spec.Nodata)
+		fmt.Fprint(h, hashes, "|", kind, "|", method, "|", b.te, "|", b.W, "x", b.H, "|", b.srs, "|", b.gver, "|", vkey, "|", d.spec.Nodata, "|", d.srcSRS)
 		path := filepath.Join(b.opt.CacheDir, "stages", hex.EncodeToString(h.Sum(nil)[:12])+"-"+kind+".bin")
 		if fi, err := os.Stat(path); err == nil && fi.Size() == int64(b.W)*int64(b.H)*4 {
 			b.opt.logf("stage cache hit: %s %s", d.spec.ID, kind)
@@ -150,6 +150,9 @@ func (b *bctx) warpDataset(d *dataset) error {
 		tmp := filepath.Join(b.work, fmt.Sprintf("%s-%s.bin", d.spec.ID, kind))
 		args := []string{"-overwrite", "-q", "-t_srs", b.srs, "-te", b.te[0], b.te[1], b.te[2], b.te[3],
 			"-ts", fmt.Sprint(b.W), fmt.Sprint(b.H), "-r", method, "-ot", "Float32", "-dstnodata", fmt.Sprint(noData), "-of", "ENVI"}
+		if d.srcSRS != "" {
+			args = append(args, "-s_srs", d.srcSRS)
+		}
 		if d.spec.Nodata != nil && kind == "dem" {
 			args = append(args, "-srcnodata", fmt.Sprint(*d.spec.Nodata))
 		}

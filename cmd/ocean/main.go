@@ -121,13 +121,14 @@ func defaultCache() string {
 }
 
 func cmdBuild(args []string) error {
-	fs := newFlags("build", "build <world.json> [-out dir] [-cache dir] [-force] [-q] [-log-json] [-json] [-lock file|off] [-update-lock]")
+	fs := newFlags("build", "build <world.json> [-out dir] [-cache dir] [-force] [-q] [-log-json] [-mem MB] [-json] [-lock file|off] [-update-lock]")
 	out := fs.String("out", "", "output directory (default output/<name>)")
 	cache := fs.String("cache", defaultCache(), "download and stage cache directory")
 	asJSON := fs.Bool("json", false, "print the build summary as JSON on stdout")
 	lock := fs.String("lock", "", "source lock file (default <world>.lock.json beside the config; \"off\" disables)")
 	updLock := fs.Bool("update-lock", false, "write the lock from this build's sources instead of checking it")
 	force := fs.Bool("force", false, "rebuild even if the output was made from identical inputs")
+	mem := fs.Int("mem", 0, "memory budget in MB for windowed processing and in-memory steps (default 1024); never changes the output")
 	quiet := fs.Bool("q", false, "no progress output")
 	logJSON := fs.Bool("log-json", false, "progress as JSON lines on stderr (time, msg)")
 	if err := parse(fs, args); err != nil || fs.NArg() != 1 {
@@ -158,7 +159,7 @@ func cmdBuild(args []string) error {
 			fmt.Fprintf(os.Stderr, "[%5.1fs] "+f+"\n", append([]any{time.Since(start).Seconds()}, a...)...)
 		}
 	}
-	m, err := world.Build(cfg, world.Options{CacheDir: *cache, OutDir: *out, LockPath: *lock, UpdateLock: *updLock, Force: *force, Log: logf})
+	m, err := world.Build(cfg, world.Options{CacheDir: *cache, OutDir: *out, LockPath: *lock, UpdateLock: *updLock, Force: *force, MemoryMB: *mem, Log: logf})
 	if err != nil {
 		return err
 	}

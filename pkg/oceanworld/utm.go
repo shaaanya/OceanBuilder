@@ -59,9 +59,36 @@ func ZoneOf(epsg int) (zone int, north bool, ok bool) {
 
 func centralMeridian(zone int) float64 { return float64(zone*6-183) * math.Pi / 180 }
 
+// TM holds the parameters of a WGS 84 transverse Mercator grid: UTM zones are the special case K0 = 0.9996,
+// FalseEasting = 500000, FalseNorthing = 0 (north) or 10000000 (south), Lon0 = the zone's central meridian.
+// Worlds that do not fit one UTM zone use a local TM with their own Lon0 and K0 (manifest crs.kind "tmerc").
+type TM struct {
+	Lon0, K0, FalseEasting, FalseNorthing float64 // Lon0 in degrees
+}
+
+// UTMParams returns the TM parameters of a UTM zone.
+func UTMParams(zone int, north bool) TM {
+	p := TM{Lon0: centralMeridian(zone) * 180 / math.Pi, K0: utmK0, FalseEasting: 500000}
+	if !north {
+		p.FalseNorthing = 10000000
+	}
+	return p
+}
+
 // LonLatToUTM projects WGS 84 degrees to easting/northing in metres in the given zone (it does not choose one).
 func LonLatToUTM(lon, lat float64, zone int, north bool) (e, n float64) {
-	phi, dl := lat*math.Pi/180, lon*math.Pi/180-centralMeridian(zone)
+	return LonLatToTM(lon, lat, UTMParams(zone, north))
+}
+
+// UTMToLonLat is the inverse of LonLatToUTM.
+func UTMToLonLat(e, n float64, zone int, north bool) (lon, lat float64) {
+	return TMToLonLat(e, n, UTMParams(zone, north))
+}
+
+// LonLatToTM projects WGS 84 degrees onto the transverse Mercator grid p. Longitudes are taken modulo 360 around Lon0,
+// so a world centred on the antimeridian works with either 179.9 or -180.1.
+func LonLatToTM(lon, lat float64, p TM) (e, n float64) {
+	phi, dl := lat*math.Pi/180, wrapDeg(lon-p.Lon0)*math.Pi/180
 	q := 2 * math.Sqrt(tm.n) / (1 + tm.n)
 	t := math.Sinh(math.Atanh(math.Sin(phi)) - q*math.Atanh(q*math.Sin(phi)))
 	xi0 := math.Atan2(t, math.Cos(dl))
@@ -71,19 +98,12 @@ func LonLatToUTM(lon, lat float64, zone int, north bool) (e, n float64) {
 		xi += tm.alpha[j] * math.Sin(2*float64(j)*xi0) * math.Cosh(2*float64(j)*eta0)
 		eta += tm.alpha[j] * math.Cos(2*float64(j)*xi0) * math.Sinh(2*float64(j)*eta0)
 	}
-	e, n = 500000+utmK0*tm.bigA*eta, utmK0*tm.bigA*xi
-	if !north {
-		n += 10000000
-	}
-	return
+	return p.FalseEasting + p.K0*tm.bigA*eta, p.FalseNorthing + p.K0*tm.bigA*xi
 }
 
-// UTMToLonLat is the inverse of LonLatToUTM.
-func UTMToLonLat(e, n float64, zone int, north bool) (lon, lat float64) {
-	if !north {
-		n -= 10000000
-	}
-	xi, eta := n/(utmK0*tm.bigA), (e-500000)/(utmK0*tm.bigA)
+// TMToLonLat is the inverse of LonLatToTM; the longitude is returned in (-180, 180].
+func TMToLonLat(e, n float64, p TM) (lon, lat float64) {
+	xi, eta := (n-p.FalseNorthing)/(p.K0*tm.bigA), (e-p.FalseEasting)/(p.K0*tm.bigA)
 	xi0, eta0 := xi, eta
 	for j := 1; j <= 6; j++ {
 		xi0 -= tm.bet[j] * math.Sin(2*float64(j)*xi) * math.Cosh(2*float64(j)*eta)
@@ -94,6 +114,26 @@ func UTMToLonLat(e, n float64, zone int, north bool) (lon, lat float64) {
 	for j := 1; j <= 6; j++ {
 		phi += tm.delta[j] * math.Sin(2*float64(j)*chi)
 	}
-	lam := centralMeridian(zone) + math.Atan2(math.Sinh(eta0), math.Cos(xi0))
-	return lam * 180 / math.Pi, phi * 180 / math.Pi
+	lam := p.Lon0 + math.Atan2(math.Sinh(eta0), math.Cos(xi0))*180/math.Pi
+	return wrapDeg(lam), phi * 180 / math.Pi
+}
+
+// wrapDeg maps an angle to (-180, 180].
+func wrapDeg(d float64) float64 {
+	d = math.Mod(d+180, 360)
+	if d <= 0 {
+		d += 360
+	}
+	return d - 180
+}
+
+// GroundScale is the point scale factor k of the grid p at lon/lat (series to fourth order in the longitude
+// difference): 1 grid metre is 1/k ground metres in every direction at that point (TM is conformal). Distances over a
+// larger area need the integral of 1/k along the path; areas scale by 1/k².
+func GroundScale(lon, lat float64, p TM) float64 {
+	phi := lat * math.Pi / 180
+	d := wrapDeg(lon-p.Lon0) * math.Pi / 180 * math.Cos(phi)
+	t := math.Tan(phi)
+	eta2 := 0.00673949674228 * math.Cos(phi) * math.Cos(phi)
+	return p.K0 * (1 + (1+eta2)*d*d/2 + (5-4*t*t+14*eta2)*d*d*d*d/24)
 }
