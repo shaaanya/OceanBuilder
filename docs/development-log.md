@@ -175,3 +175,21 @@ Synthetic flat -40 m GeoTIFF source (EGM2008, no network), 50 m cells, 256-cell 
 - The Go process stays at the `-mem` budget while the grid grows 15x. `/usr/bin/time` alone reported 262 MB → 694 MB for 22 M → 85 M samples at `-mem 256`; that figure is the largest *child*, gdalwarp, with its default block cache (5 % of RAM). The pipeline now sets `GDAL_CACHEMAX` to MemoryMB/8 (64..512 MB). Output is unaffected (golden hashes and window-independence tests pass).
 - `-mem 1024` vs `-mem 256` on 22 M samples: same output, 426 MB vs 262 MB total peak.
 - Not measured: builds with the in-memory global steps (coast conform, regional fill), real survey data, more than 325 M samples, cancellation latency.
+
+### LOD alternatives, measured (2026-11-01)
+
+Synthetic scene (`internal/world/lod_quality_test.go`): 10 m source, 20 m output, 16-cell tiles, 2 coarse levels. Features: a ~30 m channel through a land mass, a ~25x35 m islet, a ~30x45 m shoal (-3 m in -30 m water), cliff coast (+10 m beside -30 m). `ocean lod-report`, error of the bilinear level surface against level 0 at level-0 vertices:
+
+| method | level | rms m | p95 m | max m | too deep max m | land/water flips | uncovered |
+|---|---|---|---|---|---|---|---|
+| decimate | 1 (40 m) | 1.22 | 0.00 | 13.35 | 12.75 | 89 | 233 |
+| decimate | 2 (80 m) | 2.44 | 2.38 | 25.30 | 25.30 | 204 | 509 |
+| shoal | 1 | 1.95 | 0.00 | 28.63 | **0.00** | 112 | 233 |
+| shoal | 2 | 4.21 | 8.17 | 34.43 | **0.00** | 225 | 509 |
+| binomial smooth (removed) | 1 | 1.38 | 0.42 | 18.06 | 18.06 | 113 | 233 |
+| binomial smooth (removed) | 2 | 2.58 | 3.08 | 25.33 | 24.01 | 241 | 509 |
+
+- Decimation has the lowest rms and no safety property: the shoal vanishes (too deep by up to 25 m).
+- Shoal removes the unsafe direction completely (0 m at every level, tested) and pays with a higher rms and wider shoals. It does not stop land/water flips of the interpolated surface near the coast (112 vs 89); the waterline of the *samples* never moves.
+- Binomial smoothing was worse than decimation on rms and max on this scene and has no safety property, so it was removed rather than shipped as an option nobody should pick. Not measured: rough natural seabed, where low-pass behaviour might matter for visual shimmer.
+- Not solved: channel connectivity. A channel narrower than two coarse cells can still disappear (the waterline is not moved to protect it).

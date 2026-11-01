@@ -16,6 +16,7 @@ const (
 	SrcRegional   = 4 // water cell replaced or blended from a regional bathymetry grid
 	SrcConformed  = 5 // land/water decision taken from the coastline (synthetic +-0.5 m), not from elevation data
 	SrcRefined    = 6 // land elevation changed by an external edit layer
+	SrcLODDerived = 7 // coarse-level sample whose height was computed from neighbouring finer samples (lod_method shoal)
 )
 
 // MaxLOD is the highest LOD level the builder will produce.
@@ -38,6 +39,7 @@ func sourceLayers() []SourceLayer {
 		{SrcRegional, "regional", false, "water cell replaced or blended from a regional bathymetry grid"},
 		{SrcConformed, "conformed", false, "land/water decision follows the coastline; height is a synthetic +-0.5 m"},
 		{SrcRefined, "refined", false, "land elevation edited by an external refinement layer"},
+		{SrcLODDerived, "lod-derived", false, "LOD level above 0 only: height computed from the 3x3 neighbourhood of the finer level (lod_method smooth or shoal); never on level 0"},
 	}
 }
 

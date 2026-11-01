@@ -362,6 +362,11 @@ func build(cfg *Config, opt Options) (*Manifest, bool, error) {
 	linkTiles(m.Tiles)
 	m.LOD.Method = "vertex-decimation"
 	m.LOD.Note = "Level k keeps every 2^k-th vertex of level 0: values are real level-0 samples, never averaged, so tile edges and parent/child corners agree exactly. Thin features narrower than 2^k cells can vanish at coarse levels; depth classes and shore are recomputed per level from the decimated heights."
+	switch cfg.LODMethod {
+	case "shoal":
+		m.LOD.Method = "shoal-biased"
+		m.LOD.Note = "Level k is built from level k-1: a water sample takes the shallowest water height of its 3x3 neighbourhood, so a coarse level is never deeper than any finer water sample it stands for (one step per level); land samples are unchanged. Changed samples carry source code 7 (lod-derived, not measured). Tiles of one level share edge samples exactly. `ocean lod-report` measures the vertical error."
+	}
 	m.Checkpoints = ws.checkpoints(g)
 
 	// 5. Coastline: copy to output and compare against the DEM (needs the grid in memory; skipped above the budget).

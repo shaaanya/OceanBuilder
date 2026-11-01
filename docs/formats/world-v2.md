@@ -36,6 +36,8 @@ tiles/<level>/<id>.dataset.png          which dataset supplied each sample (form
 
 ## LOD levels
 
+**Method (`lod.method`).** `vertex-decimation` (default): every level keeps every second vertex of the previous one, values are exact level-0 samples. `shoal-biased` (config `lod_method: "shoal"`, 0.3.0): a water sample is replaced by the shallowest water height in its 3x3 neighbourhood of the finer level, so a coarse level is never deeper than the water it stands for; land, nodata and the waterline are unchanged; changed samples carry source code 7. Both build each level as one raster and then tile it, so tiles of one level share edge samples exactly. `ocean lod-report` measures a built world's levels against level 0.
+
 `lod.levels[]` lists levels 0..n. Level `L` has cell size `cell_m * 2^L` and tile span `tile_span_m * 2^L`, with the same `S` samples per tile, so a coarse tile covers four tiles of the level below. Parent of `(L, x, y)` is `(L+1, x >> 1, y >> 1)`. The pyramid ends when one tile covers the world (or at `lod_levels` from the config, at most 8); `lod_levels: -1` builds level 0 only.
 
 Method (`lod.method = "vertex-decimation"`): level `L` keeps every `2^L`-th vertex of level 0. A level-`L` sample therefore *is* a level-0 sample at the same ground position: same height, same source code. Nothing is averaged, so no value is invented, and shared edges between tiles and across levels agree exactly. The cost is aliasing: features narrower than `2^L` cells (a channel, a spit) can vanish at coarse levels. Depth class and shore are recomputed at each level from that level's heights. Tiles of upper levels can extend past the world; samples outside it are nodata and a tile with no valid sample is omitted.
@@ -63,6 +65,7 @@ Method (`lod.method = "vertex-decimation"`): level `L` keeps every `2^L`-th vert
 | 4 | regional | water sample replaced or blended from a regional bathymetry grid | no |
 | 5 | conformed | land/water decision made from the coastline; height is a synthetic +-0.5 m | no |
 | 6 | refined | land elevation changed by an external edit layer | no |
+| 7 | lod-derived | LOD levels above 0 only (`lod_method` "shoal"): height computed from the 3x3 neighbourhood of the finer level, not a level-0 sample | no |
 
 `source_layers[]` in the manifest repeats this table. Codes are never renumbered; new ones are appended. `measured` means "a measurement at or near output resolution"; `resampling.source_native_res_m` and `resampling.unmeasured_res_m` give the real resolutions. No sample is marked measured because it was interpolated.
 

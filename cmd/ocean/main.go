@@ -27,6 +27,7 @@ make a world
   build <world.json>      fetch, normalise, tile (with LOD levels) and write a world
 inspect it
   info <dir>              region, grid, levels, quality, sources and licences of a built world
+  lod-report <dir>        measure each LOD level against level 0 (rms, p95, max, too-deep, land/water flips)
   validate <dir>          check a built world against its manifest and invariants (exit 1 on errors)
   sample <dir>            elevation / depth / source at a point or along a line, without GDAL
   preview <dir>           write preview.png and preview.html
@@ -48,12 +49,13 @@ var helpText = map[string]string{
 hashed, and recorded in the manifest with URL, retrieval time, licence and attribution. Warped rasters are cached,
 so changing depth bands, conforming, LOD or seamarks does not repeat gdalwarp. If the existing output was made from
 identical inputs the build is skipped (use -force). Output is assembled aside and swapped in when complete.`,
-	"info":     "Summarise a built world from its manifest: region, grid, LOD levels, share of survey-measured water, cells by source, sources and licences.",
-	"sample":   "Read elevation, depth, depth class and the source of the nearest vertex from the built tiles. Pure Go, no GDAL needed. Elevation is bilinear between four vertices and reported invalid if any of them has no data.",
-	"diff":     "Compare two built worlds from their manifests: config differences, changed source hashes, and which tiles were added, removed or changed (by file hash).",
-	"export":   "Export a built world. geotiff: height.tif, depth_class.tif and source.tif for one LOD level (-level), pixel centres on the world's vertices. unity: copy level 0 and install the Unity package into a project (URP).",
-	"validate": "Recompute every metric from the tile files and compare with the manifest: hashes, layer consistency, shared tile edges per level, parent/child samples across levels, provenance, licences.",
-	"world":    "world init <preset> writes an example config. world check <file> validates a config and prints the grid, memory estimate and projection scale without downloading anything.",
+	"info":       "Summarise a built world from its manifest: region, grid, LOD levels, share of survey-measured water, cells by source, sources and licences.",
+	"sample":     "Read elevation, depth, depth class and the source of the nearest vertex from the built tiles. Pure Go, no GDAL needed. Elevation is bilinear between four vertices and reported invalid if any of them has no data.",
+	"diff":       "Compare two built worlds from their manifests: config differences, changed source hashes, and which tiles were added, removed or changed (by file hash).",
+	"export":     "Export a built world. geotiff: height.tif, depth_class.tif and source.tif for one LOD level (-level), pixel centres on the world's vertices. unity: copy level 0 and install the Unity package into a project (URP).",
+	"lod-report": "Compare every LOD level with level 0 at level-0 vertices, sampling the level surface bilinearly as a consumer would: rms, p95 and max difference, the largest amount a level is deeper than the truth (unsafe direction), land/water flips and uncovered vertices. -stride n samples every n-th vertex; -json for machines.",
+	"validate":   "Recompute every metric from the tile files and compare with the manifest: hashes, layer consistency, shared tile edges per level, parent/child samples across levels, provenance, licences.",
+	"world":      "world init <preset> writes an example config. world check <file> validates a config and prints the grid, memory estimate and projection scale without downloading anything.",
 }
 
 func main() {
@@ -71,6 +73,8 @@ func main() {
 		err = cmdBuild(args)
 	case "validate":
 		err = cmdValidate(args)
+	case "lod-report":
+		err = cmdLODReport(args)
 	case "preview":
 		err = cmdPreview(args)
 	case "export":

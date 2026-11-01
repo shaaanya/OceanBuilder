@@ -209,11 +209,12 @@ func (b *bctx) decimateLayer(prev *layerFiles, pp, p levelPlan, out *layerFiles)
 		var pd []float32
 		var pk, pv []uint8
 		if pr >= 0 && pr < prev.H {
-			if pd, err = prev.dem.rect(pr, 0, 1, prev.W); err != nil {
+			// rows pr-1..pr+1 (out-of-range cells read as nodata) so smoothing sees the full 3x3 neighbourhood
+			if pd, err = prev.dem.rect(pr-1, 0, 3, prev.W); err != nil {
 				w.close()
 				return err
 			}
-			if pk, err = prev.kind.rect(pr, 0, 1, prev.W, 0); err != nil {
+			if pk, err = prev.kind.rect(pr-1, 0, 3, prev.W, 0); err != nil {
 				w.close()
 				return err
 			}
@@ -228,7 +229,8 @@ func (b *bctx) decimateLayer(prev *layerFiles, pp, p levelPlan, out *layerFiles)
 				dem[c], kind[c], prov[c] = noData, SrcNoData, 0
 				continue
 			}
-			dem[c], kind[c], prov[c] = pd[pc], pk[pc], pv[pc]
+			dem[c], kind[c] = lodSample(b.cfg.LODMethod, pd, pk, prev.W, pc)
+			prov[c] = pv[pc]
 		}
 		if err := w.writeRow(dem, kind, prov); err != nil {
 			w.close()
@@ -236,4 +238,30 @@ func (b *bctx) decimateLayer(prev *layerFiles, pp, p levelPlan, out *layerFiles)
 		}
 	}
 	return w.close()
+}
+
+// lodSample returns the coarse sample for the previous-level vertex at column pc of the middle row of the 3-row window
+// d/k (rows pr-1, pr, pr+1; each w wide). Method "shoal": a water sample becomes the shallowest water height of its 3x3
+// neighbourhood (never deeper than any finer water sample within one step); land and nodata samples are unchanged, so
+// the waterline never moves. Any other method keeps the sample itself (vertex decimation).
+func lodSample(method string, d []float32, k []uint8, w, pc int) (float32, uint8) {
+	ctr := d[w+pc]
+	if method != "shoal" || !validF(ctr) || ctr >= 0 {
+		return ctr, k[w+pc]
+	}
+	best := ctr
+	for dr := 0; dr < 3; dr++ {
+		for dc := pc - 1; dc <= pc+1; dc++ {
+			if dc < 0 || dc >= w {
+				continue
+			}
+			if v := d[dr*w+dc]; validF(v) && v < 0 && v > best {
+				best = v
+			}
+		}
+	}
+	if best == ctr {
+		return ctr, k[w+pc]
+	}
+	return best, SrcLODDerived
 }

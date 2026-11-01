@@ -63,6 +63,12 @@ type Config struct {
 	// LODLevels is the number of coarser levels above level 0: 0 = as many as needed until one tile covers the
 	// world, -1 = level 0 only, n>0 = exactly n (at most MaxLOD). Levels are vertex decimations of level 0.
 	LODLevels int `json:"lod_levels,omitempty"`
+	// LODMethod: "" or "decimate" keeps every second vertex (exact level-0 samples). "shoal" replaces a water sample by the
+	// shallowest water sample of its 3x3 neighbourhood: a coarse level is then never deeper than the finer water it
+	// stands for (measured: too_deep 0 at every level, at the price of a higher rms; see ocean lod-report). The waterline
+	// does not move. Changed samples carry source code 7. A binomial smoothing method was tried and removed: it had a
+	// higher error than decimation on every measured scene (development log).
+	LODMethod string `json:"lod_method,omitempty"`
 	// UTMEPSG forces the projected CRS (32601..32660 north, 32701..32760 south). Empty/0 picks the zone of the
 	// bbox centre. A bbox that reaches far from the zone's central meridian is distorted: see Stats.UTMScale.
 	UTMEPSG int `json:"utm_epsg,omitempty"`
@@ -176,6 +182,11 @@ func (c *Config) Normalize() error {
 	}
 	if c.UTMEPSG != 0 && !(c.UTMEPSG >= 32601 && c.UTMEPSG <= 32660 || c.UTMEPSG >= 32701 && c.UTMEPSG <= 32760) {
 		return fmt.Errorf("config: utm_epsg %d is not a WGS 84 / UTM code (326zz or 327zz)", c.UTMEPSG)
+	}
+	switch c.LODMethod {
+	case "", "decimate", "shoal":
+	default:
+		return fmt.Errorf("config: lod_method %q not one of decimate|shoal", c.LODMethod)
 	}
 	if c.LODLevels < -1 || c.LODLevels > MaxLOD {
 		return fmt.Errorf("config: lod_levels must be -1 (none), 0 (auto) or 1..%d, got %d", MaxLOD, c.LODLevels)
@@ -332,7 +343,7 @@ type HeightEncoding struct {
 
 // LODInfo describes the level pyramid.
 type LODInfo struct {
-	Method string     `json:"method"` // "vertex-decimation"
+	Method string     `json:"method"` // "vertex-decimation" | "shoal-biased"
 	Levels []LODLevel `json:"levels"`
 	Note   string     `json:"note"`
 }

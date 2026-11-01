@@ -220,6 +220,9 @@ func Run(dir string) (*Report, error) {
 			if L.class[i] != wantClass {
 				layerBad++
 			}
+			if t.Level == 0 && L.src[i] == world.SrcLODDerived {
+				layerBad++ // lod-derived samples exist only above level 0
+			}
 			if v < 0 {
 				tw++
 				if L.src[i] == world.SrcSurvey {
@@ -493,7 +496,26 @@ func checkLOD(byLevel map[int]map[[2]int]*loaded, m *world.Manifest) int {
 							if cj < 0 || cj >= S {
 								continue
 							}
-							if p.h[i*S+j] != c.h[ci*S+cj] || p.src[i*S+j] != c.src[ci*S+cj] {
+							ph, ch := p.h[i*S+j], c.h[ci*S+cj]
+							if m.LOD.Method == "vertex-decimation" || m.LOD.Method == "" {
+								if ph != ch || p.src[i*S+j] != c.src[ci*S+cj] {
+									bad++
+								}
+								continue
+							}
+							// shoal: same nodata state and side of the waterline as the finer sample it replaces; unchanged samples keep
+							// their code, changed ones are marked lod-derived; never deeper than the sample it replaces.
+							nd := m.Height.NoData
+							ps, cs := p.src[i*S+j], c.src[ci*S+cj]
+							switch {
+							case (ph == nd) != (ch == nd):
+								bad++
+							case ph == nd:
+							case (ph < 0) != (ch < 0):
+								bad++
+							case ph == ch && ps != cs, ph != ch && ps != world.SrcLODDerived:
+								bad++
+							case ch < 0 && ph < ch:
 								bad++
 							}
 						}
