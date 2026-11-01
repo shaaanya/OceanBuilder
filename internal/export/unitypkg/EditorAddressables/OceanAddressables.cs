@@ -45,7 +45,7 @@ namespace OceanCompiler.World.Editor
             foreach (var guid in AssetDatabase.FindAssets("t:OceanWorldIndex"))
             {
                 var index = AssetDatabase.LoadAssetAtPath<OceanWorldIndex>(AssetDatabase.GUIDToAssetPath(guid));
-                foreach (var t in index.tiles)
+                foreach (var t in System.Linq.Enumerable.Concat(index.tiles, index.lodTiles))
                 {
                     var entry = settings.FindAssetEntry(AssetDatabase.AssetPathToGUID("Assets/OceanWorld/" + index.worldName + "/Generated/Prefabs/" + t.id + ".prefab"));
                     if (entry == null || entry.address != t.address) throw new System.Exception("tile " + t.id + " is not addressable at " + t.address);

@@ -60,10 +60,17 @@ public static class OceanWorldImporter
         foreach (var dir in Directory.GetDirectories("Assets/OceanWorld")) Import(dir.Replace('\\', '/'));
     }
 
+    /// <summary>Highest LOD level to import as tile prefabs (0 = only level 0, the default). Coarser levels go to
+    /// OceanWorldIndex.lodTiles and the Addressables groups; the scene and the streamer keep using level 0.</summary>
+    public static int MaxLevel = 0;
+
     public static void ImportFromCommandLine()
     {
         try
         {
+            var cl = Environment.GetCommandLineArgs();
+            int ml = Array.IndexOf(cl, "-oceanMaxLevel");
+            if (ml >= 0 && ml + 1 < cl.Length) MaxLevel = int.Parse(cl[ml + 1]);
             ImportMenu();
             var args = Environment.GetCommandLineArgs();
             int i = Array.IndexOf(args, "-oceanShot");
@@ -146,6 +153,7 @@ public static class OceanWorldImporter
 
     public static void Import(string dir)
     {
+        int maxLevel = MaxLevel;
         var m = JsonUtility.FromJson<Manifest>(File.ReadAllText(Path.Combine(dir, "world.manifest.json")));
         if (m.height_encoding.type != "float32") throw new Exception("unsupported height encoding " + m.height_encoding.type + " (expected float32, schema 2)");
         if (m.height_encoding.row_order != "north_to_south") throw new Exception("unsupported row_order " + m.height_encoding.row_order);
@@ -173,11 +181,16 @@ public static class OceanWorldImporter
         foreach (var t in m.tiles) if (t.level == 0) byCell[(t.col, t.row)] = t; // LOD levels above 0 are not imported yet
         string Id(int c, int r) => byCell.TryGetValue((c, r), out var t) ? t.id : "";
         var entries = new List<OceanTileEntry>();
+        var lodEntries = new List<OceanTileEntry>();
+        var byLevelCell = new Dictionary<(int, int, int), TileInfo>();
+        foreach (var t in m.tiles) if (t.level > 0 && t.level <= maxLevel) byLevelCell[(t.level, t.col, t.row)] = t;
+        string LodId(int l, int c, int r) => byLevelCell.TryGetValue((l, c, r), out var t) ? t.id : "";
         var prefabPaths = new Dictionary<string, string>();
 
         foreach (var t in m.tiles)
         {
-            if (t.level != 0) continue;
+            if (t.level > maxLevel) continue;
+            float tspan = span * (1 << t.level); // coarser levels double the tile span (same sample count)
             byte[] raw = File.ReadAllBytes(Path.Combine(dir, t.height));
             if (raw.Length != S * S * 4) throw new Exception(t.id + ": expected " + S * S * 4 + " bytes, got " + raw.Length);
             var h = new float[S, S]; // h[z, x], z grows north; file rows run north to south
@@ -194,7 +207,7 @@ public static class OceanWorldImporter
             var td = AssetDatabase.LoadAssetAtPath<TerrainData>(tdPath);
             bool newTd = td == null;
             if (newTd) td = new TerrainData();
-            td.heightmapResolution = S; td.size = new Vector3(span, range, span);
+            td.heightmapResolution = S; td.size = new Vector3(tspan, range, tspan);
             td.SetHeights(0, 0, h);
             td.terrainLayers = layers;
             td.alphamapResolution = res;
@@ -202,7 +215,8 @@ public static class OceanWorldImporter
             if (newTd) AssetDatabase.CreateAsset(td, tdPath); else EditorUtility.SetDirty(td);
 
             // Tile row 0 is the northernmost; world +Z is north, y = 0 is sea level.
-            var pos = new Vector3(t.col * span, m.height_encoding.min_m, (m.grid.tiles_y - 1 - t.row) * span);
+            var pos = t.level == 0 ? new Vector3(t.col * span, m.height_encoding.min_m, (m.grid.tiles_y - 1 - t.row) * span)
+                : new Vector3((float)(t.bounds_utm[0] - index.originEasting), m.height_encoding.min_m, (float)(t.bounds_utm[1] - index.originNorthingSouth));
             var go = Terrain.CreateTerrainGameObject(td);
             go.name = t.id;
             go.transform.position = pos;
@@ -211,16 +225,19 @@ public static class OceanWorldImporter
             UnityEngine.Object.DestroyImmediate(go);
             prefabPaths[t.id] = prefab;
 
-            entries.Add(new OceanTileEntry
+            (t.level == 0 ? entries : lodEntries).Add(new OceanTileEntry
             {
-                id = t.id, level = t.level, col = t.col, row = t.row, position = pos, size = new Vector3(span, range, span),
+                id = t.id, level = t.level, col = t.col, row = t.row, position = pos, size = new Vector3(tspan, range, tspan),
                 minM = t.min_m, maxM = t.max_m, minEasting = t.bounds_utm[0], minNorthing = t.bounds_utm[1], maxEasting = t.bounds_utm[2], maxNorthing = t.bounds_utm[3],
                 waterFraction = t.water_fraction, measuredWaterFraction = t.measured_water_fraction, nodataFraction = t.nodata_fraction,
                 address = "ocean/" + m.name + "/" + t.id,
-                west = Id(t.col - 1, t.row), east = Id(t.col + 1, t.row), north = Id(t.col, t.row - 1), south = Id(t.col, t.row + 1),
+                west = t.level == 0 ? Id(t.col - 1, t.row) : LodId(t.level, t.col - 1, t.row), east = t.level == 0 ? Id(t.col + 1, t.row) : LodId(t.level, t.col + 1, t.row),
+                north = t.level == 0 ? Id(t.col, t.row - 1) : LodId(t.level, t.col, t.row - 1), south = t.level == 0 ? Id(t.col, t.row + 1) : LodId(t.level, t.col, t.row + 1),
             });
         }
         index.tiles = entries.ToArray();
+        index.lodTiles = lodEntries.ToArray();
+        index.maxLevelImported = maxLevel;
         var cps = new List<OceanCheckpoint>();
         foreach (var c in m.checkpoints) cps.Add(new OceanCheckpoint { name = c.name, easting = c.easting, northing = c.northing, elevationM = (float)c.elevation_m });
         index.checkpoints = cps.ToArray();
@@ -286,7 +303,7 @@ public static class OceanWorldImporter
         TilesImported?.Invoke(index, prefabPaths);
         AssetDatabase.SaveAssets();
         Debug.Log("OCEAN_VERIFY checkpoints=" + m.checkpoints.Length + " max_err=" + maxErr.ToString("F4") + " m");
-        Debug.Log("OCEAN_IMPORT_OK " + m.name + " tiles=" + index.tiles.Length + " (level 0 of " + m.tiles.Length + " in the manifest) scene=" + scenePath + " index=" + gen + "/OceanWorldIndex.asset");
+        Debug.Log("OCEAN_IMPORT_OK " + m.name + " tiles=" + index.tiles.Length + " (level 0; " + lodEntries.Count + " coarser tiles of " + m.tiles.Length + " in the manifest, max level " + maxLevel + ") scene=" + scenePath + " index=" + gen + "/OceanWorldIndex.asset");
     }
 
     // Convert each manifest checkpoint (UTM) to Unity space independently of tile placement

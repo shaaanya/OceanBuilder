@@ -11,7 +11,7 @@ namespace OceanCompiler.World
     public class OceanTileEntry
     {
         public string id;              // stable, absolute: L<level>_<floor(E/span)>_<floor(N/span)>
-        public int level;              // LOD level; only 0 exists so far
+        public int level;              // LOD level; cell size and tile span double per level
         public int col, row;           // column from west, row from NORTH (manifest convention)
         public Vector3 position;       // south-west corner of the tile in Unity space (y = world min elevation)
         public Vector3 size;           // tile extents in metres (x, vertical range, z)
@@ -52,7 +52,9 @@ namespace OceanCompiler.World
         public float cellM, tileSpanM, minM, maxM;
         public int tilesX, tilesY;
         public string[] attribution;
-        public OceanTileEntry[] tiles;
+        public OceanTileEntry[] tiles;       // level 0
+        public OceanTileEntry[] lodTiles = new OceanTileEntry[0]; // coarser levels, imported when the importer runs with a maximum level above 0
+        public int maxLevelImported;
         public OceanCheckpoint[] checkpoints;
         public OceanSeamark[] seamarks = new OceanSeamark[0];
 
@@ -60,6 +62,12 @@ namespace OceanCompiler.World
         {
             foreach (var t in tiles) if (t.id == id) return t;
             return null;
+        }
+
+        /// <summary>Coarse tiles of one level (1 = twice the cell size); empty when that level was not imported.</summary>
+        public System.Collections.Generic.IEnumerable<OceanTileEntry> LodTiles(int level)
+        {
+            foreach (var t in lodTiles) if (t.level == level) yield return t;
         }
 
         public Vector3 UtmToUnity(double easting, double northing, double elevationM = 0) =>
