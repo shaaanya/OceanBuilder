@@ -2,7 +2,18 @@
 
 ## State at last stop (2026-10-30)
 
-Done and verified on real data (Falmouth, Mindelo): GMRT + OSM worlds, LibreTerrain file round trip, Unity URP package with Addressables, tile streamer, seamarks, opt-in coast conform, opt-in EMODnet regional fill. All Go tests pass; PlayMode tests (4) pass on the URP demo. Unverified or not started: see Next and Known problems. Highest-value next steps: (a) LOD pyramid (5) so distant tiles are cheap in the sailing game; (b) incremental builds (9) now that `build_id` tracks algorithm versions; (c) a depth-gradient URP water/seabed material; (d) first test inside the user's own Unity project (not found on this machine); (e) floating origin for the streamer.
+Done and verified on real data (Falmouth, Mindelo): GMRT + OSM worlds, LibreTerrain file round trip, Unity URP package with Addressables, tile streamer, seamarks, opt-in coast conform, opt-in EMODnet regional fill. All Go tests pass; PlayMode tests (4) pass on the URP demo. Unverified or not started: see Next and Known problems. Highest-value next steps: (a) LOD pyramid (5) so distant tiles are cheap in the sailing game; (b) incremental builds (9) now that `build_id` tracks algorithm versions; (c) a depth-gradient URP water/seabed material; (d) first test inside the user's own Unity project (found 2026-11-01: ALONE, see Integration below; it has its own pipeline and has never loaded OB output); (e) floating origin for the streamer.
+
+## Integration with the sailing game (audit 2026-11-01, evidence-backed)
+
+The game is ALONE (`~/Documents/projects/Unity/Alone/AloneV2`, Unity 6000.4.0f1, URP 17.4, Crest fork). Full analysis: [integration/sailing-game-audit.md](integration/sailing-game-audit.md); matrix: [integration/requirements-matrix.md](integration/requirements-matrix.md); workflow: [integration/production-workflow.md](integration/production-workflow.md); plan: [integration/implementation-plan.md](integration/implementation-plan.md). Verified = measured or run in the audit; everything else is read or assumed (see the audit, section 9).
+
+- Verified: ALONE's nine packs are flat (all sampled terrain y = 0) with no bathymetry; Crest sea-floor depth is off; `BoatGrounding` is land-only. OB bathymetry is the real gap it can fill.
+- Verified: ALONE tiles use a per-leg azimuthal-equidistant frame; true-geo data sits 67 to 673 m off the rendered tiles at 1 to 10 km from the Mindelo anchor. OB data must be exported in the game's frame (P-3).
+- Verified: GSHHG (game) vs OSM (OB) coast at Falmouth: median 111 m, p90 259 m. Needs the coast decision R3.
+- Verified: per land cluster (110 to 200 km) a world fits one UTM zone (one exception) and OB's in-memory model; corridor-wide worlds do not (81 to 309 M cells).
+- Next, in order (plan IDs): D-1 decisions, P-1 (this is item A above), P-3 game-frame grid + data-only export, P-5 runtime `DepthSampler`, P-4 conform to the game's coast, P-6 seamarks in frame, then game-side G-7/G-1/G-4, then the Falmouth gate P-7 (M0). M1 = M0 + Mindelo from one region file.
+- Re-ranked: floating origin for OB's streamer, LOD pyramid, OB Terrain importer improvements and water shader drop in value for the game (not needed for M1).
 
 ## Next (highest value first, re-ranked 2026-10-30 session 2)
 

@@ -1,0 +1,20 @@
+ACT   len_km  zones(with >=2%% of samples)  bbox_w_km bbox_h_km  corridor80km_area_km2  samples@48m(M)  pack_tiles  tile_area_km2  OBtiles@6.1km
+act1_falmouth_mindelo      4412 26(4%),27(25%),28(27%),29(42%),30(2%)    1853    3681     352923   153.18   131    13100     347
+act2_mindelo_capetown      7664 26(17%),27(20%),28(12%),29(11%),30(10%),31(10%),32(9%),33(9%)    4789    5652     613095   266.10    69     6900     183
+act3_capetown_hobart      10738 34(6%),35(6%),36(5%),37(5%),38(5%),39(4%),40(4%),41(4%),42(4%),43(4%),44(4%),45(4%),46(4%),47(4%),48(4%),49(4%),50(4%),51(4%),52(4%),53(4%),54(4%),55(4%)   10255    1481     859034   372.84   125    12500     331
+act4_hobart_noumea         3027 55(9%),56(26%),57(30%),58(34%)    1762    2347     242172   105.11   129    12900     342
+act5_noumea_easter         8901 1(6%),2(6%),3(6%),4(6%),5(6%),6(6%),7(6%),8(6%),9(6%),10(7%),11(8%),12(6%),58(7%),59(10%),60(9%)       4    1874     712112   309.08    64     6400     170
+act6_easter_williams       5047 12(8%),13(15%),14(15%),15(15%),16(14%),17(14%),18(8%),19(10%)    3511    3244     403786   175.25   124    12400     328
+act7_williams_recife       6434 20(8%),21(10%),22(14%),23(17%),24(20%),25(29%)    3195    5264     514743   223.41   123    12300     326
+act8_recife_horta          5401 25(90%),26(10%)                720    5172     432050   187.52    57     5700     151
+act9_horta_falmouth        2336 26(21%),27(26%),28(25%),29(23%),30(4%)    1887    1320     186898    81.12    83     8300     220
+total pack tiles 905
+Mindelo east            1 km: game-tile placement error     67 m  (sign-flip variant 442 m)
+Mindelo east            5 km: game-tile placement error    337 m  (sign-flip variant 2208 m)
+Mindelo east           10 km: game-tile placement error    673 m  (sign-flip variant 4414 m)
+Mindelo north           1 km: game-tile placement error     26 m  (sign-flip variant 379 m)
+Mindelo north           5 km: game-tile placement error    132 m  (sign-flip variant 1897 m)
+Mindelo north          10 km: game-tile placement error    264 m  (sign-flip variant 3795 m)
+Mindelo towards origin  1 km: game-tile placement error      0 m  (sign-flip variant 401 m)
+Mindelo towards origin  5 km: game-tile placement error      0 m  (sign-flip variant 2007 m)
+Mindelo towards origin 10 km: game-tile placement error      0 m  (sign-flip variant 4013 m)

@@ -1,0 +1,10 @@
+pack  tiles  dem_paths  hasShoreDepth  sources  terrain_y_minmax(sample)  clusters(>=1 tile gap 3)  maxClusterKm  zonesPerCluster(max)
+act1_falmouth_mindelo     131 0 False 0 (np.float64(0.0), np.float64(0.0)) clusters=7 maxext=110km maxzones=1
+act2_mindelo_capetown      69 0 False 0 (np.float64(0.0), np.float64(0.0)) clusters=2 maxext=120km maxzones=1
+act3_capetown_hobart      125 0 False 0 (np.float64(0.0), np.float64(0.0)) clusters=2 maxext=150km maxzones=1
+act4_hobart_noumea        129 0 False 0 (np.float64(0.0), np.float64(0.0)) clusters=2 maxext=120km maxzones=1
+act5_noumea_easter         64 0 False 0 (np.float64(0.0), np.float64(0.0)) clusters=2 maxext=110km maxzones=1
+act6_easter_williams      124 0 False 0 (np.float64(0.0), np.float64(0.0)) clusters=3 maxext=160km maxzones=1
+act7_williams_recife      123 0 False 0 (np.float64(0.0), np.float64(0.0)) clusters=3 maxext=200km maxzones=2
+act8_recife_horta          57 0 False 0 (np.float64(0.0), np.float64(0.0)) clusters=3 maxext=110km maxzones=1
+act9_horta_falmouth        83 0 False 0 (np.float64(0.0), np.float64(0.0)) clusters=2 maxext=170km maxzones=1
