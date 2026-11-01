@@ -1,4 +1,4 @@
-# OceanBuilder world format, schema version 2
+# OceanBuilder world format, schema versions 2 and 3 (format revision 1)
 
 This is the contract between OceanBuilder and anything that consumes a built world: engine adapters, GIS, scripts, other languages. A reader needs only this document, JSON, PNG and little-endian float32; it needs neither OceanBuilder nor GDAL. The Go package `pkg/oceanworld` is a reference implementation (about 300 lines) and `ocean validate` is the conformance check.
 
@@ -13,6 +13,7 @@ tiles/<level>/<id>.height.f32           float32 heights
 tiles/<level>/<id>.depth.png            depth class per sample
 tiles/<level>/<id>.shore.png            shore flag per sample
 tiles/<level>/<id>.source.png           source code per sample
+tiles/<level>/<id>.dataset.png          which dataset supplied each sample (format revision 1)
 ```
 
 ## Versioning
@@ -22,6 +23,8 @@ tiles/<level>/<id>.source.png           source code per sample
 `build_id` identifies the produced bytes (config, tool version, algorithm versions, source hashes). `input_key` identifies the inputs: two builds with equal `input_key` produce byte-identical files (tested; the GDAL version is part of the key).
 
 ## Coordinates and the grid
+
+**Schema 3 (new in 0.3.0).** Identical to schema 2 except for `crs`. A world that does not fit one UTM zone is built in a local WGS 84 transverse Mercator grid and carries `schema_version` 3 and `crs = {epsg: 0, kind: "tmerc", lon_0, k_0, false_easting, false_northing, proj4}`. Everything below that says "UTM" then means "this grid". UTM worlds stay at schema 2 with `crs.kind` "utm". Northings can be negative (south of the equator with false northing 0), so compute tile indices with `floor`. Longitudes must be wrapped around `lon_0` (a world across 180 has `bounds_wgs84` east above 180). Decision: [ADR 0006](decisions/0006-local-transverse-mercator-grid.md). The Go reader implements the projection; other readers can use `proj4` with PROJ.
 
 - Horizontal CRS: WGS 84 / UTM, `crs.epsg` = 326zz (north) or 327zz (south). Units are grid metres, not ground metres: the UTM point scale factor `k` (reported as `stats.utm_scale_min/max`) makes 1 ground metre equal k grid metres; k is 0.99984 to 0.99990 at Falmouth (zone 30N) and 1.0006 to 1.0008 at Moorea (zone 6S). The builder refuses bounding boxes whose scale deviates more than 0.5 % from 1.
 - Samples are **vertices**, not pixel areas. Level 0 has cell size `grid.cell_m`. Sample `k` east of a tile's west edge is at `west + k * cell`.
@@ -63,6 +66,9 @@ Method (`lod.method = "vertex-decimation"`): level `L` keeps every `2^L`-th vert
 
 `source_layers[]` in the manifest repeats this table. Codes are never renumbered; new ones are appended. `measured` means "a measurement at or near output resolution"; `resampling.source_native_res_m` and `resampling.unmeasured_res_m` give the real resolutions. No sample is marked measured because it was interpolated.
 
+### `.dataset.png` (format revision 1)
+8-bit greyscale `S x S`: `datasets[].index` of the dataset that supplied the height of each sample, `0` for nodata (and for any sample no dataset supplied). Added in 0.3.0 as an optional layer; a tile entry has `dataset` and `sha256.dataset` when it exists, `manifest.format_revision` is 1, and a reader that does not know the layer can ignore it. In an LOD level k the value is that of the level-0 vertex the decimation kept (same rule as `.source.png`). Conformed and refined cells keep the index of the dataset that supplied the underlying sample.
+
 ## Manifest
 
 | key | content |
@@ -70,15 +76,16 @@ Method (`lod.method = "vertex-decimation"`): level `L` keeps every `2^L`-th vert
 | `schema_version`, `name`, `build_id`, `input_key` | identity |
 | `tool` | `version`, `gdal` |
 | `config` | the resolved world config that produced this build |
-| `crs` | `epsg`, `name` |
-| `vertical` | `unit`, `datum`, `note`: states what is *not* known about the vertical reference |
+| `crs` | `epsg`, `name`, and for schema 3 `kind`, `lon_0`, `k_0`, `false_easting`, `false_northing`, `proj4` |
+| `vertical` | `unit`, `datum` (one datum of the closed vocabulary, `mixed` or `unknown`), `note`, `mixed` (datasets with different or unverified references were combined on explicit request) |
+| `datasets[]` | one per source that supplied elevation: `index` (value in `.dataset.png`), `id`, `type`, `role`, `quality`, `year`, `accuracy_m`, `native_res_m`, `declared_datum`, `vertical` {`kind` identity\|proj-grid\|user-offset, `from`, `to`, `pipeline`, `grids[]` with sha256, `proj_version`, `offset_m`, `offset_source`, `verified`}, `precedence_rank` (1 = tried first), `sources` / `source_sha256` (links to `sources[]`) |
 | `grid` | `cell_m`, `tile_cells`, `samples_per_tile`, `tile_span_m`, `tiles_x`, `tiles_y`, `origin_easting` (west edge of tile column 0), `origin_northing_top` (north edge of tile row 0), `first_tile_x`, `first_tile_y` (absolute index of the southernmost row), `bbox_wgs84` [W,S,E,N] of the level-0 grid |
 | `height_encoding` | `type` "float32", `byte_order`, `row_order`, `unit`, `nodata`, `min_m`, `max_m` (range of valid level-0 samples) |
 | `depth_classes`, `source_layers` | code tables |
 | `lod` | `method`, `levels[]` {`level`,`cell_m`,`tile_span_m`,`first/last_tile_x/y`,`tiles`}, `note` |
 | `resampling` | `method`, `source_native_res_m`, `unmeasured_res_m`, `output_cell_m`, `upsampled` (output finer than source: the extra detail is interpolation) |
 | `tiles[]` | per tile: `id`, `level`, `x`, `y`, `col`, `row` (0 = north, within the level), `bounds_utm`, `bounds_wgs84` (envelope), `min_m`, `max_m`, `nodata_fraction`, `water_fraction`, `measured_water_fraction`, file paths `height`, `depth_class`, `shore_mask`, `source`, `sha256` {the four file hashes}, `parent`, `neighbours` |
-| `stats` | world totals, `cells_by_source`, coastline check, conforming/regional/seamark statistics, `utm_scale_min/max`, `notes` (omitted when empty) |
+| `stats` | world totals, `cells_by_source`, `cells_by_dataset`, `composition` (per dataset cells selected / overridden, pairwise overlap statistics with median and rms difference, and seam statistics where the supplying dataset changes), coastline check, conforming/regional/seamark statistics, `utm_scale_min/max`, `notes` (omitted when empty) |
 | `sources[]` | provenance, see below |
 | `checkpoints[]` | named vertices (highest, lowest, corners) with expected elevation, so an importer can verify its own orientation and placement |
 | `attribution[]`, `files` | credits; optional extra files |
@@ -120,3 +127,10 @@ Every file hash matches the manifest; each tile has `S x S` samples in all four 
 - One UTM zone per world. The projection scale deviation is reported and bounded.
 - Cells finer than the source are interpolated (`resampling.upsampled`); cells coded `background` are as coarse as the background grid.
 - Not for navigation.
+
+
+## Composition and vertical references (0.3.0)
+
+- A world may combine several elevation datasets (`sources[]` in the config). For every output cell the first dataset in precedence order that has a valid value is used (`precedence: "listed"` keeps the config order; `"auto"` ranks by quality class, declared accuracy, native resolution, year, then list order; the order used is `stats.composition.order`). Cells are never averaged across datasets, and a nodata hole in a higher-ranked dataset is filled by the next one, which is visible in `.dataset.png`.
+- Heights are in the world's single vertical datum, `vertical.datum`. A dataset in another datum is converted only by a PROJ grid operation that PROJ resolves with the grids installed (recorded with grid sha256 and PROJ version) or by a user offset that cites its source; a ballpark or missing transformation is refused. Tidal datums and MSL have no verified transformation and are refused unless `vertical.allow_mixed` is set, in which case `vertical.mixed` is true and `ocean validate` warns. Nothing about vertical accuracy is claimed beyond that.
+- `ocean validate` recounts `cells_by_dataset` from the layers and warns about systematic offsets or large seams between datasets.

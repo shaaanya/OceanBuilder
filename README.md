@@ -2,7 +2,7 @@
 
 A standalone Go CLI that turns a geographic bounding box into a tiled, multi-resolution, validated maritime world. It fetches (or imports) bathymetry, elevation and coastline data, puts them on one metric grid, cuts crack-free tiles with an LOD pyramid, records for every sample where it came from, and checks the result against the data it was built from. The output is a documented, engine-independent format ([docs/formats/world-v2.md](docs/formats/world-v2.md)); a Go reader, GeoTIFF export and a Unity (URP) adapter consume it. No game engine is needed to build, inspect or use a world.
 
-Status: **0.2.** Sources: GMRT (bathymetry+topography) or your own GeoTIFFs, OpenStreetMap coastline and OpenSeaMap marks, optional EMODnet regional fill. One UTM zone per world. See [docs/roadmap.md](docs/roadmap.md) for what is missing and [docs/development-log.md](docs/development-log.md) for what was measured.
+Status: **0.3.0 release candidate.** Sources: GMRT (bathymetry+topography) or your own GeoTIFFs, OpenStreetMap coastline and OpenSeaMap marks, optional EMODnet regional fill. Several elevation datasets per world with explicit precedence and recorded vertical datums; UTM or, for wide boxes, a local transverse Mercator grid. See [docs/roadmap.md](docs/roadmap.md) for what is missing and [docs/development-log.md](docs/development-log.md) for what was measured.
 
 New here? [Tutorial: from an empty directory to an inspected world](docs/tutorials/first-world.md).
 
@@ -148,7 +148,7 @@ Import writes an edit layer, not a replacement: only cells that are land in the 
 - Not for navigation. GMRT's terms say its data must not be used for navigation, and this tool is for game worlds.
 - GMRT's `topo` layer is filled with GEBCO_08 (~0.9 km) wherever no ~100 m multibeam survey exists. Output cells finer than that are interpolation. The manifest and validator report the surveyed fraction per tile.
 - There is no vertical-datum reconciliation. Land DEMs, multibeam, and the OSM coastline use different references; the tool treats 0 m as the waterline and reports the horizontal offset to the OSM coastline instead of hiding it.
-- One UTM zone per world. Projection scale deviation is reported in the manifest and bounded (a bbox beyond 0.5 % is refused). LOD levels are vertex decimations; they can alias thin features. Seamark and harbour data are volunteer-mapped OSM points.
+- Several elevation datasets per world with explicit precedence and recorded vertical datums; UTM or, for wide boxes, a local transverse Mercator grid. Projection scale deviation is reported in the manifest and bounded (a bbox beyond 0.5 % is refused). LOD levels are vertex decimations; they can alias thin features. Seamark and harbour data are volunteer-mapped OSM points.
 
 ## Docs
 

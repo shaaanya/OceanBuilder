@@ -2,28 +2,30 @@
 
 Ocean Compiler is a standalone, engine-independent tool ([ADR 0004](decisions/0004-engine-agnostic-scope.md)). Status labels: **done** = implemented and tested; **partial** = works with stated limits; **open** = not started.
 
-## State (2026-11-01, tool 0.2.0, format schema 2)
+## State (2026-11-01, tool 0.3.0-rc1, format schema 2 / 3, format revision 1)
 
-Done:
-- Format v2 with LOD pyramid, per-sample source layer, per-file hashes, documented in [formats/world-v2.md](formats/world-v2.md).
-- Sources: GMRT (topo + survey mask), local GeoTIFF/GeoJSON, OSM coastline, OpenSeaMap seamarks, opt-in EMODnet regional fill, opt-in OSM coast conform, LibreTerrain edit round trip.
-- Reproducible builds, up-to-date skip, warp stage cache, atomic output, cancellation, UTM distortion limits.
-- CLI: `build`, `validate`, `info`, `sample`, `diff`, `preview`, `export`, `cache`, `world init/check`, `sources`, `libreterrain`.
-- Reader package `pkg/oceanworld`; GeoTIFF export; Unity URP adapter with Addressables and streamer.
-- Tests: synthetic ground truth (southern hemisphere, Web Mercator source, nodata hole), LOD and determinism, incremental and cancel, reader vs GDAL, export. Measured numbers: [development-log.md](development-log.md).
+Done (implemented and tested offline):
+- Everything of 0.2.0 (format with LOD pyramid and per-sample source layer, GMRT / local / OSM / OpenSeaMap / EMODnet sources, reproducible incremental builds, reader, GeoTIFF export, Unity URP adapter).
+- Several elevation datasets per world with listed or `auto` precedence, per-sample dataset identity (`.dataset.png`), overlap and seam statistics ([ADR 0007](decisions/0007-dataset-composition.md)).
+- Vertical datum policy: declared datums, PROJ grid conversions with recorded grids, explicit refusal otherwise ([ADR 0008](decisions/0008-vertical-datum-policy.md)).
+- Windowed disk-backed pipeline: output independent of window size, Go process memory follows `-mem`, GDAL cache capped. Measurements in the [development log](development-log.md).
+- Local transverse Mercator grids for wide boxes and boxes across 180 (schema 3, [ADR 0006](decisions/0006-local-transverse-mercator-grid.md)); reader implements it.
+- Validator checks the dataset layer and warns about mixed datums, systematic offsets and seams.
+
+Partial:
+- Antimeridian worlds: local GeoTIFF sources only, no coastline. Network fetchers refused until verified across 180.
+- Progress and cancellation exist (0.2.0) but were not re-measured on large grids. Resume of an interrupted build reuses only the warp stage cache.
 
 ## Next (highest value first)
 
-1. **Multiple sources per world with explicit precedence** (survey-grade national grids over GMRT over GEBCO), each sample keeping its source id. Today: GMRT or one local pair, plus EMODnet fill. Needs a source-provider interface; design it with the second real provider (NOAA CUDEM tiles over S3, public bucket) rather than before.
-2. **Windowed processing** so a world larger than memory can be built; `world check` estimates memory but refuses nothing.
-3. **Multi-zone worlds** (bbox beyond 0.5 % UTM distortion, or crossing a zone boundary). Today: refused with advice to split or set `utm_epsg`. Options: per-zone sub-worlds with a shared seam rule, or a local transverse Mercator centred on the bbox.
-4. **Vertical datum handling**: record each source's datum; apply geoid/tide conversion where the transform is published. Today zero is the waterline and the offset to the OSM coastline is only reported.
-5. **Smoothed LOD method** (alternative `lod.method`) for consumers that prefer averaged coarse levels over exact decimation; needs a source-code rule for blended samples.
-6. **Seascape** (Terrarium PNG tiles, CC BY 4.0) as an optional background source; see [research/ecosystem.md](research/ecosystem.md).
-7. Unity: LOD levels in the importer, standalone player build test, floating origin for the streamer, water/seabed material.
-8. Unreal Landscape exporter (2ⁿ−1 sizes, Z-scale in the manifest): only once a second consumer of the format asks.
-9. Vector products: polygonised depth contours and coast from the grid (grid and masks exist; no vector output yet).
-10. Local OSM extract (PBF or GeoJSON) as an Overpass alternative: Overpass was unreliable during the 2026-11-01 region builds.
+1. **LOD quality**: measure vertical error, land/water flips and channel connectivity of exact decimation on narrow channels, islands, banks and coasts; then add an alternative `lod.method` with a source-code rule for blended samples. Nothing here was started in 0.3.0.
+2. **Source adapters** verified against the real services, with fixtures: ETOPO 2022 tiles, GEBCO (undocumented REST route plus its TID layer), NOAA CUDEM COGs, then the NOAA mosaic. Findings and cautions in [research/source-probes.md](research/source-probes.md). None implemented.
+3. **Licensing metadata in the manifest** (`licensing.sources[]`) from [research/licensing-analysis.md](research/licensing-analysis.md); decide whether the OSM coastline copy becomes opt-in.
+4. Verified antimeridian fetch for GMRT; GMRT size cap (a 10 degree request is silently coarsened to 122 m).
+5. Unity: LOD levels in the importer, schema 3 CRS, standalone player build, floating origin, water/seabed material.
+6. Unreal Landscape exporter only when a second consumer asks.
+7. Vector products (depth contours, coast) from the grid.
+8. Local OSM extract as an Overpass alternative.
 
 ## Open questions
 
@@ -33,8 +35,9 @@ Done:
 
 ## Known problems
 
-- One UTM zone per world; the whole grid in memory.
-- Overpass mirrors can be slow or down; the build then continues without a coastline and says so (`no-coastline` warning). Each mirror attempt is capped at 100 s.
-- Unity importer reads level 0 only; verified in the editor (import, Addressables build, 4 PlayMode tests) but not in a standalone player.
+- Installed EGM96 grid differs from PROJ's published values by about 0.4 m at two points; cause unknown.
+- Overpass mirrors can be slow or down; the build then continues without a coastline and says so (`no-coastline` warning).
+- Global steps (coast conform, regional fill, refinement) hold the grid in memory and are skipped or refused above the memory budget.
+- Unity importer reads level 0 only and has not been checked with schema 3 worlds; not verified in a standalone player.
+- LibreTerrain exchange assumes an EPSG code (UTM worlds only).
 - Coastline-to-DEM offset is reported, not corrected. Preview colours are a fixed ramp, not a chart.
-- Unity batchmode screenshots need a GPU session; URP's far-LOD terrain base map never generates there.
