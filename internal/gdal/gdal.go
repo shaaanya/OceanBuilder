@@ -21,7 +21,17 @@ var Ctx = context.Background()
 
 // Env is the environment of every GDAL/PROJ subprocess. PROJ_NETWORK=OFF: a missing transformation grid must be an
 // error, never a silent download that makes a build depend on what the network served that day.
-func Env() []string { return append(os.Environ(), "PROJ_NETWORK=OFF") }
+func Env() []string {
+	env := append(os.Environ(), "PROJ_NETWORK=OFF")
+	if CacheMB > 0 {
+		env = append(env, fmt.Sprintf("GDAL_CACHEMAX=%d", CacheMB)) // output does not depend on the cache size
+	}
+	return env
+}
+
+// CacheMB caps the block cache of every GDAL subprocess (GDAL_CACHEMAX). The default of 5 % of RAM let gdalwarp reach
+// 680 MB on an 85-million-sample grid; with 64 MB it peaked at 290 MB. 0 leaves GDAL's default.
+var CacheMB int
 
 // Run executes a GDAL tool and returns stdout.
 func Run(name string, args ...string) (string, error) {

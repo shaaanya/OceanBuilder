@@ -161,3 +161,17 @@ Reader query cost (Falmouth fixture, `go test ./pkg/oceanworld -bench . -run x`)
 - Open: the installed EGM96 grid differs from PROJ's published regression values by 0.37 m (12.5E 55.5N) and 0.40 m (180E 0N). Cause not established (file variant, registration or interpolation). The test only checks sign and magnitude within 0.5 m.
 - Local transverse Mercator (ADR 0006). Tested: single zone stays UTM; zone boundary; wide box; equator (negative northings); antimeridian planning; the reader's projection against PROJ at 3 CRSs (< 1 cm); an end-to-end synthetic build across 180 that validates and samples correctly on both sides. Not tested: any network source across 180, Unity, LibreTerrain with schema 3.
 - Source probes written to research/source-probes.md (dated 2026-11-01, by a research subagent; not re-verified by me).
+
+### Measured: build time and peak memory vs. region size (2026-11-01, one Apple-silicon Mac, GDAL from Homebrew)
+
+Synthetic flat -40 m GeoTIFF source (EGM2008, no network), 50 m cells, 256-cell tiles, `-mem 256`, wall time from `/usr/bin/time -l`, peak RSS sampled with `ps` every 0.1-0.2 s (so peaks can be missed by up to that interval). One run each; not a benchmark of real data (flat data compresses, so tile output sizes are not representative).
+
+| Region | Samples | Tiles | Time | `ocean` peak RSS | gdal child peak RSS | Output |
+|---|---|---|---|---|---|---|
+| 3° × 2° | 22 M | 492 | 6.5 s | not sampled | not sampled | 133 MB |
+| 6° × 4° | 85 M | 1741 | 19 s | 247 MB | 290 MB (678 MB before the GDAL cache cap) | 472 MB |
+| 12° × 8° | 325 M | 6174 | 72 s | 277 MB | 200 MB | 1.6 GB |
+
+- The Go process stays at the `-mem` budget while the grid grows 15x. `/usr/bin/time` alone reported 262 MB → 694 MB for 22 M → 85 M samples at `-mem 256`; that figure is the largest *child*, gdalwarp, with its default block cache (5 % of RAM). The pipeline now sets `GDAL_CACHEMAX` to MemoryMB/8 (64..512 MB). Output is unaffected (golden hashes and window-independence tests pass).
+- `-mem 1024` vs `-mem 256` on 22 M samples: same output, 426 MB vs 262 MB total peak.
+- Not measured: builds with the in-memory global steps (coast conform, regional fill), real survey data, more than 325 M samples, cancellation latency.

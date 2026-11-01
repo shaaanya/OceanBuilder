@@ -54,6 +54,8 @@ func build(cfg *Config, opt Options) (*Manifest, bool, error) {
 	dLat := pad / 110574.0
 	dLon := pad / (111320.0 * math.Cos(clat*math.Pi/180))
 	fb := gmrt.BBox{W: math.Max(w-dLon, -180), S: math.Max(s-dLat, -85), E: math.Min(e+dLon, 180), N: math.Min(n+dLat, 85)}
+	// GDAL subprocesses get a share of the memory budget (the process-wide setting is the same for every build).
+	gdal.CacheMB = int(min(max((&bctx{opt: opt}).memBytes()>>20/8, 64), 512))
 	m := &Manifest{SchemaVersion: SchemaVersion, Name: cfg.Name, Config: *cfg, Files: map[string]string{}, FormatRevision: FormatRevision}
 	dss, err := resolveDatasets(cfg, fb, opt)
 	if err != nil {
