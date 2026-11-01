@@ -212,15 +212,15 @@ Measured (Unity 6000.4.0f1, macOS, batchmode, URP; a scratch copy of the demo pr
 
 ## 2026-11-01: five real regions rebuilt with the 0.3.0-dev tool (GMRT, live)
 
-`examples/regions/*.world.json` built from the live GMRT service and the OSM Overpass/OpenSeaMap services, each into a fresh cache, then `validate` and `lod-report -stride 2`. Machine: macOS, GDAL 3.13.0, a home connection; the wall time is dominated by the services (the `ocean` process used 1.4-1.6 s of CPU and 53-62 MB peak RSS in every build; GDAL children are not included in that RSS figure). All five validate (`BUILT WITH WARNINGS`, no errors).
+`examples/regions/*.world.json` built from the live GMRT service and the OSM Overpass/OpenSeaMap services, each into a fresh cache, then `validate` and `lod-report -stride 2`. Machine: macOS, GDAL 3.13.0, a home connection; the wall time is dominated by the services (the `ocean` process used 1.6-1.9 s of CPU and 53-82 MB peak RSS in every build; GDAL children are not included in that RSS figure). **Correction:** the first run of this table (times 248-433 s) was made before the seamark query bug below was fixed; the table now shows a second run with a fresh cache after the fix. Which service was slow in the 400 s Bahamas run was not broken down. All five validate (`BUILT WITH WARNINGS`, no errors).
 
 | region | cell | tiles (L0 / all) | wall time | output | water | water cells survey-measured | UTM zone |
 |---|---|---|---|---|---|---|---|
-| geiranger (fjord) | 32 m | 20 / 38 | 257 s | 3.2 MB | 3.1 % | 28.4 % | 32N |
-| kona (volcano flank) | 100 m | 9 / 20 | 254 s | 1.7 MB | 19.6 % | 93.7 % | 5N |
-| moorea (reef, southern hemisphere) | 48 m | 25 / 51 | 248 s | 4.3 MB | 82.8 % | 63.3 % | 6S |
-| mindelo (near a zone edge, -25 deg) | 48 m | 20 / 35 | 41 s | 3.0 MB | 66.8 % | 3.8 % | 26N |
-| bahamas-bank (shallow bank) | 100 m | 20 / 36 | 433 s | 3.0 MB | 84.5 % | 29.7 % | 18N |
+| geiranger (fjord) | 32 m | 20 / 38 | 89 s | 3.3 MB | 3.1 % | 28.4 % | 32N |
+| kona (volcano flank) | 100 m | 9 / 20 | 87 s | 1.9 MB | 19.6 % | 93.7 % | 5N |
+| moorea (reef, southern hemisphere) | 48 m | 25 / 51 | 88 s | 5.0 MB | 82.8 % | 63.3 % | 6S |
+| mindelo (near a zone edge, -25 deg) | 48 m | 20 / 35 | 48 s | 3.0 MB | 66.8 % | 3.8 % | 26N |
+| bahamas-bank (shallow bank) | 100 m | 20 / 36 | 400 s | 3.0 MB | 84.5 % | 29.7 % | 18N |
 
 Default LOD (vertex decimation), error against level 0 at level-0 vertices (rms / largest water-deeper-than-level-0 amount): level 1 is exact (0.000: every level-1 vertex is a level-0 vertex). Level 2: Moorea 8.8 m / 264 m, Kona 6.1 m / 114 m, Mindelo 6.6 m / 99 m, Bahamas 4.7 m / 98 m, Geiranger 16.9 m / 56 m. Level 5 (about 1.5 km cells): rms 41-111 m. These are measurements of the terrain being coarsened (steep flanks), not a defect to be fixed by the pyramid; a consumer that needs conservative shoals at distance should use `lod_method: "shoal"`.
 
@@ -228,6 +228,7 @@ Shoal on Moorea and Kona (same cached inputs, 53 s and 44 s): too-deep max is 0.
 
 Findings from this run:
 - `grid.bbox_wgs84` was the union over all LOD levels, so `ocean info` printed regions up to 100 km wider than the grid (Geiranger "6.92..9.47 E" for a 0.25 degree box). The format document always said "level-0 grid". Fixed: the pipeline uses level 0 only and `validate` checks it (error for 0.3 builds, warning for 0.1/0.2 builds, which have the union). Test: `TestBBoxWGS84IsLevelZeroExtent`. The build id does not depend on the field.
+- The OSM seamark query used the same all-levels union as `bbox_wgs84`: the Overpass request covered an area up to 100 km wider than the grid (found in the pre-release review: Mindelo, the only example without `seamarks`, was also the only fast build). Fixed with one shared `level0Extent()`. Kona with seamarks, fresh cache: 254 s before, 102 s after (GMRT 19 s, OSM coastline 42 s, seamarks 41 s), and the seamark list is now clipped to the grid area. Output differs for builds with `seamarks: true` (fewer, grid-local points; the build id changes).
 - Mindelo: `[coast-coverage] 2533 of 5669 coastline samples fall outside the built area`. Expected, the island coast is cut by the box; the validator reports it as a warning.
 - Not covered: a region across a UTM zone boundary (Mindelo sits at -25.08..-24.86, zone 26, about 0.9 degree from the -24 edge), large-area real data (the scale runs are synthetic), real NOAA/Seascape data.
 

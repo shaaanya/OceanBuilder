@@ -11,16 +11,17 @@ A world can compose more than one elevation dataset. Every level-0 sample comes 
   "cell_m": 50,
   "coastline": "osm",
   "precedence": "auto",
+  "vertical": { "datum": "EGM2008" },
   "sources": [
     { "id": "gebco", "type": "gebco", "quality": "compiled",
-      "vertical": { "datum": "EGM2008", "offset_m": 0.0,
-                    "offset_source": "GEBCO states MSL; accepted here as EGM2008 for a game world, risk accepted" } },
+      "vertical": { "datum": "MSL", "offset_m": 0.0,
+                    "offset_source": "GEBCO states MSL; treated as equal to EGM2008 for a game world, risk accepted" } },
     { "id": "etopo", "type": "etopo2022", "quality": "compiled" }
   ]
 }
 ```
 
-GEBCO states its heights are relative to mean sea level and ETOPO 2022 states EGM2008. The tool has no verified conversion between "MSL" and a geoid, so it refuses to combine them silently. Writing the `vertical` block above is you saying, in the config and in the manifest, that you accept them as the same reference (offset 0 with a stated source). Without it the build stops and says why.
+GEBCO states its heights are relative to mean sea level and ETOPO 2022 states EGM2008. The tool has no verified conversion between "MSL" and a geoid, so it refuses to combine them silently. The world-level `vertical` block names the target. GEBCO keeps its true datum (`MSL`) in the manifest; the offset of 0 m with a stated source is you declaring, in the config and in the manifest, that you accept the two as the same reference. Without it the build stops and says why.
 
 Source types: `gmrt`, `emodnet`, `etopo2022`, `gebco`, `cudem`, and `geotiff` (your own file; it needs `path`, `license`, `attribution` and `vertical.datum`). `ocean sources list` shows them with licences. `quality` is `survey`, `compiled` or `regional`; `year` and `accuracy_m` are optional documented properties of the data.
 

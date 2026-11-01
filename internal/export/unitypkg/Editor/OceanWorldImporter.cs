@@ -178,7 +178,7 @@ public static class OceanWorldImporter
         index.cellM = m.grid.cell_m; index.tileSpanM = span; index.tilesX = m.grid.tiles_x; index.tilesY = m.grid.tiles_y;
         index.minM = m.height_encoding.min_m; index.maxM = m.height_encoding.max_m; index.attribution = m.attribution;
         var byCell = new Dictionary<(int, int), TileInfo>();
-        foreach (var t in m.tiles) if (t.level == 0) byCell[(t.col, t.row)] = t; // LOD levels above 0 are not imported yet
+        foreach (var t in m.tiles) if (t.level == 0) byCell[(t.col, t.row)] = t; // coarser levels are keyed separately (byLevelCell)
         string Id(int c, int r) => byCell.TryGetValue((c, r), out var t) ? t.id : "";
         var entries = new List<OceanTileEntry>();
         var lodEntries = new List<OceanTileEntry>();

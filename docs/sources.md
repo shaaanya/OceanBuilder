@@ -28,9 +28,9 @@ Run the live checks yourself: `OCEAN_SMOKE=1 go test ./internal/etopo ./internal
 ```json
 {
   "name": "falmouth-multi", "bbox": [-5.20, 50.05, -4.95, 50.22], "cell_m": 50,
-  "precedence": "auto",
+  "precedence": "auto", "vertical": {"datum": "EGM2008"},
   "sources": [
-    {"type": "gebco", "id": "gebco", "vertical": {"datum": "EGM2008", "offset_m": 0.0, "offset_source": "GEBCO says MSL; treated as EGM2008 for this demo, accepted risk"}},
+    {"type": "gebco", "id": "gebco", "vertical": {"datum": "MSL", "offset_m": 0.0, "offset_source": "GEBCO says MSL; treated as equal to EGM2008 for this demo, accepted risk"}},
     {"type": "etopo2022", "id": "etopo"}
   ]
 }

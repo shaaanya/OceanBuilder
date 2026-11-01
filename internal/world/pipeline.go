@@ -402,10 +402,7 @@ func build(cfg *Config, opt Options) (*Manifest, bool, error) {
 	// 5b. Seamarks (optional): OpenSeaMap points, projected to the grid and cross-checked against the DEM.
 	if cfg.Seamarks {
 		opt.logf("fetching OSM seamarks")
-		bb := [4]float64{math.Inf(1), math.Inf(1), math.Inf(-1), math.Inf(-1)}
-		for _, t := range m.Tiles {
-			bb = [4]float64{math.Min(bb[0], t.BoundsWGS[0]), math.Min(bb[1], t.BoundsWGS[1]), math.Max(bb[2], t.BoundsWGS[2]), math.Max(bb[3], t.BoundsWGS[3])}
-		}
+		bb := m.level0Extent()
 		if !b.inMemory() {
 			st.Seamarks = &SeamarkStats{Note: "OSM seamarks skipped: the grid is larger than the in-memory budget"}
 		} else if dem, err := loadDem(lay0); err != nil {
@@ -435,14 +432,7 @@ func build(cfg *Config, opt Options) (*Manifest, bool, error) {
 		}
 	}
 	m.DepthClasses = depthClasses(cfg.DepthBands)
-	bw, bs := []float64{}, []float64{}
-	for _, t := range m.Tiles {
-		if t.Level != 0 { // coarse tiles overhang the grid; the documented bbox is the level-0 grid
-			continue
-		}
-		bw, bs = append(bw, t.BoundsWGS[0], t.BoundsWGS[2]), append(bs, t.BoundsWGS[1], t.BoundsWGS[3])
-	}
-	m.Grid.BBoxWGS84 = [4]float64{minF(bw), minF(bs), maxF(bw), maxF(bs)}
+	m.Grid.BBoxWGS84 = m.level0Extent()
 	m.Files["attribution"] = "ATTRIBUTION.txt"
 	for i, p := range m.Sources {
 		m.Attribution = append(m.Attribution, fmt.Sprintf("%s — %s — license: %s", p.Source, p.Attribution, p.License))
@@ -611,4 +601,16 @@ func (ws *worldScan) checkpoints(g *Grid) []Checkpoint {
 		}
 	}
 	return out
+}
+
+// level0Extent is the W,S,E,N envelope of the level-0 tiles: the area the world covers. Coarse LOD tiles overhang the
+// grid and must not be included (a seamark query or bbox_wgs84 over them was up to 100 km too wide).
+func (m *Manifest) level0Extent() [4]float64 {
+	bb := [4]float64{math.Inf(1), math.Inf(1), math.Inf(-1), math.Inf(-1)}
+	for _, t := range m.Tiles {
+		if t.Level == 0 {
+			bb = [4]float64{math.Min(bb[0], t.BoundsWGS[0]), math.Min(bb[1], t.BoundsWGS[1]), math.Max(bb[2], t.BoundsWGS[2]), math.Max(bb[3], t.BoundsWGS[3])}
+		}
+	}
+	return bb
 }
