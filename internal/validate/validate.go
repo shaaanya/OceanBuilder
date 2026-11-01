@@ -378,6 +378,9 @@ func Run(dir string) (*Report, error) {
 	} else {
 		r.add(Warn, "no-coastline", "no coastline in this world; shore masks come from the DEM zero contour only")
 	}
+	for _, n := range m.Stats.Notes {
+		r.add(Warn, "projection", "%s", n)
+	}
 	r.add(Info, "vertical", "%s", m.Vertical.Note)
 	return r.finish(), nil
 }

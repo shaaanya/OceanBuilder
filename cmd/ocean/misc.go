@@ -35,11 +35,19 @@ var presets = map[string][4]float64{
 }
 
 func cmdWorld(args []string) error {
+	if len(args) >= 2 && args[0] == "check" {
+		fs := newFlags("world", "world check <world.json> [-json]")
+		asJSON := fs.Bool("json", false, "machine-readable output")
+		if err := parse(fs, args[1:]); err != nil || fs.NArg() != 1 {
+			return fmt.Errorf("usage: ocean world check <world.json>")
+		}
+		return checkWorld(fs.Arg(0), *asJSON)
+	}
 	fs := flag.NewFlagSet("world init", flag.ExitOnError)
 	out := fs.String("out", "", "output file (default <name>.world.json)")
 	cell := fs.Float64("cell", 48, "grid spacing in metres")
 	if len(args) < 2 || args[0] != "init" {
-		return fmt.Errorf("usage: ocean world init <falmouth|mindelo> [-out file] [-cell metres]")
+		return fmt.Errorf("usage: ocean world init <falmouth|mindelo> [-out file] [-cell metres] | ocean world check <world.json>")
 	}
 	fs.Parse(reorder(args[2:]))
 	name := strings.ToLower(args[1])
@@ -67,26 +75,33 @@ func cmdWorld(args []string) error {
 func cmdCache(args []string) error {
 	fs := flag.NewFlagSet("cache", flag.ExitOnError)
 	dir := fs.String("cache", defaultCache(), "cache directory")
+	stages := fs.Bool("stages", false, "clean: remove only the warped stage rasters, keep downloads")
 	if len(args) < 1 {
-		return fmt.Errorf("usage: ocean cache stats|clean [-cache dir]")
+		return fmt.Errorf("usage: ocean cache stats|clean [-stages] [-cache dir]")
 	}
 	fs.Parse(reorder(args[1:]))
 	switch args[0] {
 	case "stats":
-		var files int
-		var size int64
-		filepath.Walk(*dir, func(p string, i os.FileInfo, err error) error {
-			if err == nil && !i.IsDir() && !strings.HasSuffix(p, ".json") {
-				files++
-				size += i.Size()
-			}
-			return nil
-		})
-		fmt.Printf("%s: %d files, %.1f MiB\n", *dir, files, float64(size)/(1<<20))
+		count := func(root string) (files int, size int64) {
+			filepath.Walk(root, func(p string, i os.FileInfo, err error) error {
+				if err == nil && !i.IsDir() && !strings.HasSuffix(p, ".json") {
+					files++
+					size += i.Size()
+				}
+				return nil
+			})
+			return
+		}
+		sf, ss := count(filepath.Join(*dir, "stages"))
+		tf, ts := count(*dir)
+		fmt.Printf("%s: %d downloaded source files, %.1f MiB; %d warped stage rasters, %.1f MiB (rebuildable)\n", *dir, tf-sf, float64(ts-ss)/(1<<20), sf, float64(ss)/(1<<20))
 	case "clean":
 		abs, err := filepath.Abs(*dir)
 		if err != nil || abs == "/" || abs == os.Getenv("HOME") {
 			return fmt.Errorf("refusing to clean %q", *dir)
+		}
+		if *stages {
+			abs = filepath.Join(abs, "stages")
 		}
 		if err := os.RemoveAll(abs); err != nil {
 			return err

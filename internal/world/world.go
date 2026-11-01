@@ -28,6 +28,12 @@ const (
 	FormatAlgo     = 2 // tile/layer encoding and LOD method; bump when the written bytes change for the same inputs
 )
 
+// Projection distortion limits: the point scale factor of the UTM grid may differ from 1 by this much over the bbox.
+const (
+	WarnUTMScaleError = 0.0015 // about 3.7 degrees from the central meridian at the equator
+	MaxUTMScaleError  = 0.005  // about 6.8 degrees; beyond this the grid is not a sailing-scale metric grid
+)
+
 // Config is the user-facing world description (world.json).
 type Config struct {
 	Name       string     `json:"name"`
@@ -53,6 +59,9 @@ type Config struct {
 	// LODLevels is the number of coarser levels above level 0: 0 = as many as needed until one tile covers the
 	// world, -1 = level 0 only, n>0 = exactly n (at most MaxLOD). Levels are vertex decimations of level 0.
 	LODLevels int `json:"lod_levels,omitempty"`
+	// UTMEPSG forces the projected CRS (32601..32660 north, 32701..32760 south). Empty/0 picks the zone of the
+	// bbox centre. A bbox that reaches far from the zone's central meridian is distorted: see Stats.UTMScale.
+	UTMEPSG int `json:"utm_epsg,omitempty"`
 	// Refinement is the path of a refinement.json from `ocean libreterrain import`, relative
 	// to this config file. Its land-elevation edits are applied on top of the sources.
 	Refinement string `json:"refinement,omitempty"`
@@ -119,6 +128,9 @@ func (c *Config) Normalize() error {
 			return fmt.Errorf("config: depth_bands must be strictly increasing")
 		}
 	}
+	if c.UTMEPSG != 0 && !(c.UTMEPSG >= 32601 && c.UTMEPSG <= 32660 || c.UTMEPSG >= 32701 && c.UTMEPSG <= 32760) {
+		return fmt.Errorf("config: utm_epsg %d is not a WGS 84 / UTM code (326zz or 327zz)", c.UTMEPSG)
+	}
 	if c.LODLevels < -1 || c.LODLevels > MaxLOD {
 		return fmt.Errorf("config: lod_levels must be -1 (none), 0 (auto) or 1..%d, got %d", MaxLOD, c.LODLevels)
 	}
@@ -182,6 +194,7 @@ type Manifest struct {
 		Version string `json:"version"`
 		GDAL    string `json:"gdal"`
 	} `json:"tool"`
+	InputKey string `json:"input_key"` // hash of config, tool/algorithm versions and every resolved input: equal keys mean equal outputs
 	Config   Config `json:"config"`
 	CRS      CRS    `json:"crs"`
 	Vertical struct {
@@ -311,6 +324,9 @@ type Stats struct {
 	MeasuredWater  float64        `json:"measured_water_fraction"`
 	ShoreCells     int            `json:"shore_cells"`
 	BySource       map[string]int `json:"cells_by_source"` // level-0 cell counts per source layer name
+	UTMScaleMin    float64        `json:"utm_scale_min"`   // point scale factor of the grid over the bbox: 1 m on the grid is 1/k m on the ground
+	UTMScaleMax    float64        `json:"utm_scale_max"`
+	Notes          []string       `json:"notes,omitempty"` // build-time findings the validator repeats (e.g. projection distortion)
 	CoastlineCheck *CoastCheck    `json:"coastline_check,omitempty"`
 	CoastlineNote  string         `json:"coastline_note,omitempty"`
 	Seamarks       *SeamarkStats  `json:"seamarks,omitempty"`

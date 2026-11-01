@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"image"
 	"image/png"
+	"io"
 	"math"
 	"os"
 	"path/filepath"
@@ -35,7 +36,10 @@ type Options struct {
 	// UpdateLock rewrites it from this build.
 	LockPath   string
 	UpdateLock bool
-	Log        func(format string, a ...any)
+	// Force rebuilds even when the existing output was made from identical inputs (same input_key).
+	Force    bool
+	Log      func(format string, a ...any)
+	finalDir string // where the finished output will live; checked for an up-to-date build
 }
 
 func (o *Options) logf(f string, a ...any) {
@@ -44,16 +48,55 @@ func (o *Options) logf(f string, a ...any) {
 	}
 }
 
-// Build fetches sources, normalises them onto a metric tile-aligned grid and
-// writes tiles, masks, the manifest and attribution to opt.OutDir.
+// Build fetches sources, normalises them onto a metric tile-aligned grid and writes tiles, masks, the manifest
+// and attribution to opt.OutDir. The output is assembled in a sibling directory and swapped in only when complete,
+// so a failed or cancelled build never leaves a half-written world, and a build whose inputs are identical to the
+// existing output (same input_key) returns that output untouched unless opt.Force is set.
 func Build(cfg *Config, opt Options) (*Manifest, error) {
 	if err := cfg.Normalize(); err != nil {
 		return nil, err
 	}
+	final := filepath.Clean(opt.OutDir)
+	parent := filepath.Dir(final)
+	if err := os.MkdirAll(parent, 0o755); err != nil {
+		return nil, err
+	}
+	stage, err := os.MkdirTemp(parent, "."+filepath.Base(final)+".building-")
+	if err != nil {
+		return nil, err
+	}
+	os.Chmod(stage, 0o755)
+	opt.finalDir, opt.OutDir = final, stage
+	m, skipped, err := build(cfg, opt)
+	if err != nil || skipped {
+		os.RemoveAll(stage)
+		return m, err
+	}
+	old := ""
+	if _, err := os.Stat(final); err == nil {
+		old = stage + ".old"
+		if err := os.Rename(final, old); err != nil {
+			os.RemoveAll(stage)
+			return nil, err
+		}
+	}
+	if err := os.Rename(stage, final); err != nil {
+		if old != "" {
+			os.Rename(old, final)
+		}
+		os.RemoveAll(stage)
+		return nil, err
+	}
+	if old != "" {
+		os.RemoveAll(old)
+	}
+	return m, nil
+}
+
+func build(cfg *Config, opt Options) (*Manifest, bool, error) {
 	span := cfg.TileSpanM()
-	N := cfg.TileCells
 	w, s, e, n := cfg.BBox[0], cfg.BBox[1], cfg.BBox[2], cfg.BBox[3]
-	clon, clat := (w+e)/2, (s+n)/2
+	clat := (s + n) / 2
 
 	// 1. Fetch sources with a padding of ~1.2 tiles so the tile-aligned grid is covered.
 	pad := math.Max(span*1.2, 500)
@@ -67,7 +110,7 @@ func Build(cfg *Config, opt Options) (*Manifest, error) {
 	if cfg.Local != nil {
 		var coast *fetch.Provenance
 		if topo, mask, coast, err = localSources(cfg.Local); err != nil {
-			return nil, err
+			return nil, false, err
 		}
 		if coast != nil {
 			m.Sources = append(m.Sources, *coast)
@@ -76,10 +119,10 @@ func Build(cfg *Config, opt Options) (*Manifest, error) {
 	} else {
 		opt.logf("fetching GMRT topo+mask for %.4f,%.4f,%.4f,%.4f", fb.W, fb.S, fb.E, fb.N)
 		if topo, err = gmrt.Fetch(opt.CacheDir, fb, gmrt.LayerTopo); err != nil {
-			return nil, err
+			return nil, false, err
 		}
 		if mask, err = gmrt.Fetch(opt.CacheDir, fb, gmrt.LayerMask); err != nil {
-			return nil, err
+			return nil, false, err
 		}
 		if cfg.Coastline == "osm" {
 			opt.logf("fetching OSM coastline")
@@ -97,7 +140,7 @@ func Build(cfg *Config, opt Options) (*Manifest, error) {
 	if cfg.RegionalBathymetry == "emodnet" {
 		opt.logf("fetching EMODnet bathymetry")
 		if regionalSrc, err = emodnet.Fetch(opt.CacheDir, cfg.RegionalRelease, fb.W, fb.S, fb.E, fb.N); err != nil {
-			return nil, fmt.Errorf("regional_bathymetry emodnet: %w", err)
+			return nil, false, fmt.Errorf("regional_bathymetry emodnet: %w", err)
 		}
 	}
 	m.Sources = append([]fetch.Provenance{*topo}, m.Sources...)
@@ -106,40 +149,36 @@ func Build(cfg *Config, opt Options) (*Manifest, error) {
 	}
 	nativeRes, err := nativeResolution(topo.File, clat)
 	if err != nil {
-		return nil, err
+		return nil, false, err
+	}
+	m.InputKey = inputKey(cfg, m.Sources, regionalSrc)
+	if !opt.Force && opt.finalDir != "" {
+		if old := reusable(opt.finalDir, m.InputKey); old != nil {
+			opt.logf("up to date: %s already holds this build (input %s); use -force to rebuild", opt.finalDir, short(m.InputKey))
+			return old, true, nil
+		}
 	}
 
 	// 2. Tile-aligned metric grid in UTM.
-	epsg := gdal.UTMEPSG(clon, clat)
-	srs := fmt.Sprintf("EPSG:%d", epsg)
-	var edge [][2]float64
-	for i := 0; i <= 8; i++ {
-		f := float64(i) / 8
-		lo, la := w+(e-w)*f, s+(n-s)*f
-		edge = append(edge, [2]float64{lo, s}, [2]float64{lo, n}, [2]float64{w, la}, [2]float64{e, la})
-	}
-	utm, err := gdal.Transform("EPSG:4326", srs, edge)
+	plan, err := PlanGrid(cfg)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	minE, maxE, minN, maxN := math.Inf(1), math.Inf(-1), math.Inf(1), math.Inf(-1)
-	for _, p := range utm {
-		minE, maxE = math.Min(minE, p[0]), math.Max(maxE, p[0])
-		minN, maxN = math.Min(minN, p[1]), math.Max(maxN, p[1])
+	epsg, srs := plan.EPSG, plan.SRS
+	W, H, tx, ty := plan.W, plan.H, plan.Grid.TilesX, plan.Grid.TilesY
+	originE, originN := plan.Grid.OriginE, plan.Grid.OriginN
+	m.Stats.UTMScaleMin, m.Stats.UTMScaleMax = plan.ScaleMin, plan.ScaleMax
+	if plan.Note != "" {
+		m.Stats.Notes = append(m.Stats.Notes, plan.Note)
+		opt.logf("WARNING: %s", plan.Note)
 	}
-	x0, x1 := int(math.Floor(minE/span)), int(math.Floor(maxE/span))
-	y0, y1 := int(math.Floor(minN/span)), int(math.Floor(maxN/span))
-	tx, ty := x1-x0+1, y1-y0+1
-	W, H := tx*N+1, ty*N+1
-	originE, originN := float64(x0)*span, float64(y1+1)*span
 	g := &m.Grid
-	*g = Grid{CellM: cfg.CellM, TileCells: N, SamplesPerTile: N + 1, TileSpanM: span, TilesX: tx, TilesY: ty,
-		OriginE: originE, OriginN: originN, FirstTileX: x0, FirstTileY: y0}
+	*g = plan.Grid
 	opt.logf("grid %dx%d samples, %dx%d tiles of %d m, %s", W, H, tx, ty, int(span), srs)
 
 	work, err := os.MkdirTemp(opt.CacheDir, "work-")
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	defer os.RemoveAll(work)
 	// Vertex-registered grid: sample k sits at originE + k*cell, so pixel edges are offset by cell/2.
@@ -152,26 +191,49 @@ func Build(cfg *Config, opt Options) (*Manifest, error) {
 			"-of", "ENVI", src, dst)
 		return err
 	}
-	demPath, maskPath := filepath.Join(work, "dem.bin"), filepath.Join(work, "mask.bin")
-	if err := warp(topo.File, demPath, cfg.Resampling, "Float32"); err != nil {
-		return nil, err
+	// Warped rasters are cached by (source hash, kind, method, grid, GDAL version): a rebuild after a change that
+	// does not move the grid or the sources (depth bands, conforming, seamarks, LOD...) skips gdalwarp entirely.
+	gver := gdal.Version()
+	warpCached := func(src *fetch.Provenance, kind, method string) (string, error) {
+		if err := gdal.Ctx.Err(); err != nil {
+			return "", err
+		}
+		k := sha256.Sum256([]byte(fmt.Sprint(src.SHA256, "|", kind, "|", method, "|", te, "|", W, "x", H, "|", srs, "|", gver)))
+		path := filepath.Join(opt.CacheDir, "stages", hex.EncodeToString(k[:12])+"-"+kind+".bin")
+		if fi, err := os.Stat(path); err == nil && fi.Size() == int64(W)*int64(H)*4 {
+			opt.logf("stage cache hit: %s", kind)
+			return path, nil
+		}
+		tmp := filepath.Join(work, kind+".bin")
+		if err := warp(src.File, tmp, method, "Float32"); err != nil {
+			return "", err
+		}
+		if os.MkdirAll(filepath.Dir(path), 0o755) == nil && os.Rename(tmp, path) == nil {
+			return path, nil
+		}
+		return tmp, nil
+	}
+	demPath, err := warpCached(topo, "dem", cfg.Resampling)
+	if err != nil {
+		return nil, false, err
 	}
 	// topo-mask holds the same elevations but NaN wherever GMRT has no ~100 m
 	// ocean survey (there topo is filled from GEBCO_08). Nearest-neighbour keeps it binary.
-	maskSrc := topo.File // no mask supplied: no cell is claimed to be survey-backed
+	maskSrc := topo // no mask supplied: no cell is claimed to be survey-backed
 	if mask != nil {
-		maskSrc = mask.File
+		maskSrc = mask
 	}
-	if err := warp(maskSrc, maskPath, "near", "Float32"); err != nil {
-		return nil, err
+	maskPath, err := warpCached(maskSrc, "mask", "near")
+	if err != nil {
+		return nil, false, err
 	}
 	dem, err := gdal.ReadF32(demPath, W, H)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	mraw, err := gdal.ReadF32(maskPath, W, H)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	meas := make([]uint8, W*H)
 	if mask != nil {
@@ -187,19 +249,19 @@ func Build(cfg *Config, opt Options) (*Manifest, error) {
 	// 2a0. Optional regional bathymetry: replaces GEBCO-filled water cells; runs first so the conform step sees final depths.
 	if regionalSrc != nil {
 		before := append([]float32(nil), dem.Data...)
-		regPath := filepath.Join(work, "regional.bin")
-		if err := warp(regionalSrc.File, regPath, "bilinear", "Float32"); err != nil {
-			return nil, err
+		regPath, err := warpCached(regionalSrc, "regional", "bilinear")
+		if err != nil {
+			return nil, false, err
 		}
 		reg, err := gdal.ReadF32(regPath, W, H)
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 		rs, err := fillRegional(dem.Data, reg.Data, meas, W, H, cfg.CellM,
 			func(i int) bool { return dem.Data[i] > noData+1 },
 			func(v float32) bool { return v > noData+1 && !math.IsNaN(float64(v)) })
 		if err != nil {
-			return nil, fmt.Errorf("regional_bathymetry emodnet: %w", err)
+			return nil, false, fmt.Errorf("regional_bathymetry emodnet: %w", err)
 		}
 		markChanged(src, before, dem.Data, SrcRegional)
 		rs.Source, _ = emodnet.CoverageID(cfg.RegionalRelease)
@@ -213,20 +275,20 @@ func Build(cfg *Config, opt Options) (*Manifest, error) {
 	var conform *ConformStats
 	if cfg.CoastConform == "osm" {
 		if coastGeoJSON == "" {
-			return nil, fmt.Errorf("coast_conform is set but no OSM coastline is available: %s", m.Stats.CoastlineNote)
+			return nil, false, fmt.Errorf("coast_conform is set but no OSM coastline is available: %s", m.Stats.CoastlineNote)
 		}
 		lines, err := projectedLines(coastGeoJSON, srs, work, g)
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 		validNow := func(i int) bool { return dem.Data[i] > noData+1 }
 		raw, err := coastCheck(coastGeoJSON, srs, work, dem, shoreMask(dem.Data, W, H, validNow), g, W, H)
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 		cs, changed, err := conformGrid(dem.Data, W, H, cfg.CellM, cfg.CoastConformMaxM, lines, validNow)
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 		for _, i := range changed {
 			meas[i] = 0 // synthetic cells are not survey-backed
@@ -244,10 +306,10 @@ func Build(cfg *Config, opt Options) (*Manifest, error) {
 	if cfg.Refinement != "" {
 		ref, delta, err := LoadRefinement(filepath.Join(cfg.dir, cfg.Refinement))
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 		if err := ref.Check(g, epsg, W, H); err != nil {
-			return nil, err
+			return nil, false, err
 		}
 		st := applyRefinement(dem.Data, W, H, delta, ref.BlendCells)
 		st.BaseBuildID = ref.BaseBuildID
@@ -266,7 +328,7 @@ func Build(cfg *Config, opt Options) (*Manifest, error) {
 		}
 	}
 	if math.IsInf(zmin, 1) {
-		return nil, fmt.Errorf("no valid elevation samples inside bbox: source does not cover the area")
+		return nil, false, fmt.Errorf("no valid elevation samples inside bbox: source does not cover the area")
 	}
 	base := &raster{W: W, H: H, dem: dem.Data, src: src}
 	base.derive(cfg.DepthBands)
@@ -316,7 +378,7 @@ func Build(cfg *Config, opt Options) (*Manifest, error) {
 	}
 	corners, err := gdal.Transform(srs, "EPSG:4326", all)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	off := 0
 	for k := range slots {
@@ -333,7 +395,7 @@ func Build(cfg *Config, opt Options) (*Manifest, error) {
 		}
 		tl, err := writeLevelTiles(opt.OutDir, cfg, g, plans[k], lr, slots[k])
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 		m.Tiles = append(m.Tiles, tl...)
 		count := len(tl)
@@ -350,15 +412,15 @@ func Build(cfg *Config, opt Options) (*Manifest, error) {
 	if coastGeoJSON != "" {
 		b, err := os.ReadFile(coastGeoJSON)
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 		if err := os.WriteFile(filepath.Join(opt.OutDir, "coastline.wgs84.geojson"), b, 0o644); err != nil {
-			return nil, err
+			return nil, false, err
 		}
 		m.Files["coastline"] = "coastline.wgs84.geojson"
 		cc, err := coastCheck(coastGeoJSON, srs, work, dem, base.shore, g, W, H)
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 		st.CoastlineCheck = cc
 		if conform != nil {
@@ -422,18 +484,18 @@ func Build(cfg *Config, opt Options) (*Manifest, error) {
 	sort.Strings(m.Attribution)
 	// Last, so m.Sources is complete (regional grid, refinement) and a failed build never writes a lock.
 	if err := applyLock(&opt, m.Sources); err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	m.BuildID = buildID(m)
 	if cfg.Refinement != "" {
 		// The edit layer is a delta against one specific baseline: refuse to apply it over a world whose inputs,
 		// configuration or algorithms changed since the export.
 		if base := baseBuildID(m, refName); base != refBase {
-			return nil, fmt.Errorf("refinement was exported from build %s but the base of this world is build %s: sources, config or tool version changed since the export; export again", short(refBase), short(base))
+			return nil, false, fmt.Errorf("refinement was exported from build %s but the base of this world is build %s: sources, config or tool version changed since the export; export again", short(refBase), short(base))
 		}
 	}
 	if err := writeJSON(filepath.Join(opt.OutDir, ManifestFile), m); err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	var att bytes.Buffer
 	fmt.Fprintf(&att, "World %q built by Ocean Compiler %s (build %s)\n\nThis output derives from the following sources; respect their licenses when redistributing.\n\n", m.Name, ToolVersion, m.BuildID[:12])
@@ -441,9 +503,9 @@ func Build(cfg *Config, opt Options) (*Manifest, error) {
 		fmt.Fprintln(&att, "- "+a)
 	}
 	if err := os.WriteFile(filepath.Join(opt.OutDir, "ATTRIBUTION.txt"), att.Bytes(), 0o644); err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	return m, nil
+	return m, false, nil
 }
 
 func writePNG(path string, img image.Image) (string, error) {
@@ -479,16 +541,7 @@ func buildID(m *Manifest) string {
 	cfg, _ := json.Marshal(m.Config)
 	h.Write(cfg)
 	h.Write([]byte(ToolVersion))
-	fmt.Fprintf(h, "format-algo=%d", FormatAlgo)
-	if m.Config.CoastConform != "" {
-		fmt.Fprintf(h, "conform-algo=%d", ConformAlgo)
-	}
-	if m.Config.RegionalBathymetry != "" {
-		fmt.Fprintf(h, "regional-algo=%d", RegionalAlgo)
-	}
-	if m.Config.Seamarks {
-		fmt.Fprintf(h, "seamarks-algo=%d", SeamarksAlgo)
-	}
+	algoSig(h, &m.Config)
 	if m.Refinement != nil {
 		fmt.Fprintf(h, "refinement-algo=%d", RefinementAlgo)
 	}
@@ -496,6 +549,62 @@ func buildID(m *Manifest) string {
 		h.Write([]byte(s.SHA256))
 	}
 	return hex.EncodeToString(h.Sum(nil))
+}
+
+// algoSig writes the versions of every output-affecting algorithm that the config activates.
+func algoSig(h io.Writer, cfg *Config) {
+	fmt.Fprintf(h, "format-algo=%d", FormatAlgo)
+	if cfg.CoastConform != "" {
+		fmt.Fprintf(h, "conform-algo=%d", ConformAlgo)
+	}
+	if cfg.RegionalBathymetry != "" {
+		fmt.Fprintf(h, "regional-algo=%d", RegionalAlgo)
+	}
+	if cfg.Seamarks {
+		fmt.Fprintf(h, "seamarks-algo=%d", SeamarksAlgo)
+	}
+}
+
+// inputKey identifies everything a build's bytes depend on: the config, tool and algorithm versions, GDAL, and
+// the hash of every resolved source. Equal keys mean equal outputs (tested), so the build can be skipped.
+func inputKey(cfg *Config, srcs []fetch.Provenance, regional *fetch.Provenance) string {
+	h := sha256.New()
+	c, _ := json.Marshal(cfg)
+	h.Write(c)
+	fmt.Fprintf(h, "|%s|%s|", ToolVersion, gdal.Version())
+	algoSig(h, cfg)
+	for _, s := range srcs {
+		fmt.Fprintf(h, "|%s=%s", s.Source, s.SHA256)
+	}
+	if regional != nil {
+		fmt.Fprintf(h, "|%s=%s", regional.Source, regional.SHA256)
+	}
+	if cfg.Refinement != "" {
+		fmt.Fprintf(h, "|refinement-algo=%d", RefinementAlgo)
+		b, _ := os.ReadFile(filepath.Join(cfg.dir, cfg.Refinement))
+		h.Write(b)
+	}
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+// reusable returns the manifest in dir when it was built from the same inputs and every tile file is intact.
+func reusable(dir, key string) *Manifest {
+	m, err := LoadManifest(dir)
+	if err != nil || m.SchemaVersion != SchemaVersion || m.InputKey != key {
+		return nil
+	}
+	for _, t := range m.Tiles {
+		b, err := os.ReadFile(filepath.Join(dir, t.Height))
+		if err != nil || hashHex(b) != t.SHA256.Height {
+			return nil
+		}
+		for _, f := range []string{t.Depth, t.Shore, t.Source} {
+			if _, err := os.Stat(filepath.Join(dir, f)); err != nil {
+				return nil
+			}
+		}
+	}
+	return m
 }
 
 // nativeResolution returns the mean ground size in metres of one source cell.

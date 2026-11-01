@@ -4,6 +4,7 @@ package gdal
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"fmt"
 	"math"
@@ -11,11 +12,16 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"sync"
 )
+
+// Ctx cancels running GDAL subprocesses. The CLI sets it once at start-up from SIGINT/SIGTERM.
+// ponytail: a process-wide variable; pass a context through every call if the library is ever used concurrently with different lifetimes.
+var Ctx = context.Background()
 
 // Run executes a GDAL tool and returns stdout.
 func Run(name string, args ...string) (string, error) {
-	cmd := exec.Command(name, args...)
+	cmd := exec.CommandContext(Ctx, name, args...)
 	var out, errb bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &errb
 	if err := cmd.Run(); err != nil {
@@ -24,13 +30,29 @@ func Run(name string, args ...string) (string, error) {
 	return out.String(), nil
 }
 
-// Version returns the GDAL release string.
+var (
+	versionOnce sync.Once
+	version     string
+)
+
+// Version returns the GDAL release string. Starting gdalinfo costs about half a second, so it runs once per process.
 func Version() string {
-	out, err := Run("gdalinfo", "--version")
-	if err != nil {
-		return "unavailable"
-	}
-	return strings.TrimSpace(out)
+	versionOnce.Do(func() {
+		version = "unavailable"
+		if out, err := Run("gdalinfo", "--version"); err == nil {
+			version = strings.TrimSpace(out)
+		}
+	})
+	return version
+}
+
+// UTMScale is the point scale factor of WGS 84 / UTM at lon/lat for the zone of an EPSG code: ground metres
+// per grid metre are 1/k. k = 0.9996 on the central meridian and grows to about 1.001 at the zone edge and
+// 1.004 at 6 degrees from it (series to second order, accurate to ~1e-6 inside +-9 degrees).
+func UTMScale(lon, lat float64, epsg int) float64 {
+	zone := epsg % 100
+	d := (lon - float64(zone*6-183)) * math.Pi / 180 * math.Cos(lat*math.Pi/180)
+	return 0.9996 * (1 + d*d/2)
 }
 
 // UTMEPSG returns the WGS84/UTM zone EPSG code for a lon/lat.
@@ -49,7 +71,7 @@ func Transform(srcSRS, dstSRS string, pts [][2]float64) ([][2]float64, error) {
 	for _, p := range pts {
 		fmt.Fprintf(&in, "%.9f %.9f\n", p[0], p[1])
 	}
-	cmd := exec.Command("gdaltransform", "-s_srs", srcSRS, "-t_srs", dstSRS)
+	cmd := exec.CommandContext(Ctx, "gdaltransform", "-s_srs", srcSRS, "-t_srs", dstSRS)
 	cmd.Env = append(os.Environ(), "OSR_AXIS_MAPPING_STRATEGY=TRADITIONAL_GIS_ORDER")
 	cmd.Stdin = strings.NewReader(in.String())
 	var out, errb bytes.Buffer

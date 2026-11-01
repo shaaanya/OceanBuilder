@@ -21,14 +21,24 @@ func cmdPreview(args []string) error {
 }
 
 func cmdExport(args []string) error {
-	fs := flag.NewFlagSet("export", flag.ExitOnError)
-	target := fs.String("target", "unity", "engine target: unity")
-	dest := fs.String("dest", "", "engine project directory")
-	fs.Parse(reorder(args))
-	if fs.NArg() != 1 || *dest == "" {
-		return fmt.Errorf("usage: ocean export <world dir> -target unity -dest <Unity project dir>")
+	var fs *flag.FlagSet
+	fs = newFlags("export", "export <world dir> -target geotiff -dest <dir> [-level k] | -target unity -dest <Unity project>")
+	target := fs.String("target", "geotiff", "geotiff | unity")
+	dest := fs.String("dest", "", "geotiff: output directory; unity: Unity project directory")
+	level := fs.Int("level", 0, "geotiff: LOD level")
+	if err := parse(fs, args); err != nil || fs.NArg() != 1 || *dest == "" {
+		return fmt.Errorf("usage: ocean export <world dir> -target geotiff|unity -dest <dir> (ocean export -h)")
 	}
 	switch *target {
+	case "geotiff":
+		files, err := export.GeoTIFF(fs.Arg(0), *dest, *level)
+		if err != nil {
+			return err
+		}
+		for _, f := range files {
+			fmt.Println("wrote", f)
+		}
+		return nil
 	case "unity":
 		out, err := export.Unity(fs.Arg(0), *dest)
 		if err != nil {
@@ -37,5 +47,5 @@ func cmdExport(args []string) error {
 		fmt.Printf("exported to %s\nnext: Unity menu Ocean > Import World, or batchmode -executeMethod OceanWorldImporter.ImportFromCommandLine\n", out)
 		return nil
 	}
-	return fmt.Errorf("target %q not supported yet (unity only; see docs/roadmap.md)", *target)
+	return fmt.Errorf("target %q not supported yet (geotiff, unity; see docs/roadmap.md)", *target)
 }
