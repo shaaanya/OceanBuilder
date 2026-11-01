@@ -12,11 +12,15 @@ A world can compose more than one elevation dataset. Every level-0 sample comes 
   "coastline": "osm",
   "precedence": "auto",
   "sources": [
-    { "id": "gebco",  "type": "gebco",     "quality": "compiled" },
-    { "id": "etopo",  "type": "etopo2022", "quality": "compiled" }
+    { "id": "gebco", "type": "gebco", "quality": "compiled",
+      "vertical": { "datum": "EGM2008", "offset_m": 0.0,
+                    "offset_source": "GEBCO states MSL; accepted here as EGM2008 for a game world, risk accepted" } },
+    { "id": "etopo", "type": "etopo2022", "quality": "compiled" }
   ]
 }
 ```
+
+GEBCO states its heights are relative to mean sea level and ETOPO 2022 states EGM2008. The tool has no verified conversion between "MSL" and a geoid, so it refuses to combine them silently. Writing the `vertical` block above is you saying, in the config and in the manifest, that you accept them as the same reference (offset 0 with a stated source). Without it the build stops and says why.
 
 Source types: `gmrt`, `emodnet`, `etopo2022`, `gebco`, `cudem`, and `geotiff` (your own file; it needs `path`, `license`, `attribution` and `vertical.datum`). `ocean sources list` shows them with licences. `quality` is `survey`, `compiled` or `regional`; `year` and `accuracy_m` are optional documented properties of the data.
 
@@ -26,7 +30,7 @@ Source types: `gmrt`, `emodnet`, `etopo2022`, `gebco`, `cudem`, and `geotiff` (y
 ocean world check falmouth2.world.json
 ```
 
-Besides grid size and memory it prints, for every source, its datum and what the build would do to reach the world's vertical datum (`identity`, `proj-grid`, `user-offset`, or `refused` with the reason). Nothing is downloaded. Datasets whose heights cannot be related are refused: set `"vertical": {"datum": "EGM2008"}`, give a documented per-source `vertical.offset_m` with `offset_source`, or accept the mix with `vertical.allow_mixed` (then no height is converted and the manifest says so).
+Besides grid size and memory it prints, for every source, its datum and what the build would do to reach the world's vertical datum (`identity`, `proj-grid`, `user-offset`, or `refused` with the reason). Nothing is downloaded. Datasets whose heights cannot be related are refused: set a world `"vertical": {"datum": "EGM2008"}` where every source has a verified conversion (EGM96, EGM2008, WGS 84 ellipsoid), give a documented per-source `vertical.offset_m` with `offset_source`, or accept the mix with `vertical.allow_mixed` (then no height is converted and the manifest says so).
 
 ## 3. Precedence
 
