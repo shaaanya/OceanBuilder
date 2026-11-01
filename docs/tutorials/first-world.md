@@ -9,7 +9,7 @@ About 15 minutes, most of it downloading. You need Go 1.22 or newer (the `go` li
 git clone <this repository> && cd OceanBuilder
 go build -o bin/ocean ./cmd/ocean
 export PATH="$PWD/bin:$PATH"
-ocean version        # ocean 0.2.0 (world format schema 2)
+ocean version        # ocean 0.3.0 (world format schema 2; 3 for worlds on a local transverse Mercator grid)
 gdalinfo --version   # any recent GDAL; tested with 3.13
 ```
 

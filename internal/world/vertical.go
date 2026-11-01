@@ -302,31 +302,42 @@ func (a *VerticalApplied) shiftRaster(src, dst string, geom rasterGeom) error {
 
 // resolveVerticalSet decides the world's vertical datum and the operation for each dataset. It is the refusal point
 // of the vertical model: datasets that cannot be shown to share a reference do not get composed.
-func resolveVerticalSet(cfg *Config, dss []*dataset, opt Options) (VerticalInfo, error) {
-	info := VerticalInfo{Unit: "metre"}
-	target, allowMixed := "", false
+// chooseTarget is the world's vertical datum: the configured one, the common datum of the datasets, or "mixed" when
+// that was explicitly accepted. It is a refusal point, shared by the build and by `world check`.
+func chooseTarget(cfg *Config, dss []*dataset) (target string, mixed bool, err error) {
+	allowMixed := false
 	if cfg.Vertical != nil {
 		target, allowMixed = cfg.Vertical.Datum, cfg.Vertical.AllowMixed
 	}
-	if target == "" {
-		first, same := dss[0].datumName(), true
-		for _, d := range dss {
-			same = same && d.datumName() == first
-		}
-		switch {
-		case len(dss) == 1 || same && first != "unknown":
-			target = first
-		case allowMixed:
-			target, info.Mixed = "mixed", true
-		default:
-			var l []string
-			for _, d := range dss {
-				l = append(l, d.spec.ID+"="+d.datumName())
-			}
-			return info, fmt.Errorf("datasets do not share a verified vertical reference (%s). Composing them would mix heights that can differ by metres. Set vertical.datum to a target with supported transformations (%s), give a documented vertical.offset_m per dataset, or accept the mix explicitly with vertical.allow_mixed",
-				strings.Join(l, ", "), strings.Join(VerticalDatumNames(), ", "))
-		}
+	if target != "" {
+		return target, false, nil
 	}
+	first, same := dss[0].datumName(), true
+	for _, d := range dss {
+		same = same && d.datumName() == first
+	}
+	switch {
+	case len(dss) == 1 || same && first != "unknown":
+		return first, false, nil
+	case allowMixed:
+		return "mixed", true, nil
+	}
+	var l []string
+	for _, d := range dss {
+		l = append(l, d.spec.ID+"="+d.datumName())
+	}
+	return "", false, fmt.Errorf("datasets do not share a verified vertical reference (%s). Composing them would mix heights that can differ by metres. Set vertical.datum to a target with supported transformations (%s), give a documented vertical.offset_m per dataset, or accept the mix explicitly with vertical.allow_mixed",
+		strings.Join(l, ", "), strings.Join(VerticalDatumNames(), ", "))
+}
+
+func resolveVerticalSet(cfg *Config, dss []*dataset, opt Options) (VerticalInfo, error) {
+	info := VerticalInfo{Unit: "metre"}
+	target, mixed, err := chooseTarget(cfg, dss)
+	if err != nil {
+		return info, err
+	}
+	allowMixed := cfg.Vertical != nil && cfg.Vertical.AllowMixed
+	info.Mixed = mixed
 	info.Datum = target
 	for _, d := range dss {
 		if target == "mixed" {

@@ -4,7 +4,7 @@ A standalone Go CLI that turns a geographic bounding box into a tiled, multi-res
 
 Status: **0.3.0 release candidate.** Sources: GMRT (bathymetry+topography) or your own GeoTIFFs, OpenStreetMap coastline and OpenSeaMap marks, optional EMODnet regional fill. Several elevation datasets per world with explicit precedence and recorded vertical datums; UTM or, for wide boxes, a local transverse Mercator grid. See [docs/roadmap.md](docs/roadmap.md) for what is missing and [docs/development-log.md](docs/development-log.md) for what was measured.
 
-New here? [Tutorial: from an empty directory to an inspected world](docs/tutorials/first-world.md).
+New here? [Tutorial: from an empty directory to an inspected world](docs/tutorials/first-world.md). Several sources: [multi-source tutorial](docs/tutorials/multi-source.md).
 
 ![Falmouth, Cornwall: shaded relief and bathymetry, OSM coastline in red, tile edges in white](docs/img/falmouth-preview.png)
 
@@ -147,12 +147,12 @@ Import writes an edit layer, not a replacement: only cells that are land in the 
 
 - Not for navigation. GMRT's terms say its data must not be used for navigation, and this tool is for game worlds.
 - GMRT's `topo` layer is filled with GEBCO_08 (~0.9 km) wherever no ~100 m multibeam survey exists. Output cells finer than that are interpolation. The manifest and validator report the surveyed fraction per tile.
-- There is no vertical-datum reconciliation. Land DEMs, multibeam, and the OSM coastline use different references; the tool treats 0 m as the waterline and reports the horizontal offset to the OSM coastline instead of hiding it.
-- Several elevation datasets per world with explicit precedence and recorded vertical datums; UTM or, for wide boxes, a local transverse Mercator grid. Projection scale deviation is reported in the manifest and bounded (a bbox beyond 0.5 % is refused). LOD levels are vertex decimations; they can alias thin features. Seamark and harbour data are volunteer-mapped OSM points.
+- Vertical datums are recorded and, where PROJ ships a verified grid operation (EGM96, EGM2008, WGS 84 ellipsoid), converted; tidal datums (MLLW, LAT, ...) and NAVD88 are not converted (refused unless you give a documented offset or accept a mix). Land/water is still decided at 0 m of the world datum, and the horizontal offset to the OSM coastline is reported, not hidden.
+- Several elevation datasets per world with explicit precedence and recorded vertical datums; UTM or, for wide boxes, a local transverse Mercator grid. Projection scale deviation is reported in the manifest and bounded (a bbox beyond 0.5 % is refused). LOD levels are vertex decimations by default and can alias thin features; `lod_method: "shoal"` keeps the shallowest water of each 3x3 and never makes water deeper (`ocean lod-report` measures both). Seamark and harbour data are volunteer-mapped OSM points.
 
 ## Docs
 
-[Tutorial](docs/tutorials/first-world.md) · [World format](docs/formats/world-v2.md) · [Architecture](docs/architecture/overview.md) · [Decisions](docs/decisions/) · [Data sources](docs/research/data-sources.md) · [Ecosystem research](docs/research/ecosystem.md) · [Roadmap](docs/roadmap.md) · [Development log](docs/development-log.md) · [Contributing](CONTRIBUTING.md)
+[Tutorial](docs/tutorials/first-world.md) · [Multi-source](docs/tutorials/multi-source.md) · [Data sources (verified)](docs/sources.md) · [World format](docs/formats/world-v2.md) · [Architecture](docs/architecture/overview.md) · [Decisions](docs/decisions/) · [Data sources](docs/research/data-sources.md) · [Ecosystem research](docs/research/ecosystem.md) · [Roadmap](docs/roadmap.md) · [Development log](docs/development-log.md) · [Contributing](CONTRIBUTING.md)
 
 ## Licence
 

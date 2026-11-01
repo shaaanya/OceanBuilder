@@ -270,6 +270,11 @@ func checkWorld(path string, asJSON bool) error {
 		"memory_estimate_mib": cells * 24 / (1 << 20), "tile_data_estimate_mib": cells * 8 / (1 << 20) * 4 / 3,
 		"scale_factor": [2]float64{p.ScaleMin, p.ScaleMax}, "lod_levels_config": cfg.LODLevels,
 	}
+	srcs, target, terr := world.CheckSources(cfg)
+	est["sources"], est["vertical_target"] = srcs, target
+	if terr != nil {
+		est["vertical_error"] = terr.Error()
+	}
 	if asJSON {
 		return writeJSONOut(est)
 	}
@@ -277,6 +282,22 @@ func checkWorld(path string, asJSON bool) error {
 		cfg.Name, p.SRS, p.Grid.TilesX, p.Grid.TilesY, p.Grid.TileSpanM, p.W, p.H, cells/1e6, est["memory_estimate_mib"], est["tile_data_estimate_mib"], p.ScaleMin, p.ScaleMax)
 	if p.Note != "" {
 		fmt.Println("  WARNING:", p.Note)
+	}
+	order := "listed order"
+	if cfg.Precedence == "auto" {
+		order = "config order; precedence auto is decided from the fetched data, see `ocean info` after the build"
+	}
+	fmt.Printf("  sources (%s)\n", order)
+	for _, c := range srcs {
+		fmt.Printf("    %d %-14s %-10s %-9s datum %-14s -> %s\n", c.Rank, c.ID, c.Type, c.Quality, c.Datum, c.Plan)
+		if c.Detail != "" {
+			fmt.Printf("        %s\n", c.Detail)
+		}
+	}
+	if terr != nil {
+		fmt.Println("  REFUSED:", terr)
+	} else {
+		fmt.Printf("  world vertical datum: %s\n", target)
 	}
 	if cells > 150e6 {
 		fmt.Println("  WARNING: the whole grid is held in memory; consider a larger cell_m or a smaller bbox")
