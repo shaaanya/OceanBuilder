@@ -45,6 +45,9 @@ func (b *bctx) memBytes() int64 {
 func (b *bctx) inMemory() bool { return int64(b.W)*int64(b.H)*24 <= b.memBytes() }
 
 func build(cfg *Config, opt Options) (*Manifest, bool, error) {
+	if err := cfg.checkAntimeridian(); err != nil { // before any download
+		return nil, false, err
+	}
 	span := cfg.TileSpanM()
 	w, s, e, n := cfg.BBox[0], cfg.BBox[1], cfg.BBox[2], cfg.BBox[3]
 	clat := (s + n) / 2
@@ -116,9 +119,6 @@ func build(cfg *Config, opt Options) (*Manifest, bool, error) {
 	// 2. Tile-aligned metric grid in UTM; every dataset is warped onto it once.
 	plan, err := PlanGrid(cfg)
 	if err != nil {
-		return nil, false, err
-	}
-	if err := cfg.checkAntimeridian(); err != nil {
 		return nil, false, err
 	}
 	epsg, srs := plan.EPSG, plan.SRS
@@ -259,6 +259,9 @@ func build(cfg *Config, opt Options) (*Manifest, bool, error) {
 			if err != nil {
 				return nil, false, err
 			}
+			if plan.TM != nil {
+				return nil, false, fmt.Errorf("refinement: not supported on a local transverse Mercator world (the exchange records an EPSG code only)")
+			}
 			if err := ref.Check(g, epsg, W, H); err != nil {
 				return nil, false, err
 			}
@@ -315,6 +318,13 @@ func build(cfg *Config, opt Options) (*Manifest, bool, error) {
 		}
 	}
 	corners, err := gdal.Transform(srs, "EPSG:4326", all)
+	// Longitudes come back in -180..180; a world across the antimeridian is expressed on the branch that starts at the
+	// bbox west edge (east above 180), so no tile envelope spans 360 degrees.
+	for i := range corners {
+		for corners[i][0] < w-1 {
+			corners[i][0] += 360
+		}
+	}
 	if err != nil {
 		return nil, false, err
 	}

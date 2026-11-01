@@ -31,6 +31,8 @@ func Env() []string {
 
 // CacheMB caps the block cache of every GDAL subprocess (GDAL_CACHEMAX). The default of 5 % of RAM let gdalwarp reach
 // 680 MB on an 85-million-sample grid; with 64 MB it peaked at 290 MB. 0 leaves GDAL's default.
+// ponytail: process-wide, set by every Build; concurrent builds with different -mem would race and share one value.
+// A GDAL_CACHEMAX the user already exported is overridden. Pass it per command if that ever matters.
 var CacheMB int
 
 // Run executes a GDAL tool and returns stdout.

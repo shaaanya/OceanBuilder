@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ocean-compiler/ocean/internal/export"
+	"github.com/ocean-compiler/ocean/internal/libreterrain"
 	"github.com/ocean-compiler/ocean/internal/validate"
 	"github.com/ocean-compiler/ocean/internal/world"
 	"github.com/ocean-compiler/ocean/pkg/oceanworld"
@@ -359,32 +361,94 @@ func TestValidatorChecksDatasetLayer(t *testing.T) {
 	}
 }
 
-// A world across the antimeridian in a local transverse Mercator grid (schema 3) builds from a local source, validates,
-// and the reader answers on both sides of 180 with the same projection the builder used.
-func TestAntimeridianLocalTMBuild(t *testing.T) {
-	dir := t.TempDir()
-	mkTif(t, filepath.Join(dir, "a.tif"), 179.88, -16.12, 180.12, -15.88, 120, 120, -37, "")
-	cfg := &world.Config{Name: "am", BBox: [4]float64{179.9, -16.1, 180.1, -15.9}, CellM: 100, TileCells: 32, Coastline: "none", Projection: "tmerc",
-		Sources: []world.SourceSpec{{ID: "a", Type: "geotiff", Path: filepath.Join(dir, "a.tif"), Quality: "survey", License: "test", Attribution: "synthetic", Vertical: &world.VerticalRef{Datum: "EGM2008"}}}}
-	m, out := buildIt(t, cfg)
-	if m.SchemaVersion != world.SchemaVersionTM || m.CRS.Kind != "tmerc" || m.CRS.EPSG != 0 || m.CRS.Lon0 != 180 || m.CRS.Proj4 == "" {
-		t.Fatalf("manifest crs %+v schema %d", m.CRS, m.SchemaVersion)
+// A world across the antimeridian builds from a local source with the default projection (a 0.2 degree box fits UTM
+// zone 1, schema 2) and with a forced local transverse Mercator (schema 3); both validate, no tile envelope spans 360
+// degrees, and the reader answers on both sides of 180.
+func TestAntimeridianBuild(t *testing.T) {
+	for _, proj := range []string{"", "tmerc"} {
+		t.Run("projection="+proj, func(t *testing.T) {
+			dir := t.TempDir()
+			mkTif(t, filepath.Join(dir, "a.tif"), 179.88, -16.12, 180.12, -15.88, 120, 120, -37, "")
+			cfg := &world.Config{Name: "am", BBox: [4]float64{179.9, -16.1, 180.1, -15.9}, CellM: 100, TileCells: 32, Coastline: "none", Projection: proj,
+				Sources: []world.SourceSpec{{ID: "a", Type: "geotiff", Path: filepath.Join(dir, "a.tif"), Quality: "survey", License: "test", Attribution: "synthetic", Vertical: &world.VerticalRef{Datum: "EGM2008"}}}}
+			m, out := buildIt(t, cfg)
+			if proj == "tmerc" && (m.SchemaVersion != world.SchemaVersionTM || m.CRS.Kind != "tmerc" || m.CRS.EPSG != 0 || m.CRS.Lon0 != 180 || m.CRS.Proj4 == "") {
+				t.Fatalf("manifest crs %+v schema %d", m.CRS, m.SchemaVersion)
+			}
+			if proj == "" && (m.SchemaVersion != world.SchemaVersion || m.CRS.EPSG != 32701 && m.CRS.EPSG != 32760) {
+				t.Fatalf("default projection: crs %+v schema %d", m.CRS, m.SchemaVersion)
+			}
+			for _, tl := range m.Tiles {
+				if tl.BoundsWGS[2]-tl.BoundsWGS[0] > 1 || tl.BoundsWGS[0] < 179 || tl.BoundsWGS[2] > 181 {
+					t.Fatalf("tile %s envelope %v", tl.ID, tl.BoundsWGS)
+				}
+			}
+			if g := m.Grid.BBoxWGS84; g[2]-g[0] > 1 || g[0] < 179 || g[2] > 181 {
+				t.Fatalf("world bbox %v", g)
+			}
+			rep, err := validate.Run(out)
+			if err != nil || rep.Result == "FAILED" {
+				t.Fatalf("validate: %v\n%s", err, rep.Format())
+			}
+			w, err := oceanworld.Open(out)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, lon := range []float64{179.95, 180.05, -179.95} {
+				s, err := w.SampleLonLat(lon, -16, 0)
+				if err != nil || !s.Valid || math.Abs(s.ElevationM+37) > 0.05 || s.Dataset != "a" {
+					t.Errorf("lon %v: %+v %v", lon, s, err)
+				}
+			}
+			if s, _ := w.SampleLonLat(179.5, -16, 0); s.Valid {
+				t.Errorf("outside the world must be invalid: %+v", s)
+			}
+		})
 	}
-	rep, err := validate.Run(out)
-	if err != nil || rep.Result == "FAILED" {
-		t.Fatalf("validate: %v\n%s", err, rep.Format())
-	}
-	w, err := oceanworld.Open(out)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, lon := range []float64{179.95, 180.05, -179.95} {
-		s, err := w.SampleLonLat(lon, -16, 0)
-		if err != nil || !s.Valid || math.Abs(s.ElevationM+37) > 0.05 || s.Dataset != "a" {
-			t.Errorf("lon %v: %+v %v", lon, s, err)
+}
+
+// Configs across 180 that use network sources are refused before anything is fetched. The default config (GMRT, OSM
+// coastline) must fail with the explanation, with no cache directory touched.
+func TestAntimeridianNetworkConfigsRefusedEarly(t *testing.T) {
+	cache := filepath.Join(t.TempDir(), "cache")
+	for name, c := range map[string]*world.Config{
+		"default gmrt":  {Name: "x", BBox: [4]float64{179.5, -17, 180.5, -16}, CellM: 500},
+		"gmrt no coast": {Name: "x", BBox: [4]float64{179.5, -17, 180.5, -16}, CellM: 500, Coastline: "none"},
+		"remote geotiff": {Name: "x", BBox: [4]float64{179.5, -17, 180.5, -16}, CellM: 500, Coastline: "none",
+			Sources: []world.SourceSpec{{ID: "r", Type: "geotiff", Path: "https://example.invalid/a.tif", License: "x", Attribution: "x", Vertical: &world.VerticalRef{Datum: "EGM2008"}}}},
+	} {
+		_, err := world.Build(c, world.Options{CacheDir: cache, OutDir: filepath.Join(t.TempDir(), "w")})
+		if err == nil || !strings.Contains(err.Error(), "antimeridian") {
+			t.Errorf("%s: want antimeridian refusal, got %v", name, err)
 		}
 	}
-	if s, _ := w.SampleLonLat(179.5, -16, 0); s.Valid {
-		t.Errorf("outside the world must be invalid: %+v", s)
+	if _, err := os.Stat(cache); err == nil {
+		t.Error("refusal must happen before the cache is created")
+	}
+}
+
+// Adapters that were never checked with schema 3 refuse it with an explanation.
+func TestSchema3RefusedByUncheckedAdapters(t *testing.T) {
+	dir := t.TempDir()
+	mkTif(t, filepath.Join(dir, "a.tif"), 179.88, -16.12, 180.12, -15.88, 60, 60, -37, "")
+	cfg := &world.Config{Name: "tm", BBox: [4]float64{179.9, -16.1, 180.1, -15.9}, CellM: 200, TileCells: 32, Coastline: "none", Projection: "tmerc",
+		Sources: []world.SourceSpec{{ID: "a", Type: "geotiff", Path: filepath.Join(dir, "a.tif"), Quality: "survey", License: "test", Attribution: "synthetic", Vertical: &world.VerticalRef{Datum: "EGM2008"}}}}
+	_, out := buildIt(t, cfg)
+	proj := filepath.Join(t.TempDir(), "proj")
+	os.MkdirAll(filepath.Join(proj, "Assets"), 0o755)
+	if _, err := export.Unity(out, proj); err == nil || !strings.Contains(err.Error(), "local transverse Mercator") {
+		t.Errorf("unity: %v", err)
+	}
+	if _, err := libreterrain.Export(out, filepath.Join(t.TempDir(), "x"), libreterrain.ExportOptions{}); err == nil || !strings.Contains(err.Error(), "local transverse Mercator") {
+		t.Errorf("libreterrain: %v", err)
+	}
+	// the GeoTIFF export does work: pixel centres sit on the grid and the SRS is the PROJ string
+	files, err := export.GeoTIFF(out, filepath.Join(t.TempDir(), "tif"), 0)
+	if err != nil || len(files) == 0 {
+		t.Fatalf("geotiff: %v", err)
+	}
+	info, _ := exec.Command("gdalinfo", files[0]).CombinedOutput()
+	if !strings.Contains(string(info), "Transverse_Mercator") && !strings.Contains(string(info), "Transverse Mercator") {
+		t.Errorf("exported CRS is not transverse Mercator:\n%s", info)
 	}
 }

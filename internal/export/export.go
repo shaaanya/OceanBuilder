@@ -32,6 +32,9 @@ func Unity(worldDir, project string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	if m.CRS.Kind == "tmerc" {
+		return "", fmt.Errorf("world %s is in a local transverse Mercator grid (schema 3); the Unity importer has only been checked with UTM worlds (schema 2) and refuses this one rather than guess", m.Name)
+	}
 	if _, err := os.Stat(filepath.Join(project, "Assets")); err != nil {
 		return "", fmt.Errorf("%s does not look like a Unity project (no Assets folder)", project)
 	}

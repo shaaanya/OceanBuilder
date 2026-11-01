@@ -122,6 +122,9 @@ func Export(worldDir, outDir string, opt ExportOptions) (*Exchange, error) {
 	if err != nil {
 		return nil, err
 	}
+	if m.CRS.Kind == "tmerc" {
+		return nil, fmt.Errorf("world %s is in a local transverse Mercator grid (schema 3); the LibreTerrain exchange records an EPSG code only and has not been checked with such worlds", m.Name)
+	}
 	g := m.Grid
 	N := g.TileCells
 	W, H := g.TilesX*N+1, g.TilesY*N+1

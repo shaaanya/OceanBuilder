@@ -119,12 +119,12 @@ func (c *Config) checkAntimeridian() error {
 		if c.Coastline != "none" || c.Seamarks || c.RegionalBathymetry != "" {
 			return fmt.Errorf("config: bbox east %.3f > 180 (crosses the antimeridian): set coastline \"none\" and drop seamarks/regional_bathymetry; network fetchers are not verified across 180", e)
 		}
-		for _, sp := range c.Sources {
-			if sp.Type != "geotiff" || strings.HasPrefix(sp.Path, "http") {
+		for _, sp := range c.effectiveSources() {
+			if sp.Type != "geotiff" || strings.HasPrefix(sp.Path, "http") || strings.HasPrefix(sp.Mask, "http") {
 				return fmt.Errorf("config: source %q: antimeridian worlds (east > 180) accept only local geotiff sources, other source types are not verified across 180", sp.ID)
 			}
 		}
-		if len(c.Sources) == 0 {
+		if len(c.effectiveSources()) == 0 {
 			return fmt.Errorf("config: bbox east %.3f > 180: antimeridian worlds need explicit local geotiff \"sources\"", e)
 		}
 	}

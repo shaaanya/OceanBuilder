@@ -509,13 +509,16 @@ func rank(l Level) int { return map[Level]int{Error: 0, Warn: 1, Info: 2}[l] }
 
 func checkBounds(r *Report, m *world.Manifest) {
 	b := m.Grid.BBoxWGS84
-	if !(b[0] < b[2] && b[1] < b[3] && b[0] >= -180 && b[2] <= 180 && b[1] >= -90 && b[3] <= 90) {
+	if !(b[0] < b[2] && b[1] < b[3] && b[0] >= -180 && b[2] <= 540 && b[2]-b[0] <= 180 && b[1] >= -90 && b[3] <= 90) {
 		r.add(Error, "bounds", "invalid geographic bounds %v", b)
 	}
 	if m.Grid.CellM <= 0 || m.Grid.TileCells <= 0 || m.Grid.SamplesPerTile != m.Grid.TileCells+1 {
 		r.add(Error, "grid", "inconsistent grid parameters")
 	}
 	for _, t := range m.Tiles {
+		if t.BoundsWGS[2]-t.BoundsWGS[0] > 90 {
+			r.add(Error, "bounds", "tile %s: geographic envelope is %.1f degrees wide (antimeridian wrap)", t.ID, t.BoundsWGS[2]-t.BoundsWGS[0])
+		}
 		u := t.BoundsUTM
 		span := m.Grid.TileSpanM * float64(int(1)<<t.Level)
 		if math.Abs((u[2]-u[0])-span) > 1e-6 || math.Abs((u[3]-u[1])-span) > 1e-6 {
