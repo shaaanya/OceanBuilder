@@ -1,7 +1,6 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"path/filepath"
 
@@ -21,8 +20,7 @@ func cmdPreview(args []string) error {
 }
 
 func cmdExport(args []string) error {
-	var fs *flag.FlagSet
-	fs = newFlags("export", "export <world dir> -target geotiff -dest <dir> [-level k] | -target unity -dest <Unity project>")
+	fs := newFlags("export", "export <world dir> -target geotiff -dest <dir> [-level k] | -target unity -dest <Unity project>")
 	target := fs.String("target", "geotiff", "geotiff | unity")
 	dest := fs.String("dest", "", "geotiff: output directory; unity: Unity project directory")
 	level := fs.Int("level", 0, "geotiff: LOD level; unity: highest LOD level to copy (import it with -oceanMaxLevel)")

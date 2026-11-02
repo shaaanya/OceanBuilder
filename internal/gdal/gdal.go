@@ -146,18 +146,6 @@ func ReadF32(path string, w, h int) (*Raster, error) {
 	return r, nil
 }
 
-// ReadU8 reads a headerless byte raster.
-func ReadU8(path string, w, h int) ([]uint8, error) {
-	b, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-	if len(b) != w*h {
-		return nil, fmt.Errorf("%s: %d bytes, want %d", path, len(b), w*h)
-	}
-	return b, nil
-}
-
 // RequiredTools are the GDAL command-line programs a build runs.
 var RequiredTools = []string{"gdalwarp", "gdal_translate", "gdaltransform", "ogr2ogr", "gdalinfo"}
 

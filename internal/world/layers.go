@@ -52,33 +52,6 @@ func srcName(code int) string {
 	return fmt.Sprint(code)
 }
 
-// initialSource assigns the first source code per cell from validity, sign and the survey mask.
-func initialSource(dem []float32, meas []uint8) []uint8 {
-	src := make([]uint8, len(dem))
-	for i, v := range dem {
-		switch {
-		case v <= noData+1:
-			src[i] = SrcNoData
-		case v >= 0:
-			src[i] = SrcLand
-		case meas[i] == 1:
-			src[i] = SrcSurvey
-		default:
-			src[i] = SrcBackground
-		}
-	}
-	return src
-}
-
-// markChanged sets code on every cell whose value differs from before.
-func markChanged(src []uint8, before, after []float32, code uint8) {
-	for i := range after {
-		if after[i] != before[i] {
-			src[i] = code
-		}
-	}
-}
-
 // raster is one LOD level's sample grid: vertices at cell spacing, row 0 = north, whole tiles (N+1 samples per
 // tile edge, edges shared). Samples outside the world are nodata.
 type raster struct {

@@ -11,7 +11,10 @@ import (
 // the mirror that was down last time, and may take different data from another mirror than the previous build did.
 func TestCachedMirrorAnswerIsUsedBeforeTheNetwork(t *testing.T) {
 	var hitsA, hitsB atomic.Int32
-	a := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { hitsA.Add(1); http.Error(w, "busy", 504) }))
+	a := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hitsA.Add(1)
+		http.Error(w, "busy", http.StatusGatewayTimeout)
+	}))
 	defer a.Close()
 	b := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		hitsB.Add(1)

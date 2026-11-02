@@ -48,7 +48,7 @@ func fakeAPI(t *testing.T, statuses []string) (*httptest.Server, *int) {
 	mux.HandleFunc("/queue", func(w http.ResponseWriter, r *http.Request) {
 		var b basket
 		if err := json.NewDecoder(r.Body).Decode(&b); err != nil || len(b.Items) != 1 || b.Items[0].GridID != 1 || len(b.Items[0].Sources) != 2 || b.Items[0].Left != -5.2 || b.Items[0].Top != 50.2 {
-			http.Error(w, "bad basket", 422)
+			http.Error(w, "bad basket", http.StatusUnprocessableEntity)
 			return
 		}
 		w.WriteHeader(201)
@@ -119,7 +119,9 @@ func TestFetchReportsFailedBasketAndBadReply(t *testing.T) {
 	if _, _, err := Fetch(t.TempDir(), -5.2, 50.1, -5.0, 50.2); err == nil || !strings.Contains(err.Error(), "failed") {
 		t.Errorf("failed basket: %v", err)
 	}
-	bad := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { http.Error(w, `{"detail":"schema"}`, 422) }))
+	bad := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, `{"detail":"schema"}`, http.StatusUnprocessableEntity)
+	}))
 	defer bad.Close()
 	APIURL = bad.URL
 	if _, _, err := Fetch(t.TempDir(), -5.2, 50.1, -5.0, 50.2); err == nil || !strings.Contains(err.Error(), "undocumented") {
