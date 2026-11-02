@@ -13,4 +13,4 @@ Status: accepted, 2026-11-01.
 
 ## Limits
 
-The tool does not know the datum of GMRT, the mixed datums of the NOAA mosaic, or which datum an EMODnet WCS coverage serves (see research/source-probes.md); these must be declared by the user or stay `unknown`. The installed EGM96 grid differs from PROJ's published regression values by about 0.4 m at two points; the cause is not established (dev log).
+The tool does not know the datum of GMRT, the mixed datums of the NOAA mosaic, or which datum an EMODnet WCS coverage serves (see research/source-probes.md); these must be declared by the user or stay `unknown`. The EGM96 question raised in 0.3.0 (installed grid vs PROJ's gie file, about 0.4 m at two points) is resolved in 0.4.0: the installed grid agrees with an independent spherical-harmonic synthesis to 0.1 mm at the nodes, the gie expectation is unexplained and not reproduced by any EGM96 computation tried ([research/egm96-discrepancy.md](../research/egm96-discrepancy.md)). Residual error of an EGM96 conversion is the 15' bilinear interpolation, up to about 6 cm. The NOAA mosaic is covered by [0009](0009-noaa-dem-mosaic-not-adopted.md).

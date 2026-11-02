@@ -406,7 +406,11 @@ func Run(dir string) (*Report, error) {
 				replaced := float64(rg.CellsReplaced) / float64(m.Stats.Cells)
 				r.add(Info, "regional-fill", "%s replaced %d background-grid water cells (%.1f%% of the grid) with a ~115 m compilation; %d fill cells remain at the background grid (≈%.0f m). Median offset to survey cells %.2f m (rms %.2f m, measured on flat cells at a median depth of %.0f m, so it says little about the shallow-water datum) was measured, not corrected. Replaced cells are still not survey-backed", rg.Source, rg.CellsReplaced, 100*replaced, rg.FillCellsLeft, m.Resampling.FillResM, rg.MedianOffsetM, rg.RMSOffsetM, rg.FlatMedianDepthM)
 			} else {
-				r.add(Warn, "background-fill", "%.1f%% of water cells have no survey data and come from a coarse background grid (≈%.0f m resolution) resampled to %.0f m", 100*fill, m.Resampling.FillResM, m.Resampling.OutputCellM)
+				if m.Resampling.FillResM > 0 {
+					r.add(Warn, "background-fill", "%.1f%% of water cells have no survey data and come from a coarse background grid (≈%.0f m resolution) resampled to %.0f m", 100*fill, m.Resampling.FillResM, m.Resampling.OutputCellM)
+				} else { // the source documents no separate fill resolution: say so instead of printing 0 m
+					r.add(Warn, "background-fill", "%.1f%% of water cells have no survey data: they are interpolated or modelled at the source's own cell (≈%.0f m, the source documents no finer figure) and resampled to %.0f m", 100*fill, m.Resampling.SourceResM, m.Resampling.OutputCellM)
+				}
 			}
 		}
 	}

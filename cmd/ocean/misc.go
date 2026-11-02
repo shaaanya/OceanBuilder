@@ -26,8 +26,11 @@ var sources = []sourceInfo{
 }
 
 func cmdSources(args []string) error {
+	if len(args) == 2 && args[0] == "explain" {
+		return explainSource(args[1])
+	}
 	if len(args) == 0 || args[0] != "list" {
-		return fmt.Errorf("usage: ocean sources list")
+		return fmt.Errorf("usage: ocean sources list | ocean sources explain <id>")
 	}
 	for _, s := range sources {
 		fmt.Printf("%-14s %s\n    coverage: %s\n    access:   %s\n    license:  %s\n", s.ID, s.Kind, s.Coverage, s.Access, s.License)

@@ -36,7 +36,7 @@ use it
   export <dir>            geotiff (GIS and generic use) or unity (engine adapter)
   libreterrain ...        refine land in LibreTerrain (optional external tool) and bring it back
 housekeeping
-  sources list            supported data sources and licences
+  sources list|explain <id>  supported data sources and licences; datum, resolution, checks per source
   cache stats|clean       inspect or clear the download and stage cache
   version
 
