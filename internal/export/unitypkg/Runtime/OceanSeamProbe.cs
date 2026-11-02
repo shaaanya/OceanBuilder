@@ -52,6 +52,7 @@ namespace OceanCompiler.World
         {
             if (SystemInfo.graphicsDeviceType == UnityEngine.Rendering.GraphicsDeviceType.Null) { Debug.Log("OCEAN_SEAM_SYNTHETIC skipped: no graphics device"); yield break; }
             const float baseY = -50f, range = 100f;
+            Debug.Log("OCEAN_SEAM_MATERIAL " + (skirtMaterial == null ? "null" : skirtMaterial.name + " shader=" + (skirtMaterial.shader == null ? "null" : skirtMaterial.shader.name + " supported=" + skirtMaterial.shader.isSupported) + " pipeline=" + (UnityEngine.Rendering.GraphicsSettings.currentRenderPipeline != null)));
             int refPx = 0, rawPx = 0, skirtPx = 0;
             foreach (var variant in new[] { "ref", "raw", "skirt" })
             {

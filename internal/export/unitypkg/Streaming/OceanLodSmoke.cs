@@ -289,9 +289,12 @@ namespace OceanCompiler.World
                 yield return Settle(st3, report, "seam world");
                 foreach (var id in st3.VisibleIds) { var sk = st3.GetTerrain(id)?.GetComponent<OceanTileSkirts>(); if (sk != null && sk.east != null) { skirtMat = sk.east.sharedMaterial; break; } }
                 yield return RealSeam(st3, index, report, sb);
+                // The material is an Addressables asset: it must stay referenced (tiles loaded) while the probe uses it, or its bundle unloads.
+                if (skirtMat == null) report.Check(false, "seam: no loaded tile carries skirts (import with -oceanMaxLevel 1 or more)");
+                probeGo.SetActive(false); // hidden, not destroyed: the real terrain would fill the probe's background
+                yield return OceanSeamProbe.RunSynthetic(report, skirtMat, 0.5f); // 0.5 m: the importer's default skirt margin
                 Destroy(probeGo);
                 yield return null;
-                yield return OceanSeamProbe.RunSynthetic(report, skirtMat, 0.5f); // 0.5 m: the importer's default skirt margin
             }
             else sb.Append(" seam=skipped(no graphics device)");
 

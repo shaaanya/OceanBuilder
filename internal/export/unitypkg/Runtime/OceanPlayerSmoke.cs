@@ -109,7 +109,7 @@ namespace OceanCompiler.World
         void Level0(OceanSmokeReport report)
         {
             var sb = new StringBuilder();
-            int ok = 0, bad = 0, noTerrain = 0;
+            int ok = 0, bad = 0, noTerrain = 0, empty = 0;
             foreach (var t in index.tiles)
             {
                 if (t.level != 0) continue;
@@ -118,11 +118,14 @@ namespace OceanCompiler.World
                 var centre = terrain.transform.position + new Vector3(t.size.x / 2, 0, t.size.z / 2);
                 float h = terrain.SampleHeight(centre) + terrain.transform.position.y;
                 // the tile's elevation range is known from the manifest: the sample must lie inside it
-                if (h >= t.minM - toleranceM && h <= t.maxM + toleranceM) ok++;
+                // nodata cells are flat at the world minimum (documented importer behaviour), which can lie below the tile's own minimum
+                float lowest = t.nodataFraction > 0f ? Mathf.Min(t.minM, index.minM) : t.minM;
+                if (t.nodataFraction >= 1f) empty++;
+                if (h >= lowest - toleranceM && h <= t.maxM + toleranceM) ok++;
                 else { bad++; sb.Append(' ').Append(t.id).Append('=').Append(h.ToString("F1")); }
             }
             Debug.Log("OCEAN_PLAYER_SMOKE world=" + index.worldName + " build=" + index.buildId.Substring(0, 12) +
-                      " tiles=" + index.tiles.Length + " ok=" + ok + " outside_range=" + bad + " missing_terrain=" + noTerrain + sb);
+                      " tiles=" + index.tiles.Length + " ok=" + ok + " outside_range=" + bad + " missing_terrain=" + noTerrain + " empty_tiles=" + empty + sb);
             report.Check(bad == 0 && noTerrain == 0 && ok > 0, "level0 ok=" + ok + " bad=" + bad + " missing=" + noTerrain);
         }
 
