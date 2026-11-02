@@ -122,12 +122,34 @@ class World:
         sp = self.span * 2 ** level
         return self.tiles.get((level, math.floor(E / sp), math.floor(N / sp)))
 
+    def _locate(self, E, N, level):
+        """(x, y, tile) containing the position. A point exactly on a tile edge is also the last row/column of the tile
+        before it, which is the only tile that exists on the world's east and north edges."""
+        sp = self.span * 2 ** level
+        x, y = math.floor(E / sp), math.floor(N / sp)
+        for dx, dy in ((0, 0), (1, 0), (0, 1), (1, 1)):
+            if (dx and E != x * sp) or (dy and N != y * sp):
+                continue
+            t = self.tiles.get((level, x - dx, y - dy))
+            if t is not None:
+                return x - dx, y - dy, t
+        return x, y, None
+
+    def vertex(self, E, N, level=0):
+        """Height of the vertex nearest to (E, N), or None (no tile, or nodata). For positions that are vertices."""
+        sp, c, S = self.span * 2 ** level, self.cell * 2 ** level, self.S
+        x, y, t = self._locate(E, N, level)
+        if t is None:
+            return None
+        j, i = min(round((E - x * sp) / c), S - 1), min(round(((y + 1) * sp - N) / c), S - 1)
+        h = self.heights(t)[i * S + j]
+        return None if abs(h - self.nodata) < 0.5 else h
+
     def sample(self, E, N, level=0):
         """Bilinear elevation at a grid position. Returns None when the tile does not exist (outside the world, or
         a level>0 tile with no valid sample) or any of the four vertices is nodata."""
         sp, c, S = self.span * 2 ** level, self.cell * 2 ** level, self.S
-        x, y = math.floor(E / sp), math.floor(N / sp)
-        t = self.tiles.get((level, x, y))
+        x, y, t = self._locate(E, N, level)
         if t is None:
             return None
         u, v = (E - x * sp) / c, ((y + 1) * sp - N) / c
@@ -146,8 +168,7 @@ class World:
     def nearest_codes(self, E, N, level=0):
         """(depth class, source code) of the nearest vertex, or None."""
         sp, c, S = self.span * 2 ** level, self.cell * 2 ** level, self.S
-        x, y = math.floor(E / sp), math.floor(N / sp)
-        t = self.tiles.get((level, x, y))
+        x, y, t = self._locate(E, N, level)
         if t is None:
             return None
         j = min(round((E - x * sp) / c), S - 1)
@@ -164,7 +185,7 @@ class World:
                     if d != t["sha256"][key]:
                         bad.append("%s: %s hash differs" % (t["id"], key))
         for cp in self.m.get("checkpoints", []):
-            got = self.sample(cp["easting"], cp["northing"], 0)
+            got = self.vertex(cp["easting"], cp["northing"], 0)
             if got is None or abs(got - cp["elevation_m"]) > 1e-3:
                 bad.append("checkpoint %s: expected %.3f got %r" % (cp["name"], cp["elevation_m"], got))
         for (lv, x, y), t in self.tiles.items():  # shared edges: east column of (x,y) == west column of (x+1,y)
