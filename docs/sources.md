@@ -23,6 +23,16 @@ Run the live checks yourself: `OCEAN_SMOKE=1 go test ./internal/etopo ./internal
 - Not implemented (probed, ranked in the research notes): NOAA `DEM_global_mosaic` ImageServer (mixed datums per item; live evidence in [ADR 0009](decisions/0009-noaa-dem-mosaic-not-adopted.md)), Seascape, AWS Terrarium.
 - GMRT GridServer, probed 2026-11-01 with `resolution=max`: the five example regions (0.15-0.4 degree boxes) came back at about 55-58 m native cells (Kona, Moorea, Mindelo, Bahamas) and 29 m (Geiranger) and were built; a 2 x 2 degree box came back as a 3642 x 5668 raster with anisotropic pixels (0.00055 x 0.00035 degrees) after 97 s and 83 MB; a 6 x 5 degree box returned a raster at about twice that pixel size, i.e. the service coarsens large requests without saying so, and the download did not finish within a 120 s probe. OceanBuilder reads the native cell size from the file it receives (`resampling.source_res_m`), so a coarsened answer shows up as `upsampled` and a coarser source resolution in the manifest; it does not know the request was coarsened. Whole-request fetch timeout is 3 minutes. Not tested: boxes over 10 degrees, the antimeridian.
 
+## GMRT and OpenStreetMap requests
+
+- **GMRT GridServer** (`https://www.gmrt.org/services/GridServer`, GET, no key): `minlongitude`, `maxlongitude`, `minlatitude`, `maxlatitude`, `format=geotiff`, `resolution=max`, `layer`.
+  - `layer=topo` is unmasked; per the GridServer documentation it is filled with GEBCO_08 where no high-resolution ocean data exist.
+  - `layer=topo-mask` holds only the high-resolution (about 100 m) ocean data, NaN elsewhere. "Finite in the mask" is what the build calls survey-backed, and the manifest reports the fraction of water cells that are.
+  - `resolution=max` is documented as about 100 m per node at most. Around Falmouth the delivered cells were about 39 m, so grid spacing is not data resolution; the manifest records the delivered cell size and the 30" GEBCO fill.
+  - The vertical reference is a mosaic of contributed grids, not one datum; the manifest says so.
+- **OSM coastline** (Overpass): `way["natural"="coastline"](bbox); out geom;` as POST to `overpass-api.de`, then the public mirrors. An empty `User-Agent` returned HTTP 406, so one is always sent. Answers are cached; heavy use should go through a local extract (not implemented, see the [roadmap](roadmap.md)).
+- Licences and what the tool does about them: [research/licensing.md](research/licensing.md).
+
 ## Example
 
 ```json

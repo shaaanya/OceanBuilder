@@ -1,7 +1,7 @@
 """Kill (SIGINT, SIGKILL) a real `ocean build` as soon as each kind of stage artifact appears in the cache, rebuild on the same cache, and require a byte-identical output tree.
 
 usage: interrupt_resume.py <ocean binary> <world.json (offline, e.g. over testdata/falmouth)> <scratch dir>
-See docs/resume.md."""
+See docs/stage-cache.md."""
 import sys, subprocess, os, signal, time, hashlib, shutil, sys, json
 O=os.path.abspath(sys.argv[1]); CFG=os.path.abspath(sys.argv[2]); D=os.path.abspath(sys.argv[3])  # binary, offline world config, empty scratch dir
 def tree(d):

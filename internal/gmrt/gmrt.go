@@ -1,7 +1,7 @@
 // Package gmrt fetches Global Multi-Resolution Topography grids.
 // GMRT merges land DEMs and multibeam bathymetry at up to ~1 m resolution
 // and exposes a mask layer marking cells backed by measured (non-interpolated)
-// data. See docs/research/data-sources.md.
+// data. See docs/sources.md.
 package gmrt
 
 import (

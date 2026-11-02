@@ -1,8 +1,8 @@
-# Ocean Compiler: ecosystem research
+# OceanBuilder: ecosystem research
 
 Checked 2026-10-30. Method: GitHub API (`gh api`) for repo metadata, shallow clones for cgo checks, WebFetch/WebSearch for docs. Anything not read from a fetched page is marked "unverified". Star counts and push dates are snapshots from that day.
 
-Context: Ocean Compiler is a Go CLI that shells out to GDAL, uses GMRT GridServer (topo + topo-mask; topo is GEBCO_08-filled where no ~100 m survey exists) and OSM coastline via Overpass, and writes tiled worlds for Unity/Unreal.
+Context: OceanBuilder is a Go CLI that shells out to GDAL, uses GMRT GridServer (topo + topo-mask; topo is GEBCO_08-filled where no ~100 m survey exists) and OSM coastline via Overpass, and writes tiled worlds for Unity/Unreal.
 
 ---
 
@@ -43,7 +43,7 @@ Repo: https://github.com/BredaUniversityResearch/MSP-ProceduralOceanView (README
 | Reuse | Ideas only: the PRP concept (data-driven placement rules), EPSG:3035 handling, Open-Meteo weather feed. No code reuse. |
 | Cannot do | Not a data compiler. It consumes GeoTIFF bathymetry; it does not fetch, mosaic or tile from GMRT/GEBCO. Unreal-only, version-pinned to 5.3. |
 | Integration | File exchange only: our GeoTIFF/GeoJSON output could feed its POV Launcher (feasibility unverified; format specifics not read). |
-| License | GPL-3/AGPL-3 (see above). Copying code into an MIT/Apache Ocean Compiler would force relicensing. Calling it as a separate downstream consumer of our files carries no obligation. |
+| License | GPL-3/AGPL-3 (see above). Copying code into an MIT/Apache OceanBuilder would force relicensing. Calling it as a separate downstream consumer of our files carries no obligation. |
 | Verdict | **Reference only.** Do not link or vendor code. Possibly document "output can be imported into IO" later. |
 
 ---

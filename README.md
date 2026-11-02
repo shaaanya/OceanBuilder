@@ -4,7 +4,7 @@ A Go command-line tool that turns a geographic bounding box into a tiled ocean w
 
 The output format is documented and engine-independent ([docs/formats/world-v2.md](docs/formats/world-v2.md)). There is a Go reader, a GeoTIFF export and a Unity (URP) adapter. You don't need a game engine to build, inspect or use a world.
 
-Status: 0.5.0-rc1. Tests ran on macOS arm64 only. The hosted CI workflow is written but has never run. The [release report](docs/release-0.5.0-rc1.md) lists what was verified and what is partial or deferred.
+Status: 0.5.0-rc1. The offline tests pass in CI on Linux, Windows and macOS; the Unity importer and runtime LOD have only been run on macOS arm64. The [release report](docs/releases/0.5.0-rc1.md) lists what was verified and what is partial or deferred.
 
 ![Falmouth, Cornwall: shaded relief and bathymetry, OSM coastline in red, tile edges in white](docs/img/falmouth-preview.png)
 
@@ -105,7 +105,7 @@ URP only (Unity 6, URP 17.x, tested on 17.4). The importer refuses to run under 
 
 ## Refining land in LibreTerrain
 
-[LibreTerrain](../LibreTerrain) is a separate node-graph terrain editor. OceanBuilder only exchanges files with it.
+LibreTerrain is a separate node-graph terrain editor (not part of this repository). OceanBuilder only exchanges files with it.
 
 ```bash
 ocean libreterrain export output/falmouth      # heightmap.exr + exchange.json (+ .lterrain if libreterrain-mcp is found)
@@ -127,10 +127,10 @@ Import writes an edit layer, not a replacement. Only cells that are land in the 
 
 ## Docs
 
-- Using it: [install and pin](docs/install.md), [tutorial](docs/tutorials/first-world.md), [multi-source tutorial](docs/tutorials/multi-source.md), [options](docs/options.md), [troubleshooting](docs/troubleshooting.md), [resume and the stage cache](docs/resume.md), [performance and disk](docs/performance.md)
+- Using it: [install and pin](docs/install.md), [tutorial](docs/tutorials/first-world.md), [multi-source tutorial](docs/tutorials/multi-source.md), [options](docs/options.md), [troubleshooting](docs/troubleshooting.md), [resume and the stage cache](docs/stage-cache.md), [performance and disk](docs/performance.md)
 - Output: [world format](docs/formats/world-v2.md), [integration guide](docs/integration.md), [Python reference reader](examples/python-reader/ocean_reader.py), [LOD quality](docs/lod-quality.md)
 - Unity: [import and streaming](docs/unity.md), [runtime LOD](docs/unity-lod.md)
-- Data: [verified sources](docs/sources.md), [data source research](docs/research/data-sources.md)
+- Data: [sources](docs/sources.md), [licensing](docs/research/licensing.md)
 - Project: [architecture](docs/architecture/overview.md), [decisions](docs/decisions/), [testing tiers](docs/testing.md), [ecosystem research](docs/research/ecosystem.md), [roadmap](docs/roadmap.md), [development log](docs/development-log.md), [contributing](CONTRIBUTING.md)
 
 ## Licence

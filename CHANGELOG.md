@@ -2,12 +2,14 @@
 
 ## Unreleased
 
+- CI: first hosted run (2026-11-02) found three problems, now fixed: Go 1.22.0 test binaries abort on the macOS runner (CI pins Go 1.26; `go.mod` still declares 1.22 as the minimum), `gdal_calc.py` could not be launched on Windows (GEBCO measured mask; `gdal.Run` now goes through `python`), and the LibreTerrain round-trip tests failed instead of skipping where GDAL has no EXR driver.
+- Repository: IDE settings, the generated root `*.world.json` files and an unused wheel are no longer tracked; unused helpers removed; the release reports moved to `docs/releases/`, `docs/resume.md` is now `docs/stage-cache.md`.
 - Source option `valid_max`: a dataset supplies only cells at or below it (after the vertical offset); higher cells fall through to the next dataset. `valid_max: 0` on a bathymetry source ranked below a land DEM stops GMRT's land artefacts (isolated cells of 5-7 km found over Cape Verde, present in the raw GMRT download) from landing on cells the land DEM calls sea. Recorded per dataset in the manifest. Test: `TestValidMaxKeepsHighCellsOutOfFallbackDataset`.
 - Documented: a land DEM with sea cells stored as 0 (Copernicus GLO-30) works as a `geotiff` source with `"nodata": 0`, ranked above `gmrt` ([options.md](docs/options.md#land-dem-over-gmrt)).
 
 ## 0.5.0-rc1 (2026-11-02)
 
-See [docs/release-0.5.0-rc1.md](docs/release-0.5.0-rc1.md). Release candidate: no hosted CI has run (no remote), Windows and Linux are unverified.
+See [docs/releases/0.5.0-rc1.md](docs/releases/0.5.0-rc1.md). Release candidate: no hosted CI has run (no remote), Windows and Linux are unverified.
 
 - Unity runtime LOD: `OceanLodStreamer` (distance cut with hysteresis, 2:1 balance, multi-viewer, async load/unload with retry, cancel and unload delay, cover-until-loaded), loader abstraction with an Addressables loader, importer skirts that hide mixed-level cracks (measured by rendering: 4317 background pixels without, 0 with), 6635 pure-C# property checks, Editor PlayMode tests and a macOS player run on two worlds ([docs/unity-lod.md](docs/unity-lod.md), [ADR 0011](docs/decisions/0011-unity-runtime-lod.md)).
 - Format: level 0 is always complete (all-nodata level-0 tiles are written; validator `empty-tile`). Earlier builds dropped them silently.
@@ -19,9 +21,9 @@ See [docs/release-0.5.0-rc1.md](docs/release-0.5.0-rc1.md). Release candidate: n
 
 ## 0.4.0-rc1 (2026-11-02)
 
-See [docs/release-0.4.0.md](docs/release-0.4.0.md). Release candidate: CI for Linux and Windows is written, never run.
+See [docs/releases/0.4.0.md](docs/releases/0.4.0.md). Release candidate: CI for Linux and Windows is written, never run.
 
-- Stage cache: warp, vertical shift, compose and every LOD level are sealed, hash-verified stages; an interrupted build resumes at the first unfinished stage ([docs/resume.md](docs/resume.md)). Fixed: a source with an explicit nodata value never hit the warp cache.
+- Stage cache: warp, vertical shift, compose and every LOD level are sealed, hash-verified stages; an interrupted build resumes at the first unfinished stage ([docs/stage-cache.md](docs/stage-cache.md)). Fixed: a source with an explicit nodata value never hit the warp cache.
 - Antimeridian: GMRT, ETOPO 2022 and GEBCO worlds across 180 are fetched as two boxes (verified live); CUDEM, EMODnet, OSM coast, seamarks and remote GeoTIFFs are refused with a message.
 - GMRT: delivered cell size is measured; oversized requests are split; `datasets[].delivery`, `source_res_m` is the coarsest piece, validator warning `source-coarsened`.
 - EGM96: discrepancy resolved against an independent synthesis ([research](docs/research/egm96-discrepancy.md)); regression tests tightened from 0.5 m to 2 mm / 0.10 m.
@@ -33,7 +35,7 @@ See [docs/release-0.4.0.md](docs/release-0.4.0.md). Release candidate: CI for Li
 
 ## 0.3.0 (2026-11-01)
 
-See [docs/release-0.3.0.md](docs/release-0.3.0.md) for what was verified, partial, unverified and deferred.
+See [docs/releases/0.3.0.md](docs/releases/0.3.0.md) for what was verified, partial, unverified and deferred.
 
 - Several elevation datasets per world with `listed`/`auto` precedence and a per-sample dataset layer; vertical datum policy with PROJ grid conversions and explicit refusals; `licensing` record in the manifest and `no_coastline_copy`.
 - Local transverse Mercator grids (schema 3) for wide boxes and boxes across the antimeridian; windowed disk-backed pipeline with `-mem`.

@@ -7,10 +7,10 @@ OceanBuilder is one static Go binary plus the GDAL command-line tools it calls.
 1. **GDAL** (3.9 or newer; CI uses conda-forge, development used 3.13) on `PATH`: `gdalwarp`, `gdal_translate`, `gdaltransform`, `ogr2ogr`, `gdalinfo`, plus PROJ's data grids (`proj-data`) if you use vertical datum conversions. `conda install -c conda-forge gdal proj-data`, `brew install gdal`, or your distribution's package.
 2. **The binary**, either
    - a release archive (`scripts/release.sh` builds them: linux, macOS and windows on amd64 and arm64) with its `SHA256SUMS`: `shasum -a 256 -c SHA256SUMS --ignore-missing`, or
-   - from source: `go build -o bin/ocean ./cmd/ocean` (Go 1.22 or newer; `go.mod` says 1.22, tested with 1.26.1), or `go install github.com/ocean-compiler/ocean/cmd/ocean@<tag>` once the module is published.
+   - from source: `go build -o bin/ocean ./cmd/ocean` (Go 1.22 or newer; `go.mod` says 1.22, tested with 1.26.1). `go install` from GitHub does not work yet: the module path (`github.com/ocean-compiler/ocean`) is not the repository's path.
 3. `ocean version` prints the tool version, the git commit it was built from (and `uncommitted changes` if the tree was dirty), the world format schema, Go version and platform, and the GDAL it found. Put this output in bug reports.
 
-No release has been published: there is no remote, so the checksums come from local builds only (see below).
+No release has been published, so the checksums come from local builds only (see below).
 
 ## Releases and reproducibility
 
@@ -24,7 +24,7 @@ Network sources can change under you. `ocean build w.world.json -update-lock` wr
 
 ## Cache
 
-Downloads and warped intermediate rasters live in one cache directory: `-cache dir`, else `$OCEAN_CACHE`, else `./.ocean-cache`. It is content-addressed and every stage is sealed with hashes; an interrupted build resumes ([resume.md](resume.md)).
+Downloads and warped intermediate rasters live in one cache directory: `-cache dir`, else `$OCEAN_CACHE`, else `./.ocean-cache`. It is content-addressed and every stage is sealed with hashes; an interrupted build resumes ([stage-cache.md](stage-cache.md)).
 
 - `ocean cache stats` — downloaded files and rebuildable stage rasters, with sizes.
 - `ocean cache clean -stages` — remove only the rebuildable stage rasters (keeps downloads, so no network is needed for the rebuild).

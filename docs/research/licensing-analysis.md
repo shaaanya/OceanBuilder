@@ -1,6 +1,6 @@
 # Licensing analysis of source data and compiled worlds
 
-**Status: research notes, not legal advice.** Written by an AI assistant from the primary texts listed in section 0. Nothing here is a legal opinion. Where terms are ambiguous this file says so and marks the question **UNRESOLVED**. Items where qualified legal review is recommended are collected in section 8.
+**Status: research notes, not legal advice.** Compiled from the primary texts listed in section 0 by the project, not by a lawyer. Nothing here is a legal opinion. Where terms are ambiguous this file says so and marks the question **UNRESOLVED**. Items where qualified legal review is recommended are collected in section 8.
 
 Retrieved: **2026-11-01** (all pages below were fetched on that date; terms can change without notice). This file complements `docs/research/licensing.md` (what was checked on 2026-10-30 and what the tool does) and goes deeper on the OpenStreetMap/ODbL question that file leaves open.
 

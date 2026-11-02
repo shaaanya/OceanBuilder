@@ -28,7 +28,7 @@ import (
 //
 // Cached: source downloads (internal/fetch), vertical shifts, warps, the composed level-0 layer, every LOD level's
 // layer. Not cached, always recomputed: the whole-grid steps (regional fill, coast conform, refinement), tile files and
-// PNGs, the manifest. See docs/resume.md.
+// PNGs, the manifest. See docs/stage-cache.md.
 
 const stageSeal = "STAGE.json"
 

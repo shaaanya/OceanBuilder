@@ -1,7 +1,7 @@
 """Run three `ocean build` processes at once on one fresh cache, repeatedly; every build must succeed with a byte-identical output tree and leave no temporary stage directories.
 
 usage: concurrent_builds.py <ocean binary> <world.json (offline, e.g. over testdata/falmouth)> <scratch dir>
-See docs/resume.md."""
+See docs/stage-cache.md."""
 import sys, subprocess, os, hashlib, shutil
 O=os.path.abspath(sys.argv[1]); CFG=os.path.abspath(sys.argv[2]); D=os.path.abspath(sys.argv[3])  # binary, offline world config, empty scratch dir
 def tree(d):

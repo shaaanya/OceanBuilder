@@ -15,7 +15,7 @@ Messages are quoted from the tool. Run `ocean version` first and include its out
 | `sources differ from X.lock.json (rebuild with -update-lock to accept)` | A source returned different bytes than when the lock was written (upstream data changed, or a different mirror) | Inspect the listed differences; if the change is expected, `-update-lock` and commit it. |
 | `all Overpass mirrors failed` | The public Overpass servers are busy or unreachable | Retry later. A coastline already cached from any mirror is reused first, so a repeat build does not hit the network. Without OSM data use `"coastline": "none"` (the validator then warns `no-coastline`). |
 | `source "..." (...): the world crosses the antimeridian and this source cannot be requested across 180` | CUDEM, EMODnet, OSM coastline, seamarks and remote GeoTIFFs are refused across 180 | Use `gmrt`, `etopo2022`, `gebco` or a local GeoTIFF, `"coastline": "none"`. |
-| `gmrt resolution probe: ...` / HTTP 5xx / timeouts from GMRT | The service is slow or down (a 4 x 1.7 degree request took 27 minutes) | Retry; completed downloads are cached and kept, a resumed build continues at the first unfinished stage ([resume.md](resume.md)). |
+| `gmrt resolution probe: ...` / HTTP 5xx / timeouts from GMRT | The service is slow or down (a 4 x 1.7 degree request took 27 minutes) | Retry; completed downloads are cached and kept, a resumed build continues at the first unfinished stage ([stage-cache.md](stage-cache.md)). |
 | `cancelled` | Ctrl-C or SIGTERM | Nothing is half-written: the previous output is untouched; re-run to resume. |
 | The build ends in a rename error on Windows | Another program holds a file of the previous output open (viewer, antivirus, Explorer) | Close it and re-run; stages are reused. |
 

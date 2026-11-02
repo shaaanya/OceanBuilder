@@ -1,28 +1,21 @@
 # Roadmap
 
-Ocean Compiler is a standalone, engine-independent tool ([ADR 0004](decisions/0004-engine-agnostic-scope.md)). Status labels: **done** = implemented and tested; **partial** = works with stated limits; **open** = not started.
+OceanBuilder is a standalone, engine-independent tool ([ADR 0004](decisions/0004-engine-agnostic-scope.md)). Status labels: **done** = implemented and tested; **partial** = works with stated limits; **open** = not started.
 
 ## State (2026-11-02, tool 0.5.0-rc1, format schema 2 / 3, format revision 1)
 
-Done (implemented and tested; see [release report](release-0.3.0.md) for what was run against real services):
-- Everything of 0.2.0 (format with LOD pyramid and per-sample source layer, GMRT / local / OSM / OpenSeaMap / EMODnet sources, reproducible incremental builds, reader, GeoTIFF export, Unity URP adapter).
-- Several elevation datasets per world with listed or `auto` precedence, per-sample dataset identity, overlap and seam statistics ([ADR 0007](decisions/0007-dataset-composition.md)).
-- Vertical datum policy with recorded PROJ grids and explicit refusals ([ADR 0008](decisions/0008-vertical-datum-policy.md)); `ocean world check` shows it offline.
-- Windowed disk-backed pipeline; output independent of window size; memory follows `-mem`.
-- Local transverse Mercator grids for wide boxes and boxes across 180 (schema 3, [ADR 0006](decisions/0006-local-transverse-mercator-grid.md)).
-- LOD measurement (`ocean lod-report`) and the `shoal` method.
-- ETOPO 2022, GEBCO (with TID), CUDEM adapters read from the live services; licensing record in the manifest.
-- Unity: coarser LOD levels imported (`-oceanMaxLevel`), standalone player build and headless smoke run.
+What each release added is in the [changelog](../CHANGELOG.md); what was run, and against what, is in the [release reports](releases/).
 
-Done in 0.4.0-rc1 (see [release report](release-0.4.0.md)): stage cache with verified resume ([resume.md](resume.md)); antimeridian for GMRT / ETOPO / GEBCO; GMRT delivered-resolution detection and splitting; EGM96 discrepancy resolved; LOD quality metrics and thresholds ([lod-quality.md](lod-quality.md)); `sources explain`; Unity LOD player smoke on macOS; a real UTM-zone-edge build and a 4 x 3 degree build.
-
-Done in 0.5.0-rc1 (see [release report](release-0.5.0-rc1.md)): Unity runtime LOD (distance selection with hysteresis and 2:1 balance, async streaming with retry/cancel/unload delay, cover-until-loaded, static skirts; [unity-lod.md](unity-lod.md), [ADR 0011](decisions/0011-unity-runtime-lod.md)) verified in the Editor and in a macOS player on two worlds; test tiers and a local verification script ([testing.md](testing.md)); a stdlib Python reference reader checked against `ocean sample` and GDAL ([integration.md](integration.md)); `ocean version` details, release script with checksums and a reproducibility check ([install.md](install.md)); disk-space preflight and a measured region ladder ([performance.md](performance.md)); level 0 always complete; Overpass answers reused across mirrors; GDAL preflight.
-
-Partial: CI (written, never run; no remote; Linux/Windows unverified, macOS arm64 is the only platform tests ran on); CUDEM, EMODnet, OSM and remote GeoTIFF across 180 (refused); datum conversions (EGM96, EGM2008, ellipsoid only); Unity LOD skirts are tuned on a synthetic 1-2 m cell test and two real worlds at 24-100 m, not at game view distances; resume has no sub-stage checkpoints and tile writing always restarts.
+Partial:
+- CI runs the offline tier on Linux, Windows and macOS ([testing.md](testing.md)). The Unity importer and runtime LOD have only been run on macOS arm64; the LibreTerrain round trip is not covered in CI (no EXR driver in the CI GDAL).
+- CUDEM, EMODnet, OSM and remote GeoTIFF across 180 are refused.
+- Datum conversions cover EGM96, EGM2008 and the ellipsoid only.
+- Unity LOD skirts are tuned on a synthetic 1-2 m cell test and two real worlds at 24-100 m, not at game view distances.
+- Resume has no sub-stage checkpoints; tile writing always restarts.
 
 ## Next (highest value first)
 
-1. Run the CI matrix (needs a remote) and fix what Linux/Windows show; Unity player run there; IL2CPP.
+1. Unity player run on Linux and Windows; IL2CPP; an EXR-capable GDAL in CI for the LibreTerrain round trip.
 2. Unity: schema 3 worlds, floating origin, frame-time/GC profile of the streamer in a player, skirt margin at real distances, partial-world neighbour skirts (`SkirtSides` ignores a neighbour whose same-level tile is absent).
 3. Larger real regions (above 1.4 M cells; the 6 x 5 degree attempt that filled the disk) on a machine with room; ask GMRT for a resolution near `cell_m` instead of the finest (the 383 MiB download for 8 MiB of output); progress/ETA on large grids.
 4. Verified NAVD88 / MHW transformations (unlocks CUDEM combined with other sources) and NOAA multibeam/BAG probes ([ADR 0009](decisions/0009-noaa-dem-mosaic-not-adopted.md)).

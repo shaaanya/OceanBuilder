@@ -1,7 +1,7 @@
 # Resume, cancellation and the stage cache
 
-Status: implemented and tested (`internal/world/resume_test.go`), 0.4.0. Tested on macOS arm64 only; the CI matrix
-(Linux, Windows) has not run yet.
+Status: implemented and tested (`internal/world/resume_test.go`), 0.4.0. The interrupt and concurrent-build scripts
+run in CI on Linux and macOS; Windows is not covered (they need POSIX signals).
 
 ## Model
 
