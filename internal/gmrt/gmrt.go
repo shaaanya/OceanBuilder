@@ -11,7 +11,8 @@ import (
 	"github.com/ocean-compiler/ocean/internal/fetch"
 )
 
-const endpoint = "https://www.gmrt.org/services/GridServer"
+// Endpoint is the GridServer URL (a variable so tests can point it at a local server).
+var Endpoint = "https://www.gmrt.org/services/GridServer"
 
 // BBox is west, south, east, north in WGS84 degrees.
 type BBox struct{ W, S, E, N float64 }
@@ -33,7 +34,7 @@ func Fetch(cacheDir string, b BBox, layer string) (*fetch.Provenance, error) {
 	q.Set("format", "geotiff")
 	q.Set("resolution", "max")
 	q.Set("layer", layer)
-	return fetch.Get(cacheDir, "gmrt", endpoint+"?"+q.Encode(), nil, layer+".tif",
+	return fetch.Get(cacheDir, "gmrt", Endpoint+"?"+q.Encode(), nil, layer+".tif",
 		"CC BY 4.0 (https://www.gmrt.org/about/terms_of_use.php); data must not be used for navigation",
 		"Ryan, W.B.F. et al. (2009), Global Multi-Resolution Topography (GMRT) synthesis data set, Geochem. Geophys. Geosyst., 10, Q03014, doi:10.1029/2008GC002332; data doi:10.1594/IEDA.100001")
 }

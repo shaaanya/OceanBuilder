@@ -331,6 +331,7 @@ func gdalTransformFull(t *testing.T, from, to string, x, y, z float64) [3]float6
 //     by PROJ, so it agrees to a few centimetres (largest observed 0.056 m); the tolerance is 0.10 m.
 //   - Spherical-harmonic synthesis from the EGM96 coefficients (GeographicLib `Gravity -n egm96 -H`) at two grid nodes,
 //     where interpolation plays no role: 36.0213 m at 12.5E 55.5N and 21.1533 m at 180E 0N; tolerance 2 mm.
+//
 // PROJ's own gie file lists 36.394 and 20.757 for the same two points; the installed grid, GeographicLib's grid and the
 // coefficient synthesis all disagree with those by 0.37 and 0.40 m, so they are not EGM96 undulations of these points
 // and are deliberately not asserted.
@@ -416,13 +417,14 @@ func TestAntimeridianBuild(t *testing.T) {
 	}
 }
 
-// Configs across 180 that use network sources are refused before anything is fetched. The default config (GMRT, OSM
-// coastline) must fail with the explanation, with no cache directory touched.
+// Configs across 180 that need a request the tool cannot split (OSM coastline, CUDEM, EMODnet, remote geotiff) are
+// refused before anything is fetched, with no cache directory touched. GMRT, ETOPO and GEBCO are split in two boxes.
 func TestAntimeridianNetworkConfigsRefusedEarly(t *testing.T) {
 	cache := filepath.Join(t.TempDir(), "cache")
 	for name, c := range map[string]*world.Config{
-		"default gmrt":  {Name: "x", BBox: [4]float64{179.5, -17, 180.5, -16}, CellM: 500},
-		"gmrt no coast": {Name: "x", BBox: [4]float64{179.5, -17, 180.5, -16}, CellM: 500, Coastline: "none"},
+		"default gmrt": {Name: "x", BBox: [4]float64{179.5, -17, 180.5, -16}, CellM: 500},
+		"cudem":        {Name: "x", BBox: [4]float64{179.5, -17, 180.5, -16}, CellM: 500, Coastline: "none", Sources: []world.SourceSpec{{ID: "c", Type: "cudem"}}},
+		"seamarks":     {Name: "x", BBox: [4]float64{179.5, -17, 180.5, -16}, CellM: 500, Coastline: "none", Seamarks: true},
 		"remote geotiff": {Name: "x", BBox: [4]float64{179.5, -17, 180.5, -16}, CellM: 500, Coastline: "none",
 			Sources: []world.SourceSpec{{ID: "r", Type: "geotiff", Path: "https://example.invalid/a.tif", License: "x", Attribution: "x", Vertical: &world.VerticalRef{Datum: "EGM2008"}}}},
 	} {

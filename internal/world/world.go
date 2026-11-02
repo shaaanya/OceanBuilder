@@ -123,14 +123,17 @@ func LoadConfig(path string) (*Config, error) {
 func (c *Config) checkAntimeridian() error {
 	e := c.BBox[2]
 	if e > 180 {
-		// ponytail: sources are fetched and clipped in -180..180; a box past 180 would need split requests per service.
-		// Only local files and no OSM/EMODnet products are accepted until each fetcher is verified across 180.
+		// Elevation sources are requested as two boxes (see fetchBoxes). The OSM coastline, seamarks and the EMODnet
+		// regional fill still use one box in -180..180 and are refused.
 		if c.Coastline != "none" || c.Seamarks || c.RegionalBathymetry != "" {
-			return fmt.Errorf("config: bbox east %.3f > 180 (crosses the antimeridian): set coastline \"none\" and drop seamarks/regional_bathymetry; network fetchers are not verified across 180", e)
+			return fmt.Errorf("config: bbox east %.3f > 180 (crosses the antimeridian): set coastline \"none\" and drop seamarks/regional_bathymetry; the OSM and EMODnet requests are not split across 180", e)
 		}
 		for _, sp := range c.effectiveSources() {
-			if sp.Type != "geotiff" || strings.HasPrefix(sp.Path, "http") || strings.HasPrefix(sp.Mask, "http") {
-				return fmt.Errorf("config: source %q: antimeridian worlds (east > 180) accept only local geotiff sources, other source types are not verified across 180", sp.ID)
+			if sp.Type != "geotiff" && !splitFetch[sp.Type] {
+				return fmt.Errorf("config: source %q (%s): antimeridian worlds (east > 180) accept gmrt, etopo2022, gebco and local geotiff sources; %s cannot be requested across 180", sp.ID, sp.Type, sp.Type)
+			}
+			if sp.Type == "geotiff" && (strings.HasPrefix(sp.Path, "http") || strings.HasPrefix(sp.Mask, "http")) {
+				return fmt.Errorf("config: source %q: a remote geotiff cannot be verified across the antimeridian (180); download it and use a local path", sp.ID)
 			}
 		}
 		if len(c.effectiveSources()) == 0 {

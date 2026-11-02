@@ -189,26 +189,38 @@ type DatasetInfo struct {
 	Rank         int              `json:"precedence_rank,omitempty"` // 1 = tried first
 }
 
-// resolveDatasets fetches every dataset of the config for the (padded) bounding box.
-func resolveDatasets(cfg *Config, fb gmrt.BBox, opt Options) ([]*dataset, error) {
+// splitFetch lists the types whose fetchers take a plain WGS84 box in -180..180 and can therefore be called once per
+// box when a world crosses the antimeridian (each call gets its own box, never a box that spans the globe).
+var splitFetch = map[string]bool{"gmrt": true, "etopo2022": true, "gebco": true}
+
+// resolveDatasets fetches every dataset of the config. boxes are the padded WGS84 request boxes: one, or two when the
+// world crosses 180 (see fetchBoxes). The pieces of a source are kept as separate value rasters and mosaicked by the
+// warp onto the world grid.
+func resolveDatasets(cfg *Config, boxes []gmrt.BBox, opt Options) ([]*dataset, error) {
 	var out []*dataset
 	cache := map[string][2][]*fetch.Provenance{} // one fetch serves every entry of the same gmrt / masked source
 	for i, sp := range cfg.effectiveSources() {
 		d := &dataset{idx: i, spec: sp}
+		if len(boxes) > 1 && sp.Type != "geotiff" && !splitFetch[sp.Type] {
+			return nil, fmt.Errorf("source %q (%s): the world crosses the antimeridian and this source cannot be requested across 180 (supported: gmrt, etopo2022, gebco, local geotiff)", sp.ID, sp.Type)
+		}
+		fb := boxes[0]
 		switch sp.Type {
 		case "gmrt":
 			v, ok := cache["gmrt"]
 			if !ok {
-				opt.logf("fetching GMRT topo+mask for %.4f,%.4f,%.4f,%.4f", fb.W, fb.S, fb.E, fb.N)
-				topo, err := gmrt.Fetch(opt.CacheDir, fb, gmrt.LayerTopo)
-				if err != nil {
-					return nil, err
+				for _, bx := range boxes {
+					opt.logf("fetching GMRT topo+mask for %.4f,%.4f,%.4f,%.4f", bx.W, bx.S, bx.E, bx.N)
+					topo, err := gmrt.Fetch(opt.CacheDir, bx, gmrt.LayerTopo)
+					if err != nil {
+						return nil, err
+					}
+					mask, err := gmrt.Fetch(opt.CacheDir, bx, gmrt.LayerMask)
+					if err != nil {
+						return nil, err
+					}
+					v[0], v[1] = append(v[0], topo), append(v[1], mask)
 				}
-				mask, err := gmrt.Fetch(opt.CacheDir, fb, gmrt.LayerMask)
-				if err != nil {
-					return nil, err
-				}
-				v = [2][]*fetch.Provenance{{topo}, {mask}}
 				cache["gmrt"] = v
 			}
 			d.vals, d.masks = v[0], v[1]
@@ -222,20 +234,24 @@ func resolveDatasets(cfg *Config, fb gmrt.BBox, opt Options) ([]*dataset, error)
 			d.vals = []*fetch.Provenance{p}
 			d.vref = VerticalRef{Datum: "unknown"}
 		case "etopo2022":
-			opt.logf("reading ETOPO 2022 window")
-			p, err := etopo.Fetch(opt.CacheDir, fb.W, fb.S, fb.E, fb.N)
-			if err != nil {
-				return nil, fmt.Errorf("source %s: %w", sp.ID, err)
+			for _, bx := range boxes {
+				opt.logf("reading ETOPO 2022 window %.4f,%.4f,%.4f,%.4f", bx.W, bx.S, bx.E, bx.N)
+				p, err := etopo.Fetch(opt.CacheDir, bx.W, bx.S, bx.E, bx.N)
+				if err != nil {
+					return nil, fmt.Errorf("source %s: %w", sp.ID, err)
+				}
+				d.vals = append(d.vals, p)
 			}
-			d.vals = []*fetch.Provenance{p}
 			d.vref = VerticalRef{Datum: "EGM2008"} // User Guide: heights relative to the EGM2008 geoid
 		case "gebco":
-			opt.logf("requesting GEBCO subset (download.gebco.net)")
-			elev, mask, err := gebco.Fetch(opt.CacheDir, fb.W, fb.S, fb.E, fb.N)
-			if err != nil {
-				return nil, fmt.Errorf("source %s: %w", sp.ID, err)
+			for _, bx := range boxes {
+				opt.logf("requesting GEBCO subset %.4f,%.4f,%.4f,%.4f (download.gebco.net)", bx.W, bx.S, bx.E, bx.N)
+				elev, mask, err := gebco.Fetch(opt.CacheDir, bx.W, bx.S, bx.E, bx.N)
+				if err != nil {
+					return nil, fmt.Errorf("source %s: %w", sp.ID, err)
+				}
+				d.vals, d.masks = append(d.vals, elev), append(d.masks, mask)
 			}
-			d.vals, d.masks = []*fetch.Provenance{elev}, []*fetch.Provenance{mask}
 			d.vref = VerticalRef{Datum: "MSL"} // GEBCO: "assumed to be referred to Mean Sea Level", shallow-water sources may differ
 		case "cudem":
 			opt.logf("reading CUDEM 1/9 arc-second window")

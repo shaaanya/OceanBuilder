@@ -128,3 +128,31 @@ func TestReaderTMMatchesPROJ(t *testing.T) {
 		}
 	}
 }
+
+// A world inside ±180 requests one box; one across 180 requests two small boxes, one per side, whose widths add up to
+// the padded box. Never a single box spanning most of the globe, and the far side of 180 is not clamped away.
+func TestFetchBoxes(t *testing.T) {
+	one := fetchBoxes(10, 40, 11, 41, 0.05, 0.04)
+	if len(one) != 1 || one[0].W != 9.95 || one[0].E != 11.05 {
+		t.Fatalf("plain box: %+v", one)
+	}
+	two := fetchBoxes(179.8, -17, 180.3, -16.6, 0.05, 0.04)
+	if len(two) != 2 {
+		t.Fatalf("antimeridian box must be split in two: %+v", two)
+	}
+	a, b := two[0], two[1]
+	if a.E != 180 || b.W != -180 || a.W != 179.75 {
+		t.Fatalf("pieces must end/start at 180: %+v", two)
+	}
+	if want := 180.3 + 0.05 - 360; math.Abs(b.E-want) > 1e-9 {
+		t.Fatalf("east piece ends at %v, want %v", b.E, want)
+	}
+	if width := (a.E - a.W) + (b.E - b.W); math.Abs(width-0.6) > 1e-9 {
+		t.Fatalf("pieces cover %v degrees, padded box is 0.6", width)
+	}
+	for _, bx := range two {
+		if bx.E-bx.W > 1 || math.Abs(bx.S+17.04) > 1e-9 || math.Abs(bx.N+16.56) > 1e-9 {
+			t.Fatalf("piece out of shape: %+v", bx)
+		}
+	}
+}

@@ -56,11 +56,12 @@ func build(cfg *Config, opt Options) (*Manifest, bool, error) {
 	pad := math.Max(span*1.2, 500)
 	dLat := pad / 110574.0
 	dLon := pad / (111320.0 * math.Cos(clat*math.Pi/180))
-	fb := gmrt.BBox{W: math.Max(w-dLon, -180), S: math.Max(s-dLat, -85), E: math.Min(e+dLon, 180), N: math.Min(n+dLat, 85)}
+	boxes := fetchBoxes(w, s, e, n, dLon, dLat)
+	fb := boxes[0]
 	// GDAL subprocesses get a share of the memory budget (the process-wide setting is the same for every build).
 	gdal.CacheMB = int(min(max((&bctx{opt: opt}).memBytes()>>20/8, 64), 512))
 	m := &Manifest{SchemaVersion: SchemaVersion, Name: cfg.Name, Config: *cfg, Files: map[string]string{}, FormatRevision: FormatRevision}
-	dss, err := resolveDatasets(cfg, fb, opt)
+	dss, err := resolveDatasets(cfg, boxes, opt)
 	if err != nil {
 		return nil, false, err
 	}
@@ -613,4 +614,18 @@ func (m *Manifest) level0Extent() [4]float64 {
 		}
 	}
 	return bb
+}
+
+// fetchBoxes returns the padded WGS84 boxes to request from the sources. A world inside -180..180 needs one. A world
+// that crosses the antimeridian (east > 180) needs two, each a normal small box on one side of 180: [west-pad, 180] and
+// [-180, east+pad-360]. Never one box spanning the globe, and never a clamp that silently drops the far side.
+func fetchBoxes(w, s, e, n, dLon, dLat float64) []gmrt.BBox {
+	S, N := math.Max(s-dLat, -85), math.Min(n+dLat, 85)
+	if e <= 180 {
+		return []gmrt.BBox{{W: math.Max(w-dLon, -180), S: S, E: math.Min(e+dLon, 180), N: N}}
+	}
+	return []gmrt.BBox{
+		{W: math.Max(w-dLon, -180), S: S, E: 180, N: N},
+		{W: -180, S: S, E: math.Min(e+dLon-360, 180), N: N},
+	}
 }
