@@ -10,7 +10,7 @@ git clone <this repository> && cd OceanBuilder
 go build -o bin/ocean ./cmd/ocean
 export PATH="$PWD/bin:$PATH"
 ocean version
-# ocean 0.4.0-rc1 (world format schema 2)
+# ocean 0.5.0-rc1 (world format schema 2)
 # commit 2dd608fc9273... (uncommitted changes)       <- the commit it was built from, when built in a git checkout
 # go go1.26.1 darwin/arm64
 # gdal GDAL 3.13.0 "Iowa City", released 2026/05/04

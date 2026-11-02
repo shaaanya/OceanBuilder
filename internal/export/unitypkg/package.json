@@ -1,7 +1,7 @@
 {
   "name": "com.oceancompiler.world",
   "displayName": "Ocean Compiler World Importer",
-  "version": "0.2.0",
+  "version": "0.5.0-rc1",
   "unity": "6000.0",
   "description": "Imports worlds built by the Ocean Compiler CLI: one Terrain per tile, a tile index for runtime streaming, optional Addressables registration. Installed by `ocean export -target unity`.",
   "keywords": [
