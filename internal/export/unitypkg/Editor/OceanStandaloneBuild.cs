@@ -41,9 +41,29 @@ namespace OceanCompiler.World.Editor
                 var dir = Path.GetDirectoryName(scenePath).Replace('\\', '/');
                 var index = AssetDatabase.LoadAssetAtPath<OceanWorldIndex>(dir + "/Generated/OceanWorldIndex.asset");
                 if (index == null) { Debug.LogError("OCEAN_BUILD_FAIL no OceanWorldIndex at " + dir + "/Generated"); return false; }
+                // Optional Addressables phase (the types exist only when com.unity.addressables is installed). The content is
+                // built first: the build touches scenes and would destroy objects created before it.
+                var phase = Type.GetType("OceanCompiler.World.OceanPlayerSmokeAddressables, OceanCompiler.World.Streaming");
+                var builder = Type.GetType("OceanCompiler.World.Editor.OceanAddressables, OceanCompiler.World.Editor.Addressables");
+                if (phase != null && builder != null)
+                {
+                    builder.GetMethod("BuildContent").Invoke(null, null);
+                    Debug.Log("OCEAN_BUILD_ADDRESSABLES content built");
+                }
                 var scene = EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Single);
                 var go = new GameObject("OceanPlayerSmoke");
-                go.AddComponent<OceanPlayerSmoke>().index = index;
+                var smoke = go.AddComponent<OceanPlayerSmoke>();
+                smoke.index = index;
+                // The player carries the coarser tiles by reference; the Addressables phase loads them by address.
+                var prefabs = new System.Collections.Generic.List<GameObject>();
+                foreach (var e in index.lodTiles)
+                {
+                    var p = AssetDatabase.LoadAssetAtPath<GameObject>(dir + "/Generated/Prefabs/" + e.id + ".prefab");
+                    if (p == null) { Debug.LogError("OCEAN_BUILD_FAIL no prefab for " + e.id); return false; }
+                    prefabs.Add(p);
+                }
+                smoke.lodPrefabs = prefabs.ToArray();
+                if (phase != null && builder != null) go.AddComponent(phase);
                 if (!EditorSceneManager.SaveScene(scene, TempScene, true)) { Debug.LogError("OCEAN_BUILD_FAIL cannot save " + TempScene); return false; }
                 var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
                 {

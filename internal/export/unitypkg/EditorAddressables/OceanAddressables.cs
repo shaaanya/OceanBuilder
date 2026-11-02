@@ -62,6 +62,13 @@ namespace OceanCompiler.World.Editor
             UnityEngine.Debug.Log("OCEAN_ADDRESSABLES_OK tiles=" + tiles + " bundles built, addresses and labels verified");
         }
 
+        /// <summary>Builds the Addressables content so a player build carries it (used by OceanStandaloneBuild). Throws on failure.</summary>
+        public static void BuildContent()
+        {
+            AddressableAssetSettings.BuildPlayerContent(out var result);
+            if (!string.IsNullOrEmpty(result.Error)) throw new System.Exception("Addressables build failed: " + result.Error);
+        }
+
         public static void BuildAndCheckFromCommandLine()
         {
             try { BuildAndCheck(); }

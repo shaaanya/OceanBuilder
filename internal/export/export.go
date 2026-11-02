@@ -10,6 +10,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/ocean-compiler/ocean/internal/world"
 )
@@ -27,7 +28,10 @@ const UnityPackageName = "com.oceancompiler.world"
 // importer. Run `Ocean/Import World` in the editor, or in batchmode:
 //
 //	Unity -batchmode -projectPath <proj> -executeMethod OceanWorldImporter.ImportFromCommandLine -quit
-func Unity(worldDir, project string) (string, error) {
+//
+// maxLevel is the highest LOD level whose tiles are copied (0 = level 0 only). The importer reads levels up to
+// -oceanMaxLevel, so the files of every level it is asked for must be present.
+func Unity(worldDir, project string, maxLevel int) (string, error) {
 	m, err := world.LoadManifest(worldDir)
 	if err != nil {
 		return "", err
@@ -40,8 +44,13 @@ func Unity(worldDir, project string) (string, error) {
 	}
 	dst := filepath.Join(project, "Assets", "OceanWorld", m.Name)
 	files := []string{world.ManifestFile, "ATTRIBUTION.txt"}
-	for _, t := range m.TilesAt(0) { // the Unity importer reads level 0 only
-		files = append(files, t.Height, t.Depth, t.Shore)
+	if maxLevel < 0 || maxLevel >= len(m.LOD.Levels) {
+		return "", fmt.Errorf("world %s has LOD levels 0..%d; cannot export up to level %d", m.Name, len(m.LOD.Levels)-1, maxLevel)
+	}
+	for k := 0; k <= maxLevel; k++ {
+		for _, t := range m.TilesAt(k) {
+			files = append(files, t.Height, t.Depth, t.Shore)
+		}
 	}
 	// A rebuild without seamarks must not leave an older seamarks.geojson for the importer to pick up.
 	if sm := m.Files["seamarks"]; sm != "" {
@@ -59,24 +68,7 @@ func Unity(worldDir, project string) (string, error) {
 		return "", err
 	}
 	pkg := filepath.Join(project, "Packages", UnityPackageName)
-	if err := os.RemoveAll(pkg); err != nil {
-		return "", err
-	}
-	err = fs.WalkDir(unityPkg, "unitypkg", func(path string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
-			return err
-		}
-		b, err := unityPkg.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		out := filepath.Join(pkg, path[len("unitypkg/"):])
-		if err := os.MkdirAll(filepath.Dir(out), 0o755); err != nil {
-			return err
-		}
-		return os.WriteFile(out, b, 0o644)
-	})
-	if err != nil {
+	if err := installPackage(pkg); err != nil {
 		return "", err
 	}
 	return dst, nil
@@ -100,4 +92,55 @@ func copyFile(src, dst string) error {
 		return err
 	}
 	return out.Close()
+}
+
+// installPackage writes the embedded UPM package into pkg. Files of an earlier version that the new one no longer has
+// are removed; Unity's .meta files for files and folders that still exist are kept, so script GUIDs (and the scenes and
+// prefabs that reference the scripts) survive a re-export.
+func installPackage(pkg string) error {
+	want := map[string]bool{}
+	err := fs.WalkDir(unityPkg, "unitypkg", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if path != "unitypkg" {
+			want[filepath.FromSlash(path[len("unitypkg/"):])] = true
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	if _, err := os.Stat(pkg); err == nil {
+		err = filepath.WalkDir(pkg, func(path string, d fs.DirEntry, err error) error {
+			if err != nil || d.IsDir() {
+				return err
+			}
+			rel, _ := filepath.Rel(pkg, path)
+			if strings.HasSuffix(rel, ".meta") && want[strings.TrimSuffix(rel, ".meta")] {
+				return nil
+			}
+			if !want[rel] {
+				return os.Remove(path)
+			}
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+	}
+	return fs.WalkDir(unityPkg, "unitypkg", func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+		b, err := unityPkg.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		out := filepath.Join(pkg, filepath.FromSlash(path[len("unitypkg/"):]))
+		if err := os.MkdirAll(filepath.Dir(out), 0o755); err != nil {
+			return err
+		}
+		return os.WriteFile(out, b, 0o644)
+	})
 }

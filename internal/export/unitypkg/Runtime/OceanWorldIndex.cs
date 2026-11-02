@@ -55,6 +55,7 @@ namespace OceanCompiler.World
         public OceanTileEntry[] tiles;       // level 0
         public OceanTileEntry[] lodTiles = new OceanTileEntry[0]; // coarser levels, imported when the importer runs with a maximum level above 0
         public int maxLevelImported;
+        public string lodMethod;             // manifest lod.method: vertex-decimation | shoal-biased
         public OceanCheckpoint[] checkpoints;
         public OceanSeamark[] seamarks = new OceanSeamark[0];
 

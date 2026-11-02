@@ -25,7 +25,7 @@ func cmdExport(args []string) error {
 	fs = newFlags("export", "export <world dir> -target geotiff -dest <dir> [-level k] | -target unity -dest <Unity project>")
 	target := fs.String("target", "geotiff", "geotiff | unity")
 	dest := fs.String("dest", "", "geotiff: output directory; unity: Unity project directory")
-	level := fs.Int("level", 0, "geotiff: LOD level")
+	level := fs.Int("level", 0, "geotiff: LOD level; unity: highest LOD level to copy (import it with -oceanMaxLevel)")
 	if err := parse(fs, args); err != nil || fs.NArg() != 1 || *dest == "" {
 		return fmt.Errorf("usage: ocean export <world dir> -target geotiff|unity -dest <dir> (ocean export -h)")
 	}
@@ -40,11 +40,11 @@ func cmdExport(args []string) error {
 		}
 		return nil
 	case "unity":
-		out, err := export.Unity(fs.Arg(0), *dest)
+		out, err := export.Unity(fs.Arg(0), *dest, *level)
 		if err != nil {
 			return err
 		}
-		fmt.Printf("exported to %s\nnext: Unity menu Ocean > Import World, or batchmode -executeMethod OceanWorldImporter.ImportFromCommandLine\n", out)
+		fmt.Printf("exported to %s\nnext: Unity menu Ocean > Import World, or batchmode -executeMethod OceanWorldImporter.ImportFromCommandLine -oceanMaxLevel %d\n", out, *level)
 		return nil
 	}
 	return fmt.Errorf("target %q not supported yet (geotiff, unity; see docs/roadmap.md)", *target)

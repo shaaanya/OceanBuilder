@@ -22,7 +22,7 @@ func TestUnityInstallsPackageAndRemovesLegacyScript(t *testing.T) {
 	legacy := filepath.Join(proj, "Assets", "Editor", "OceanWorldImporter.cs")
 	os.MkdirAll(filepath.Dir(legacy), 0o755)
 	os.WriteFile(legacy, []byte("// old"), 0o644)
-	dst, err := Unity(wdir, proj)
+	dst, err := Unity(wdir, proj, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +64,7 @@ func TestUnityCopiesSeamarksAndDropsStaleOnes(t *testing.T) {
 	stale := filepath.Join(proj, "Assets", "OceanWorld", "fixture", "seamarks.geojson")
 	os.MkdirAll(filepath.Dir(stale), 0o755)
 	os.WriteFile(stale, []byte("old"), 0o644)
-	if _, err := Unity(wdir, proj); err != nil {
+	if _, err := Unity(wdir, proj, 0); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(stale); !os.IsNotExist(err) {
@@ -78,11 +78,41 @@ func TestUnityCopiesSeamarksAndDropsStaleOnes(t *testing.T) {
 	b, _ = json.Marshal(m)
 	os.WriteFile(filepath.Join(wdir, world.ManifestFile), b, 0o644)
 	os.WriteFile(filepath.Join(wdir, "seamarks.geojson"), []byte(`{"type":"FeatureCollection","features":[]}`), 0o644)
-	if _, err := Unity(wdir, proj); err != nil {
+	if _, err := Unity(wdir, proj, 0); err != nil {
 		t.Fatal(err)
 	}
 	got, err := os.ReadFile(stale)
 	if err != nil || string(got) != `{"type":"FeatureCollection","features":[]}` {
 		t.Fatalf("seamarks.geojson not copied: %v %q", err, got)
+	}
+}
+
+// A re-export keeps Unity's .meta files (script GUIDs stay stable) and drops files that left the package.
+func TestUnityPackageReinstallKeepsMeta(t *testing.T) {
+	pkg := filepath.Join(t.TempDir(), "Packages", UnityPackageName)
+	if err := installPackage(pkg); err != nil {
+		t.Fatal(err)
+	}
+	meta := filepath.Join(pkg, "Runtime", "OceanWorldIndex.cs.meta")
+	stale := filepath.Join(pkg, "Runtime", "Removed.cs")
+	staleMeta := stale + ".meta"
+	for f, c := range map[string]string{meta: "guid: abc", stale: "x", staleMeta: "guid: def", filepath.Join(pkg, "Runtime.meta"): "guid: folder"} {
+		if err := os.WriteFile(f, []byte(c), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := installPackage(pkg); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(meta); string(b) != "guid: abc" {
+		t.Errorf("meta of a kept file must survive, got %q", b)
+	}
+	if b, _ := os.ReadFile(filepath.Join(pkg, "Runtime.meta")); string(b) != "guid: folder" {
+		t.Errorf("folder meta must survive, got %q", b)
+	}
+	for _, f := range []string{stale, staleMeta} {
+		if _, err := os.Stat(f); err == nil {
+			t.Errorf("%s belongs to no file of the package and must be removed", f)
+		}
 	}
 }

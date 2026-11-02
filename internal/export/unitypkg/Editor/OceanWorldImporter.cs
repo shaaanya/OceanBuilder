@@ -6,7 +6,7 @@
 //   <world>.unity                   a scene with every tile and a translucent sea plane
 // Addressables registration is done by OceanCompiler.World.Editor.Addressables when that package is installed.
 //
-// Batchmode:  Unity -batchmode -projectPath <p> -executeMethod OceanWorldImporter.ImportFromCommandLine -quit
+// Batchmode:  Unity -batchmode -projectPath <p> -executeMethod OceanWorldImporter.ImportFromCommandLine [-oceanMaxLevel N] -quit
 // Screenshot (needs a GPU; do not pass -nographics):  ... -oceanShot <path.png> [-oceanHideSea]
 // Import verifies orientation against manifest checkpoints and exits non-zero on mismatch.
 using System;
@@ -28,7 +28,11 @@ public static class OceanWorldImporter
         public double[] bounds_utm; public float min_m; public float max_m;
         public float nodata_fraction; public float water_fraction; public float measured_water_fraction;
         public string height; public string depth_class; public string shore_mask;
+        public TileHash sha256;
     }
+    [Serializable] class TileHash { public string height; }
+    [Serializable] class LodLevel { public int level; }
+    [Serializable] class LodInfo { public string method; public LodLevel[] levels; }
     [Serializable] class SmProps { public string osm_type; public long osm_id; public string seamark_type; public string name; public double easting; public double northing; public double dem_elevation_m; }
     [Serializable] class SmFeature { public SmProps properties; }
     [Serializable] class SmFile { public SmFeature[] features; }
@@ -37,13 +41,13 @@ public static class OceanWorldImporter
     class Manifest
     {
         public string name; public string build_id; public Crs crs; public Grid grid; public Height height_encoding;
-        public DepthClass[] depth_classes; public TileInfo[] tiles; public Checkpoint[] checkpoints; public string[] attribution;
+        public DepthClass[] depth_classes; public TileInfo[] tiles; public LodInfo lod; public Checkpoint[] checkpoints; public string[] attribution;
     }
 
     /// <summary>Raised after a world is imported: index, tile id to prefab asset path. Used by the Addressables module.</summary>
     public static event Action<OceanWorldIndex, Dictionary<string, string>> TilesImported;
 
-    const double Tolerance = 0.05; // metres; 16-bit quantisation over typical ranges is ~0.005 m
+    const double Tolerance = 0.05; // metres, the floor. Unity stores 16-bit heights: one step is range/65535 (0.09 m for a 5.9 km range), so the check allows one step.
     const int Layers = 5; // land, shore, shallow, mid, deep
     static readonly Color[] LayerColors =
     {
@@ -151,6 +155,33 @@ public static class OceanWorldImporter
         return a;
     }
 
+    /// <summary>
+    /// Checks every file the import will read before any asset is touched: the requested level exists in the world,
+    /// each tile's files exist, the height file has the right size and the sha256 the manifest recorded. A world that
+    /// was exported without the LOD tiles (ocean export -level N), truncated or edited fails here with the tile named.
+    /// </summary>
+    static void VerifyFiles(string dir, Manifest m, int maxLevel, int S)
+    {
+        int levels = m.lod != null && m.lod.levels != null ? m.lod.levels.Length : 1;
+        if (maxLevel < 0 || maxLevel >= levels)
+            throw new Exception("-oceanMaxLevel " + maxLevel + " is not available: the world has LOD levels 0.." + (levels - 1));
+        using (var sha = System.Security.Cryptography.SHA256.Create())
+            foreach (var t in m.tiles)
+            {
+                if (t.level > maxLevel) continue;
+                foreach (var f in new[] { t.height, t.depth_class, t.shore_mask })
+                    if (!File.Exists(Path.Combine(dir, f)))
+                        throw new Exception(t.id + ": file " + f + " is missing from the project (export with `ocean export -level " + maxLevel + "`)");
+                var raw = File.ReadAllBytes(Path.Combine(dir, t.height));
+                if (raw.Length != S * S * 4) throw new Exception(t.id + ": " + t.height + " has " + raw.Length + " bytes, expected " + S * S * 4 + " (truncated or edited)");
+                if (t.sha256 != null && !string.IsNullOrEmpty(t.sha256.height))
+                {
+                    var hex = BitConverter.ToString(sha.ComputeHash(raw)).Replace("-", "").ToLowerInvariant();
+                    if (hex != t.sha256.height) throw new Exception(t.id + ": " + t.height + " does not match the manifest's sha256 (corrupt or edited)");
+                }
+            }
+    }
+
     public static void Import(string dir)
     {
         int maxLevel = MaxLevel;
@@ -159,6 +190,7 @@ public static class OceanWorldImporter
         if (m.height_encoding.row_order != "north_to_south") throw new Exception("unsupported row_order " + m.height_encoding.row_order);
         int S = m.grid.samples_per_tile, res = Math.Max(16, Math.Min(2048, m.grid.tile_cells));
         float span = m.grid.tile_span_m, range = Math.Max(1f, m.height_encoding.max_m - m.height_encoding.min_m); // terrain stores heights as 0..1 of this range (Unity quantises to 16 bit itself)
+        VerifyFiles(dir, m, maxLevel, S);
         int waterClasses = 0;
         foreach (var d in m.depth_classes) if (d.id > 0 && d.id != 255) waterClasses++;
 
@@ -238,6 +270,7 @@ public static class OceanWorldImporter
         index.tiles = entries.ToArray();
         index.lodTiles = lodEntries.ToArray();
         index.maxLevelImported = maxLevel;
+        index.lodMethod = m.lod != null ? m.lod.method : null;
         var cps = new List<OceanCheckpoint>();
         foreach (var c in m.checkpoints) cps.Add(new OceanCheckpoint { name = c.name, easting = c.easting, northing = c.northing, elevationM = (float)c.elevation_m });
         index.checkpoints = cps.ToArray();
@@ -339,7 +372,7 @@ public static class OceanWorldImporter
             double err = Math.Abs(y - c.elevation_m);
             maxErr = Math.Max(maxErr, err);
             Debug.Log("OCEAN_CHECK " + c.name + " tile=" + tile.id + " expected=" + c.elevation_m.ToString("F3") + " got=" + y.ToString("F3"));
-            if (err > Tolerance) throw new Exception("checkpoint " + c.name + " expected " + c.elevation_m + " m, terrain gives " + y + " m: world is misplaced or flipped");
+            if (err > Math.Max(Tolerance, (m.height_encoding.max_m - m.height_encoding.min_m) / 65535.0 * 1.01)) throw new Exception("checkpoint " + c.name + " expected " + c.elevation_m + " m, terrain gives " + y + " m: world is misplaced or flipped");
         }
         return maxErr;
     }
