@@ -62,3 +62,5 @@ Hawaii figures come from a binary built before the stage cache existed (the work
 
 No external game project was inspected, modified or integrated. No datum, coordinate or depth is converted silently: every
 conversion carries its PROJ pipeline and grid hashes, and unverifiable ones are refused. Nothing is claimed navigation-safe.
+
+Verified at commit 8299d27 (the commit that adds this line is its successor; the code is identical): `go vet ./... && go test ./... -count=1 -timeout 30m` passes on macOS arm64.
