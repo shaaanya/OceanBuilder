@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/ocean-compiler/ocean/internal/validate"
-	"github.com/ocean-compiler/ocean/internal/world"
-	"github.com/ocean-compiler/ocean/pkg/oceanworld"
+	"github.com/shaaanya/OceanBuilder/internal/validate"
+	"github.com/shaaanya/OceanBuilder/internal/world"
+	"github.com/shaaanya/OceanBuilder/pkg/oceanworld"
 )
 
 func buildFixture(t testing.TB) (string, *world.Manifest) {

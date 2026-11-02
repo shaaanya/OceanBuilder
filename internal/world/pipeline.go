@@ -10,11 +10,11 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/ocean-compiler/ocean/internal/emodnet"
-	"github.com/ocean-compiler/ocean/internal/fetch"
-	"github.com/ocean-compiler/ocean/internal/gdal"
-	"github.com/ocean-compiler/ocean/internal/gmrt"
-	"github.com/ocean-compiler/ocean/internal/osm"
+	"github.com/shaaanya/OceanBuilder/internal/emodnet"
+	"github.com/shaaanya/OceanBuilder/internal/fetch"
+	"github.com/shaaanya/OceanBuilder/internal/gdal"
+	"github.com/shaaanya/OceanBuilder/internal/gmrt"
+	"github.com/shaaanya/OceanBuilder/internal/osm"
 )
 
 // FormatRevision is the additive revision of schema 2 this tool writes (see Manifest.FormatRevision).

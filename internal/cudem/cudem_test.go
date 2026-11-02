@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ocean-compiler/ocean/internal/gdal"
+	"github.com/shaaanya/OceanBuilder/internal/gdal"
 )
 
 const sample = `https://noaa-nos-coastal-lidar-pds.s3.amazonaws.com/dem/NCEI_ninth_Topobathy_2014_8483/FL/ncei19_n24x75_w082x00_2022v1.tif

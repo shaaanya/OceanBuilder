@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ocean-compiler/ocean/internal/world"
+	"github.com/shaaanya/OceanBuilder/internal/world"
 )
 
 // A local source given as an http(s) URL is downloaded into the cache with provenance and gives the same

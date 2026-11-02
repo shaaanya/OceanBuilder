@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/ocean-compiler/ocean/internal/export"
-	"github.com/ocean-compiler/ocean/internal/preview"
+	"github.com/shaaanya/OceanBuilder/internal/export"
+	"github.com/shaaanya/OceanBuilder/internal/preview"
 )
 
 func cmdPreview(args []string) error {

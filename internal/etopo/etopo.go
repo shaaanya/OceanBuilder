@@ -9,8 +9,8 @@ import (
 	"math"
 	"path/filepath"
 
-	"github.com/ocean-compiler/ocean/internal/fetch"
-	"github.com/ocean-compiler/ocean/internal/gdal"
+	"github.com/shaaanya/OceanBuilder/internal/fetch"
+	"github.com/shaaanya/OceanBuilder/internal/gdal"
 )
 
 // BaseURL is the directory of the 15 arc-second sets; tests point it at a local server.

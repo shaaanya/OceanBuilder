@@ -17,7 +17,7 @@ import (
 )
 
 // UserAgent identifies the tool to data providers (Overpass rejects empty UAs).
-const UserAgent = "ocean-compiler/0.2 (+https://github.com/ocean-compiler/ocean)"
+const UserAgent = "ocean-compiler/0.2 (+https://github.com/shaaanya/OceanBuilder)"
 
 // Provenance describes one downloaded source file.
 type Provenance struct {

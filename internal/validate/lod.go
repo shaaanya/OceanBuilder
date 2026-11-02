@@ -5,8 +5,8 @@ import (
 	"math"
 	"sort"
 
-	"github.com/ocean-compiler/ocean/internal/world"
-	"github.com/ocean-compiler/ocean/pkg/oceanworld"
+	"github.com/shaaanya/OceanBuilder/internal/world"
+	"github.com/shaaanya/OceanBuilder/pkg/oceanworld"
 )
 
 // LODLevelError is how far one LOD level is from level 0, measured at level-0 vertices: the level's surface (bilinear,

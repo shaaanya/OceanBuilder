@@ -78,7 +78,7 @@ ocean sample output/falmouth -line=-5.08,50.12:-5.02,50.18 -steps 12     # a dep
 ## 5. Use it
 
 - **Any GIS** (QGIS, GDAL): `ocean export output/falmouth -target geotiff -dest tif -level 0` writes `tif/height.tif` (32-bit float), `tif/depth_class.tif` and `tif/source.tif`.
-- **Your own code**: Go programs import `github.com/ocean-compiler/ocean/pkg/oceanworld`; any other language implements the short algorithm in [the format spec](../formats/world-v2.md).
+- **Your own code**: Go programs import `github.com/shaaanya/OceanBuilder/pkg/oceanworld`; any other language implements the short algorithm in [the format spec](../formats/world-v2.md).
 - **Unity (URP)**: `ocean export output/falmouth -target unity -dest path/to/UnityProject`, then menu *Ocean > Import World*.
 
 ## 6. Change something, rebuild only what changed

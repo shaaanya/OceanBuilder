@@ -10,8 +10,8 @@ import (
 	"math"
 	"net/url"
 
-	"github.com/ocean-compiler/ocean/internal/fetch"
-	"github.com/ocean-compiler/ocean/internal/gdal"
+	"github.com/shaaanya/OceanBuilder/internal/fetch"
+	"github.com/shaaanya/OceanBuilder/internal/gdal"
 )
 
 // Endpoint is the GridServer URL (a variable so tests can point it at a local server).

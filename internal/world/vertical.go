@@ -13,8 +13,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/ocean-compiler/ocean/internal/fetch"
-	"github.com/ocean-compiler/ocean/internal/gdal"
+	"github.com/shaaanya/OceanBuilder/internal/fetch"
+	"github.com/shaaanya/OceanBuilder/internal/gdal"
 )
 
 // Vertical references. Elevations from different sources are only comparable when they share a vertical datum,

@@ -12,11 +12,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ocean-compiler/ocean/internal/export"
-	"github.com/ocean-compiler/ocean/internal/libreterrain"
-	"github.com/ocean-compiler/ocean/internal/validate"
-	"github.com/ocean-compiler/ocean/internal/world"
-	"github.com/ocean-compiler/ocean/pkg/oceanworld"
+	"github.com/shaaanya/OceanBuilder/internal/export"
+	"github.com/shaaanya/OceanBuilder/internal/libreterrain"
+	"github.com/shaaanya/OceanBuilder/internal/validate"
+	"github.com/shaaanya/OceanBuilder/internal/world"
+	"github.com/shaaanya/OceanBuilder/pkg/oceanworld"
 )
 
 // mkTif writes a Float32 GeoTIFF (EPSG:4326) covering w,s,e,n with n x m cells holding value; holeGeoJSON, when

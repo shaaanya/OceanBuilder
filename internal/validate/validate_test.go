@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ocean-compiler/ocean/internal/world"
+	"github.com/shaaanya/OceanBuilder/internal/world"
 )
 
 func fixtureCfg(bbox [4]float64) *world.Config {

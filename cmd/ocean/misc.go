@@ -11,8 +11,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/ocean-compiler/ocean/internal/gdal"
-	"github.com/ocean-compiler/ocean/internal/world"
+	"github.com/shaaanya/OceanBuilder/internal/gdal"
+	"github.com/shaaanya/OceanBuilder/internal/world"
 )
 
 type sourceInfo struct {

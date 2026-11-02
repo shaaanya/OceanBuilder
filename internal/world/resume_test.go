@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ocean-compiler/ocean/internal/world"
+	"github.com/shaaanya/OceanBuilder/internal/world"
 )
 
 // treeHash digests every file of a built world (path and bytes), so two outputs compare equal only if they are

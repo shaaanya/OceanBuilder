@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/ocean-compiler/ocean/internal/validate"
+	"github.com/shaaanya/OceanBuilder/internal/validate"
 )
 
 func cmdValidate(args []string) error {

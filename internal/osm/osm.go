@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/ocean-compiler/ocean/internal/fetch"
+	"github.com/shaaanya/OceanBuilder/internal/fetch"
 )
 
 // getMirrors fetches one Overpass query. A response already cached from ANY mirror is used before the network is tried:

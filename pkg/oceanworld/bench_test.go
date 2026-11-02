@@ -3,7 +3,7 @@ package oceanworld_test
 import (
 	"testing"
 
-	"github.com/ocean-compiler/ocean/pkg/oceanworld"
+	"github.com/shaaanya/OceanBuilder/pkg/oceanworld"
 )
 
 // Query-cost benchmarks on the Falmouth fixture (go test ./pkg/oceanworld -bench . -run x).

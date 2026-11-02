@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/ocean-compiler/ocean/internal/gdal"
-	"github.com/ocean-compiler/ocean/pkg/oceanworld"
+	"github.com/shaaanya/OceanBuilder/internal/gdal"
+	"github.com/shaaanya/OceanBuilder/pkg/oceanworld"
 )
 
 // GeoTIFF writes one LOD level of a world as three georeferenced rasters any GIS can open:

@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/ocean-compiler/ocean/internal/fetch"
-	"github.com/ocean-compiler/ocean/internal/gdal"
+	"github.com/shaaanya/OceanBuilder/internal/fetch"
+	"github.com/shaaanya/OceanBuilder/internal/gdal"
 )
 
 // Composition. Every dataset is warped once onto the world grid (so tile edges and levels are cut from one

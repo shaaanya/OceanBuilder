@@ -4,8 +4,8 @@ import (
 	"math"
 	"testing"
 
-	"github.com/ocean-compiler/ocean/internal/gdal"
-	"github.com/ocean-compiler/ocean/pkg/oceanworld"
+	"github.com/shaaanya/OceanBuilder/internal/gdal"
+	"github.com/shaaanya/OceanBuilder/pkg/oceanworld"
 )
 
 func planFor(t *testing.T, bbox [4]float64, mut func(*Config)) *GridPlan {

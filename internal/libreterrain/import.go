@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/ocean-compiler/ocean/internal/world"
+	"github.com/shaaanya/OceanBuilder/internal/world"
 )
 
 // LTOrientation is the statement LibreTerrain writes into build.json; import refuses anything else.

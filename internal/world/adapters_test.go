@@ -12,10 +12,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ocean-compiler/ocean/internal/etopo"
-	"github.com/ocean-compiler/ocean/internal/gebco"
-	"github.com/ocean-compiler/ocean/internal/validate"
-	"github.com/ocean-compiler/ocean/internal/world"
+	"github.com/shaaanya/OceanBuilder/internal/etopo"
+	"github.com/shaaanya/OceanBuilder/internal/gebco"
+	"github.com/shaaanya/OceanBuilder/internal/validate"
+	"github.com/shaaanya/OceanBuilder/internal/world"
 )
 
 func gdalMust(t *testing.T, name string, args ...string) {

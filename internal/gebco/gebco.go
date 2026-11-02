@@ -16,8 +16,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ocean-compiler/ocean/internal/fetch"
-	"github.com/ocean-compiler/ocean/internal/gdal"
+	"github.com/shaaanya/OceanBuilder/internal/fetch"
+	"github.com/shaaanya/OceanBuilder/internal/gdal"
 )
 
 // APIURL is the base of the REST API; tests point it at a local server.

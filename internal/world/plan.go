@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/ocean-compiler/ocean/internal/gdal"
-	"github.com/ocean-compiler/ocean/pkg/oceanworld"
+	"github.com/shaaanya/OceanBuilder/internal/gdal"
+	"github.com/shaaanya/OceanBuilder/pkg/oceanworld"
 )
 
 // wrapLon maps a longitude to [-180, 180).

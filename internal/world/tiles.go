@@ -10,7 +10,7 @@ import (
 	"runtime"
 	"sync"
 
-	"github.com/ocean-compiler/ocean/internal/gdal"
+	"github.com/shaaanya/OceanBuilder/internal/gdal"
 )
 
 // Windowed tile writing. A level lives in layer files; tiles are cut from rectangles ("blocks") of tiles read with

@@ -5,7 +5,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/ocean-compiler/ocean/internal/gdal"
+	"github.com/shaaanya/OceanBuilder/internal/gdal"
 )
 
 // The pure-Go projection must agree with GDAL/PROJ to a millimetre, in both hemispheres, near a zone edge

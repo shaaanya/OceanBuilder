@@ -14,10 +14,10 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/ocean-compiler/ocean/internal/gmrt"
-	"github.com/ocean-compiler/ocean/internal/validate"
-	"github.com/ocean-compiler/ocean/internal/world"
-	"github.com/ocean-compiler/ocean/pkg/oceanworld"
+	"github.com/shaaanya/OceanBuilder/internal/gmrt"
+	"github.com/shaaanya/OceanBuilder/internal/validate"
+	"github.com/shaaanya/OceanBuilder/internal/world"
+	"github.com/shaaanya/OceanBuilder/pkg/oceanworld"
 )
 
 // fakeGMRT serves GridServer requests from an analytic seabed that is continuous across 180: depth falls 400 m per

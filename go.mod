@@ -1,3 +1,3 @@
-module github.com/ocean-compiler/ocean
+module github.com/shaaanya/OceanBuilder
 
 go 1.22

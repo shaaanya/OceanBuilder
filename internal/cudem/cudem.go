@@ -15,8 +15,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ocean-compiler/ocean/internal/fetch"
-	"github.com/ocean-compiler/ocean/internal/gdal"
+	"github.com/shaaanya/OceanBuilder/internal/fetch"
+	"github.com/shaaanya/OceanBuilder/internal/gdal"
 )
 
 // IndexURL is the list of tile URLs; tests point it at a local server.

@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"net/url"
 
-	"github.com/ocean-compiler/ocean/internal/fetch"
+	"github.com/shaaanya/OceanBuilder/internal/fetch"
 )
 
 const (

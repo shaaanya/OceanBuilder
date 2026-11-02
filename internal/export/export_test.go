@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/ocean-compiler/ocean/internal/world"
+	"github.com/shaaanya/OceanBuilder/internal/world"
 )
 
 func TestUnityInstallsPackageAndRemovesLegacyScript(t *testing.T) {

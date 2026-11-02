@@ -4,8 +4,8 @@ import (
 	"flag"
 	"fmt"
 
-	"github.com/ocean-compiler/ocean/internal/validate"
-	"github.com/ocean-compiler/ocean/internal/world"
+	"github.com/shaaanya/OceanBuilder/internal/validate"
+	"github.com/shaaanya/OceanBuilder/internal/world"
 )
 
 func cmdLODReport(args []string) error {

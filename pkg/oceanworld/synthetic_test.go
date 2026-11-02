@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/ocean-compiler/ocean/internal/world"
-	"github.com/ocean-compiler/ocean/pkg/oceanworld"
+	"github.com/shaaanya/OceanBuilder/internal/world"
+	"github.com/shaaanya/OceanBuilder/pkg/oceanworld"
 )
 
 // A synthetic island with an analytic height function gives ground truth that does not come from the pipeline:

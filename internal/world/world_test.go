@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ocean-compiler/ocean/internal/gdal"
+	"github.com/shaaanya/OceanBuilder/internal/gdal"
 )
 
 func validCfg() Config {

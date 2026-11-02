@@ -10,7 +10,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/ocean-compiler/ocean/internal/fetch"
+	"github.com/shaaanya/OceanBuilder/internal/fetch"
 )
 
 const (

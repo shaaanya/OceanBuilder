@@ -10,13 +10,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ocean-compiler/ocean/internal/cudem"
-	"github.com/ocean-compiler/ocean/internal/emodnet"
-	"github.com/ocean-compiler/ocean/internal/etopo"
-	"github.com/ocean-compiler/ocean/internal/fetch"
-	"github.com/ocean-compiler/ocean/internal/gdal"
-	"github.com/ocean-compiler/ocean/internal/gebco"
-	"github.com/ocean-compiler/ocean/internal/gmrt"
+	"github.com/shaaanya/OceanBuilder/internal/cudem"
+	"github.com/shaaanya/OceanBuilder/internal/emodnet"
+	"github.com/shaaanya/OceanBuilder/internal/etopo"
+	"github.com/shaaanya/OceanBuilder/internal/fetch"
+	"github.com/shaaanya/OceanBuilder/internal/gdal"
+	"github.com/shaaanya/OceanBuilder/internal/gebco"
+	"github.com/shaaanya/OceanBuilder/internal/gmrt"
 )
 
 // SourceSpec is one elevation dataset of a world, as written in the config's "sources" list.

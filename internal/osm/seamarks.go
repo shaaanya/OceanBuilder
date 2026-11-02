@@ -7,7 +7,7 @@ import (
 	"os"
 	"sort"
 
-	"github.com/ocean-compiler/ocean/internal/fetch"
+	"github.com/shaaanya/OceanBuilder/internal/fetch"
 )
 
 // Seamark is one OpenSeaMap feature reduced to a point: a node's own position,

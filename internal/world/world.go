@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/ocean-compiler/ocean/internal/emodnet"
-	"github.com/ocean-compiler/ocean/internal/fetch"
+	"github.com/shaaanya/OceanBuilder/internal/emodnet"
+	"github.com/shaaanya/OceanBuilder/internal/fetch"
 )
 
 const (
