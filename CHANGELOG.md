@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Source option `valid_max`: a dataset supplies only cells at or below it (after the vertical offset); higher cells fall through to the next dataset. `valid_max: 0` on a bathymetry source ranked below a land DEM stops GMRT's land artefacts (isolated cells of 5-7 km found over Cape Verde, present in the raw GMRT download) from landing on cells the land DEM calls sea. Recorded per dataset in the manifest. Test: `TestValidMaxKeepsHighCellsOutOfFallbackDataset`.
+- Documented: a land DEM with sea cells stored as 0 (Copernicus GLO-30) works as a `geotiff` source with `"nodata": 0`, ranked above `gmrt` ([options.md](docs/options.md#land-dem-over-gmrt)).
+
 ## 0.5.0-rc1 (2026-11-02)
 
 See [docs/release-0.5.0-rc1.md](docs/release-0.5.0-rc1.md). Release candidate: no hosted CI has run (no remote), Windows and Linux are unverified.

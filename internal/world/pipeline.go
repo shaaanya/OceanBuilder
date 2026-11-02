@@ -184,7 +184,7 @@ func build(cfg *Config, opt Options) (*Manifest, bool, error) {
 	}
 	infos := make([]DatasetInfo, 0, len(dss)+3)
 	for _, d := range dss {
-		di := DatasetInfo{Index: d.idx + 1, ID: d.spec.ID, Type: d.spec.Type, Role: "elevation", Part: d.spec.Part, Quality: d.spec.Quality,
+		di := DatasetInfo{Index: d.idx + 1, ID: d.spec.ID, Type: d.spec.Type, Role: "elevation", Part: d.spec.Part, ValidMax: d.spec.ValidMax, Quality: d.spec.Quality,
 			Year: d.spec.Year, AccuracyM: d.spec.AccuracyM, NativeResM: round2(d.nativeResM), Vertical: d.vapplied, DeclaredDtm: d.datumName(), Delivery: d.delivery}
 		for _, p := range append(append([]*fetch.Provenance(nil), d.vals...), d.masks...) {
 			di.Sources, di.SourceSHA256 = append(di.Sources, p.Source), append(di.SourceSHA256, p.SHA256)

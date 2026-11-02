@@ -40,7 +40,11 @@ type SourceSpec struct {
 	Year        int          `json:"year,omitempty"`       // vintage of the data, used by precedence "auto"
 	AccuracyM   float64      `json:"accuracy_m,omitempty"` // documented vertical accuracy, used by precedence "auto"
 	Nodata      *float64     `json:"nodata,omitempty"`     // geotiff: value to treat as missing when the file does not say
-	Resampling  string       `json:"resampling,omitempty"` // overrides the world's resampling for this dataset
+	// ValidMax makes the dataset supply only cells whose height (after the vertical offset, in the world datum) is at
+	// or below it; higher cells are missing for this dataset and fall through to the next one. Use 0 for a bathymetry
+	// source ranked below a land DEM, so it cannot put its own land artefacts on cells the land DEM calls sea.
+	ValidMax   *float64 `json:"valid_max,omitempty"`
+	Resampling string   `json:"resampling,omitempty"` // overrides the world's resampling for this dataset
 }
 
 func (c *Config) normalizeSources() error {
@@ -181,6 +185,7 @@ type DatasetInfo struct {
 	Type         string           `json:"type"`
 	Role         string           `json:"role"` // elevation | regional-fill | coastline | edit
 	Part         string           `json:"part,omitempty"`
+	ValidMax     *float64         `json:"valid_max,omitempty"`
 	Quality      string           `json:"quality,omitempty"`
 	Year         int              `json:"year,omitempty"`
 	AccuracyM    float64          `json:"accuracy_m,omitempty"`

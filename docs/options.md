@@ -17,6 +17,22 @@ Optional world-config settings and what they do to a build. Numbers below come f
 - `license` and `attribution` are required. They end up in the manifest and `ATTRIBUTION.txt`.
 - Source nodata stays nodata (class 255). It is never filled.
 
+## Land DEM over GMRT
+
+GMRT has no land survey outside a few areas: it falls back to GEBCO_08 (about 0.9 km) and the raw download can contain isolated spikes (cells of 5-7 km among 300 m terrain over Cape Verde, checked in the downloaded file). For land, rank a land DEM above `gmrt`:
+
+```json
+"precedence": "listed", "vertical": {"datum": "EGM2008", "allow_mixed": true},
+"sources": [
+  {"id": "glo30", "type": "geotiff", "path": "land.tif", "nodata": 0, "vertical": {"datum": "EGM2008"}, "license": "...", "attribution": "..."},
+  {"id": "gmrt", "type": "gmrt", "valid_max": 0, "vertical": {"datum": "MSL", "offset_m": 0, "offset_source": "..."}}
+]
+```
+
+- `nodata: 0` makes the DEM's sea cells (Copernicus GLO-30 stores 0 over water) missing, so GMRT supplies the water. Coastal land at exactly 0 m also falls to GMRT.
+- `valid_max: 0` on `gmrt` lets it supply only cells at or below the datum, so a GMRT land artefact cannot appear on a cell the DEM calls sea.
+- GMRT states no datum; declare an offset and its source honestly, as in the example.
+
 ## Source lock
 
 `ocean build w.world.json -update-lock` writes `w.lock.json` beside the config, with URL, sha256, bytes and retrieval time for every source. Commit it.

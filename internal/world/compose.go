@@ -285,6 +285,9 @@ func (b *bctx) composeLevel0(ds []*dataset, out *layerFiles) (*CompositionStats,
 						}
 					}
 					v += float32(d.offsetM)
+					if d.spec.ValidMax != nil && v > float32(*d.spec.ValidMax) {
+						continue
+					}
 					use[i].Valid++
 					if sel < 0 {
 						sel, selV = i, v
