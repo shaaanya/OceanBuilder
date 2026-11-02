@@ -267,7 +267,7 @@ func checkWorld(path string, asJSON bool) error {
 	est := map[string]any{
 		"config": path, "name": cfg.Name, "utm": p.SRS, "tiles_x": p.Grid.TilesX, "tiles_y": p.Grid.TilesY,
 		"samples": [2]int{p.W, p.H}, "cells": int(cells), "tile_span_m": p.Grid.TileSpanM,
-		"memory_estimate_mib": cells * 24 / (1 << 20), "tile_data_estimate_mib": cells * 8 / (1 << 20) * 4 / 3,
+		"memory_estimate_mib": 50 + cells*220/(1<<20), "tile_data_estimate_mib": cells * 8 / (1 << 20) * 4 / 3, "disk_estimate_mib": float64(world.WorkDiskEstimate(int(cells))) / (1 << 20),
 		"scale_factor": [2]float64{p.ScaleMin, p.ScaleMax}, "lod_levels_config": cfg.LODLevels,
 	}
 	srcs, target, terr := world.CheckSources(cfg)
@@ -278,8 +278,8 @@ func checkWorld(path string, asJSON bool) error {
 	if asJSON {
 		return writeJSONOut(est)
 	}
-	fmt.Printf("%s: valid\n  %s, %d x %d tiles of %.0f m (%d x %d samples, %.1f M cells)\n  working memory about %.0f MiB, tile data about %.0f MiB before PNG compression\n  UTM point scale %.5f..%.5f\n",
-		cfg.Name, p.SRS, p.Grid.TilesX, p.Grid.TilesY, p.Grid.TileSpanM, p.W, p.H, cells/1e6, est["memory_estimate_mib"], est["tile_data_estimate_mib"], p.ScaleMin, p.ScaleMax)
+	fmt.Printf("%s: valid\n  %s, %d x %d tiles of %.0f m (%d x %d samples, %.1f M cells)\n  peak memory %s, disk about %.0f MiB for stages and output plus downloads (GMRT is fetched at the service's finest cell whatever cell_m is: see docs/performance.md), tile data about %.0f MiB before PNG compression\n  UTM point scale %.5f..%.5f\n",
+		cfg.Name, p.SRS, p.Grid.TilesX, p.Grid.TilesY, p.Grid.TileSpanM, p.W, p.H, cells/1e6, memNote(cells, est["memory_estimate_mib"].(float64)), est["disk_estimate_mib"], est["tile_data_estimate_mib"], p.ScaleMin, p.ScaleMax)
 	if p.Note != "" {
 		fmt.Println("  WARNING:", p.Note)
 	}
@@ -317,4 +317,13 @@ func trunc(s string, n int) string {
 		return s[:n-1] + "…"
 	}
 	return s
+}
+
+// memNote words the memory estimate for what was measured: seven builds up to 1.4 M cells. Larger worlds are processed in
+// windows bounded by -mem, which has not been measured above that size.
+func memNote(cells, fit float64) string {
+	if cells <= 1.5e6 {
+		return fmt.Sprintf("about %.0f MiB (fit to seven measured builds up to 1.4 M cells)", fit)
+	}
+	return "not measured above 1.4 M cells; processing is windowed to the -mem budget (default 1024 MB)"
 }

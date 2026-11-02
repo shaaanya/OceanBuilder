@@ -223,6 +223,15 @@ func resolveDatasets(cfg *Config, boxes []gmrt.BBox, opt Options) ([]*dataset, e
 					if bi == 0 || ref.ReferenceCellM < dl.ReferenceCellM {
 						dl.Request, dl.ReferenceCellM = ref.Request, ref.ReferenceCellM
 					}
+					if !opt.SkipDiskCheck && os.Getenv("OCEAN_SKIP_DISK_CHECK") == "" {
+						areas := make([]float64, len(pieces))
+						for k, pc := range pieces {
+							areas[k] = (pc.E - pc.W) * 111320 * math.Cos((pc.S+pc.N)/2*math.Pi/180) * (pc.N - pc.S) * 110574
+						}
+						if err := CheckDisk(opt.CacheDir, GMRTDownloadEstimate(areas, ref.ReferenceCellM), fmt.Sprintf("the GMRT download (%d piece(s) at the service's finest cell, %.0f m)", len(pieces), ref.ReferenceCellM)); err != nil {
+							return nil, err
+						}
+					}
 					for _, pc := range pieces {
 						opt.logf("fetching GMRT topo+mask for %.4f,%.4f,%.4f,%.4f", pc.W, pc.S, pc.E, pc.N)
 						topo, err := gmrt.Fetch(opt.CacheDir, pc, gmrt.LayerTopo)

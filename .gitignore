@@ -18,3 +18,4 @@
 tools/lodtests/bin/
 tools/lodtests/obj/
 __pycache__/
+/dist/

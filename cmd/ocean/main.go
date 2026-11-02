@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime/pprof"
 	"strings"
 	"syscall"
 	"time"
@@ -125,7 +126,14 @@ func defaultCache() string {
 }
 
 func cmdBuild(args []string) error {
-	fs := newFlags("build", "build <world.json> [-out dir] [-cache dir] [-force] [-q] [-log-json] [-mem MB] [-json] [-lock file|off] [-update-lock]")
+	if f := os.Getenv("OCEAN_CPUPROFILE"); f != "" { // profiling aid: go tool pprof -top ocean <file>
+		if pf, err := os.Create(f); err == nil {
+			if pprof.StartCPUProfile(pf) == nil {
+				defer func() { pprof.StopCPUProfile(); pf.Close() }()
+			}
+		}
+	}
+	fs := newFlags("build", "build <world.json> [-out dir] [-cache dir] [-force] [-q] [-log-json] [-mem MB] [-json] [-lock file|off] [-update-lock] [-no-disk-check]")
 	out := fs.String("out", "", "output directory (default output/<name>)")
 	cache := fs.String("cache", defaultCache(), "download and stage cache directory")
 	asJSON := fs.Bool("json", false, "print the build summary as JSON on stdout")
@@ -133,6 +141,7 @@ func cmdBuild(args []string) error {
 	updLock := fs.Bool("update-lock", false, "write the lock from this build's sources instead of checking it")
 	force := fs.Bool("force", false, "rebuild even if the output was made from identical inputs")
 	mem := fs.Int("mem", 0, "memory budget in MB for windowed processing and in-memory steps (default 1024); never changes the output")
+	noDisk := fs.Bool("no-disk-check", false, "skip the free-disk-space preflight (also OCEAN_SKIP_DISK_CHECK=1)")
 	quiet := fs.Bool("q", false, "no progress output")
 	logJSON := fs.Bool("log-json", false, "progress as JSON lines on stderr (time, msg)")
 	if err := parse(fs, args); err != nil || fs.NArg() != 1 {
@@ -163,7 +172,7 @@ func cmdBuild(args []string) error {
 			fmt.Fprintf(os.Stderr, "[%5.1fs] "+f+"\n", append([]any{time.Since(start).Seconds()}, a...)...)
 		}
 	}
-	m, err := world.Build(cfg, world.Options{CacheDir: *cache, OutDir: *out, LockPath: *lock, UpdateLock: *updLock, Force: *force, MemoryMB: *mem, Log: logf})
+	m, err := world.Build(cfg, world.Options{CacheDir: *cache, OutDir: *out, LockPath: *lock, UpdateLock: *updLock, Force: *force, MemoryMB: *mem, SkipDiskCheck: *noDisk, Log: logf})
 	if err != nil {
 		return err
 	}

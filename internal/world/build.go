@@ -40,6 +40,8 @@ type Options struct {
 	WindowTiles int
 	Log         func(format string, a ...any)
 	finalDir    string // where the finished output will live; checked for an up-to-date build
+	// SkipDiskCheck disables the free-space preflight (disk.go), for example on a filesystem that misreports free space.
+	SkipDiskCheck bool
 }
 
 func (o *Options) logf(f string, a ...any) {
@@ -60,6 +62,21 @@ func Build(cfg *Config, opt Options) (*Manifest, error) {
 	parent := filepath.Dir(final)
 	if err := os.MkdirAll(parent, 0o755); err != nil {
 		return nil, err
+	}
+	if !opt.SkipDiskCheck && os.Getenv("OCEAN_SKIP_DISK_CHECK") == "" {
+		plan, err := PlanGrid(cfg)
+		if err != nil {
+			return nil, err
+		}
+		need := WorkDiskEstimate(plan.W * plan.H)
+		for _, dir := range []string{parent, opt.CacheDir} { // both may hold the work; the same disk is checked twice, which is conservative
+			if dir == "" {
+				continue
+			}
+			if err := CheckDisk(dir, need, fmt.Sprintf("building %s (%d x %d level-0 cells, without downloads)", cfg.Name, plan.W, plan.H)); err != nil {
+				return nil, err
+			}
+		}
 	}
 	stage, err := os.MkdirTemp(parent, "."+filepath.Base(final)+".building-")
 	if err != nil {
