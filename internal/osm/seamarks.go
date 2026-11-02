@@ -26,17 +26,9 @@ type Seamark struct {
 func FetchSeamarks(cacheDir string, w, s, e, n float64) (*fetch.Provenance, []Seamark, error) {
 	q := fmt.Sprintf(`[out:json][timeout:90];nwr["seamark:type"](%.6f,%.6f,%.6f,%.6f);out center tags;`, s, w, n, e)
 	form := url.Values{"data": {q}}
-	var prov *fetch.Provenance
-	var err error
-	for _, m := range Mirrors {
-		prov, err = fetch.GetTimeout(overpassTimeout, cacheDir, "osm-seamarks", m, form, "overpass.json",
-			"ODbL 1.0", "© OpenStreetMap contributors (OpenSeaMap tagging), https://www.openstreetmap.org/copyright")
-		if err == nil {
-			break
-		}
-	}
+	prov, err := getMirrors(cacheDir, "osm-seamarks", form, "ODbL 1.0", "© OpenStreetMap contributors (OpenSeaMap tagging), https://www.openstreetmap.org/copyright")
 	if err != nil {
-		return nil, nil, fmt.Errorf("all Overpass mirrors failed (last: %w)", err)
+		return nil, nil, err
 	}
 	raw, err := os.ReadFile(prov.File)
 	if err != nil {

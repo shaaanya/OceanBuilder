@@ -14,6 +14,25 @@ import (
 	"github.com/ocean-compiler/ocean/internal/fetch"
 )
 
+// getMirrors fetches one Overpass query. A response already cached from ANY mirror is used before the network is tried:
+// responses are cached per mirror URL, so without this a warm build would first re-ask a mirror that was down last time
+// (waiting out its timeout), and could silently take different data from another mirror than the build before it.
+func getMirrors(cacheDir, source string, form url.Values, license, attribution string) (*fetch.Provenance, error) {
+	for _, m := range Mirrors {
+		if p := fetch.Cached(cacheDir, source, m, form, "overpass.json", license, attribution); p != nil {
+			return p, nil
+		}
+	}
+	var err error
+	for _, m := range Mirrors {
+		var p *fetch.Provenance
+		if p, err = fetch.GetTimeout(overpassTimeout, cacheDir, source, m, form, "overpass.json", license, attribution); err == nil {
+			return p, nil
+		}
+	}
+	return nil, fmt.Errorf("all Overpass mirrors failed (last: %w)", err)
+}
+
 // Mirrors are tried in order.
 var Mirrors = []string{
 	"https://overpass-api.de/api/interpreter",
@@ -42,17 +61,9 @@ type overpass struct {
 func FetchCoastline(cacheDir string, w, s, e, n float64) (*fetch.Provenance, string, error) {
 	q := fmt.Sprintf(`[out:json][timeout:60];way["natural"="coastline"](%.6f,%.6f,%.6f,%.6f);out geom;`, s, w, n, e)
 	form := url.Values{"data": {q}}
-	var prov *fetch.Provenance
-	var err error
-	for _, m := range Mirrors {
-		prov, err = fetch.GetTimeout(overpassTimeout, cacheDir, "osm-coastline", m, form, "overpass.json",
-			"ODbL 1.0", "© OpenStreetMap contributors, https://www.openstreetmap.org/copyright")
-		if err == nil {
-			break
-		}
-	}
+	prov, err := getMirrors(cacheDir, "osm-coastline", form, "ODbL 1.0", "© OpenStreetMap contributors, https://www.openstreetmap.org/copyright")
 	if err != nil {
-		return nil, "", fmt.Errorf("all Overpass mirrors failed (last: %w)", err)
+		return nil, "", err
 	}
 	raw, err := os.ReadFile(prov.File)
 	if err != nil {

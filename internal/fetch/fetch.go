@@ -37,24 +37,38 @@ func Get(cacheDir, source, rawURL string, form url.Values, name, license, attrib
 	return GetTimeout(3*time.Minute, cacheDir, source, rawURL, form, name, license, attribution)
 }
 
+// Cached returns the cached copy of a request without touching the network, or nil. A copy that no longer matches its
+// recorded hash is corrupt or was replaced and counts as absent.
+func Cached(cacheDir, source, rawURL string, form url.Values, name, license, attribution string) *Provenance {
+	key := rawURL + "?" + form.Encode()
+	ksum := sha256.Sum256([]byte(key))
+	file := filepath.Join(cacheDir, source, hex.EncodeToString(ksum[:8]), name)
+	b, err := os.ReadFile(file + ".json")
+	if err != nil {
+		return nil
+	}
+	var p Provenance
+	if json.Unmarshal(b, &p) != nil {
+		return nil
+	}
+	if sum, err := SHA256File(file); err != nil || sum != p.SHA256 {
+		return nil
+	}
+	p.License, p.Attribution = license, attribution // terms may have been corrected since the download
+	p.File = file                                   // the stored path was relative to the cwd of the original run
+	return &p
+}
+
 // GetTimeout is Get with an explicit whole-request timeout.
 func GetTimeout(timeout time.Duration, cacheDir, source, rawURL string, form url.Values, name, license, attribution string) (*Provenance, error) {
+	if p := Cached(cacheDir, source, rawURL, form, name, license, attribution); p != nil {
+		return p, nil
+	}
 	key := rawURL + "?" + form.Encode()
 	ksum := sha256.Sum256([]byte(key))
 	dir := filepath.Join(cacheDir, source, hex.EncodeToString(ksum[:8]))
 	file := filepath.Join(dir, name)
 	meta := file + ".json"
-	if b, err := os.ReadFile(meta); err == nil {
-		var p Provenance
-		if json.Unmarshal(b, &p) == nil {
-			// A cached file that no longer matches its recorded hash is corrupt or was replaced: refetch, never reuse.
-			if sum, err := SHA256File(file); err == nil && sum == p.SHA256 {
-				p.License, p.Attribution = license, attribution // terms may have been corrected since the download
-				p.File = file                                   // the stored path was relative to the cwd of the original run
-				return &p, nil
-			}
-		}
-	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, err
 	}
