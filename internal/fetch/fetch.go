@@ -82,11 +82,12 @@ func GetTimeout(timeout time.Duration, cacheDir, source, rawURL string, form url
 		b, _ := io.ReadAll(io.LimitReader(resp.Body, 300))
 		return nil, fmt.Errorf("%s: HTTP %d: %s", source, resp.StatusCode, strings.TrimSpace(string(b)))
 	}
-	tmp := file + ".part"
-	f, err := os.Create(tmp)
+	// A unique temp name: two builds sharing one cache may download the same file at the same time.
+	f, err := os.CreateTemp(filepath.Dir(file), filepath.Base(file)+".part-*")
 	if err != nil {
 		return nil, err
 	}
+	tmp := f.Name()
 	h := sha256.New()
 	n, err := io.Copy(io.MultiWriter(f, h), resp.Body)
 	if cerr := f.Close(); err == nil {

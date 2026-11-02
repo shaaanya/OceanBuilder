@@ -199,6 +199,9 @@ func TestEditsChangeLandOnlyAndKeepBathymetry(t *testing.T) {
 }
 
 func TestImportRefusesBadInput(t *testing.T) {
+	if testing.Short() {
+		t.Skip("slow (seconds to tens of seconds): runs in the integration tier, i.e. without -short")
+	}
 	_, _, xdir, x, base := exportFixture(t)
 	n := x.Grid.Side
 	flip := func(f func(r, c int) (int, int)) []float32 {

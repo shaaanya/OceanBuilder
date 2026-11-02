@@ -45,9 +45,44 @@ jobs:
       - name: go vet
         run: go vet ./...
       - name: go test
-        run: go test ./... -count=1 -timeout 25m
+        run: go test ./... -count=1 -timeout 30m
       - name: Build the CLI
         run: go build -o bin/ocean ./cmd/ocean
+
+  posix-scripts:
+    # Real-process checks that need POSIX signals: SIGINT/SIGKILL resume, concurrent builds, Python reference reader vs `ocean sample`.
+    # Same entry point as the local procedure (scripts/verify-local.sh, docs/testing.md).
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash -el {0}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: conda-incubator/setup-miniconda@v3
+        with:
+          miniforge-version: latest
+          activate-environment: ocean
+          channels: conda-forge
+          channel-priority: strict
+      - run: conda install -y -n ocean "gdal>=3.9" proj-data
+      - run: scripts/verify-local.sh scripts
+
+  unity-lod-logic:
+    # The Unity adapter's LOD selection, cover and skirt logic is plain C#; its property tests run without Unity.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+      - run: dotnet run --project tools/lodtests -c Release
 
   cross-vet:
     # Static coverage that needs no GDAL: every package and test binary must compile for the other targets.

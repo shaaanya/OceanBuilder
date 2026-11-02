@@ -120,6 +120,9 @@ func reverseCoast(t *testing.T) string {
 
 // Real OSM coastline, real GMRT: the forward direction conforms, the reversed one is refused and builds nothing.
 func TestConformGuardOnRealFixtureBothDirections(t *testing.T) {
+	if testing.Short() {
+		t.Skip("slow (seconds to tens of seconds): runs in the integration tier, i.e. without -short")
+	}
 	fx := "../../testdata/falmouth/"
 	for _, bb := range [][4]float64{{-5.135, 50.16, -5.06, 50.18}, {-5.12, 50.155, -5.085, 50.185}} {
 		mk := func(coast string) *Config {

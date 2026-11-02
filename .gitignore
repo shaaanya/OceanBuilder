@@ -13,3 +13,8 @@
 /examples/unity-demo/Assets/AddressableAssetsData/
 /examples/unity-demo/Assets/AddressableAssetsData.meta
 /examples/unity-demo/ServerData/
+
+# build outputs
+tools/lodtests/bin/
+tools/lodtests/obj/
+__pycache__/

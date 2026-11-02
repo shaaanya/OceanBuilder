@@ -82,6 +82,9 @@ func fakeGMRT(t *testing.T, wrap360 bool, limit int) (url string, boxes func() [
 // gap or a repeated strip, and the heights on both sides match the analytic seabed. Both labelling conventions of the
 // service for the western piece are covered.
 func TestAntimeridianGMRTSplit(t *testing.T) {
+	if testing.Short() {
+		t.Skip("slow (seconds to tens of seconds): runs in the integration tier, i.e. without -short")
+	}
 	for _, wrap := range []bool{true, false} {
 		t.Run(fmt.Sprintf("wrap360=%v", wrap), func(t *testing.T) {
 			url, boxes := fakeGMRT(t, wrap, 0)
@@ -136,6 +139,9 @@ func TestAntimeridianGMRTSplit(t *testing.T) {
 // finest resolution. When the service coarsens anyway the manifest and the validator say so, and source_res_m is the
 // coarsest piece actually received, never the requested resolution.
 func TestGMRTDeliveryAndSplitting(t *testing.T) {
+	if testing.Short() {
+		t.Skip("slow (seconds to tens of seconds): runs in the integration tier, i.e. without -short")
+	}
 	old, oldBudget := gmrt.Endpoint, gmrt.NodeBudget
 	t.Cleanup(func() { gmrt.Endpoint, gmrt.NodeBudget = old, oldBudget })
 	cfg := func() *world.Config {

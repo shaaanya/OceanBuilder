@@ -85,6 +85,9 @@ func use(m *world.Manifest, id string) world.DatasetUse {
 // Listed order decides: the fine grid wins inside its footprint, the coarse one fills its nodata hole and the rest,
 // every cell is attributed, and reversing the list gives the coarse grid every cell it covers.
 func TestPrecedenceOverlapHoleAndAttribution(t *testing.T) {
+	if testing.Short() {
+		t.Skip("slow (seconds to tens of seconds): runs in the integration tier, i.e. without -short")
+	}
 	cfg, _ := twoSourceCfg(t, []string{"fine", "coarse"}, "")
 	m, out := buildIt(t, cfg)
 	f, c := use(m, "fine"), use(m, "coarse")
@@ -224,6 +227,9 @@ func TestVerticalGeoidShiftEGM96ToEGM2008(t *testing.T) {
 
 // Tile bytes, manifest and dataset layer do not depend on how the grid is windowed.
 func TestWindowSizeDoesNotChangeOutput(t *testing.T) {
+	if testing.Short() {
+		t.Skip("slow (seconds to tens of seconds): runs in the integration tier, i.e. without -short")
+	}
 	cfg, _ := twoSourceCfg(t, []string{"fine", "coarse"}, "")
 	cfg.LODLevels = 2
 	var ref map[string][]byte

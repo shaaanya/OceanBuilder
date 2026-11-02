@@ -78,6 +78,9 @@ func leftovers(cache string) (tmp []string) {
 // sealed, after it is committed), then build again on the same cache: the result is byte-identical to an
 // uninterrupted build, finished stages are reused, and the interrupted one leaves nothing that looks complete.
 func TestResumeAfterInterruptAtEveryStage(t *testing.T) {
+	if testing.Short() {
+		t.Skip("slow (seconds to tens of seconds): runs in the integration tier, i.e. without -short")
+	}
 	cfg := resumeCfg(t)
 	var points []string
 	world.StageHook = func(p string) error { points = append(points, p); return nil }
@@ -177,6 +180,9 @@ func TestStageCacheDeterministic(t *testing.T) {
 // Every kind of cached artifact is verified before use: a flipped byte (same size), a truncation and a lost seal are
 // each reported, the artifact is rebuilt, and the output is unchanged.
 func TestCorruptStageCacheIsDetected(t *testing.T) {
+	if testing.Short() {
+		t.Skip("slow (seconds to tens of seconds): runs in the integration tier, i.e. without -short")
+	}
 	cfg := resumeCfg(t)
 	cache := t.TempDir()
 	ref := filepath.Join(t.TempDir(), "ref")

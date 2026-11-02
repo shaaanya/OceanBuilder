@@ -6,8 +6,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
+	"runtime/debug"
 	"sort"
 	"strings"
+
+	"github.com/ocean-compiler/ocean/internal/gdal"
+	"github.com/ocean-compiler/ocean/internal/world"
 )
 
 type sourceInfo struct {
@@ -120,4 +125,30 @@ func cmdCache(args []string) error {
 		return fmt.Errorf("usage: ocean cache stats|clean")
 	}
 	return nil
+}
+
+// printVersion reports what a bug report or a reproducibility check needs: tool version, the commit it was built from
+// (embedded by `go build` when built inside a git checkout), world format schema, Go and GDAL versions, platform.
+func printVersion() {
+	fmt.Printf("ocean %s (world format schema %d)\n", world.ToolVersion, world.SchemaVersion)
+	rev, dirty := "unknown", ""
+	if bi, ok := debug.ReadBuildInfo(); ok {
+		for _, s := range bi.Settings {
+			switch s.Key {
+			case "vcs.revision":
+				rev = s.Value
+			case "vcs.modified":
+				if s.Value == "true" {
+					dirty = " (uncommitted changes)"
+				}
+			}
+		}
+	}
+	fmt.Printf("commit %s%s\n", rev, dirty)
+	fmt.Printf("go %s %s/%s\n", runtime.Version(), runtime.GOOS, runtime.GOARCH)
+	if g := gdal.Version(); g != "" {
+		fmt.Println("gdal", g)
+	} else {
+		fmt.Println("gdal not found on PATH (builds need gdalwarp, gdal_translate, gdaltransform, ogr2ogr, gdalinfo)")
+	}
 }

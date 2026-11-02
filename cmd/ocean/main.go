@@ -94,7 +94,7 @@ func main() {
 	case "cache":
 		err = cmdCache(args)
 	case "version":
-		fmt.Printf("ocean %s (world format schema %d)\n", world.ToolVersion, world.SchemaVersion)
+		printVersion()
 	case "-h", "--help", "help":
 		if len(args) > 0 {
 			if h, ok := helpText[args[0]]; ok {

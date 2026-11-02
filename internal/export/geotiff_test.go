@@ -28,6 +28,9 @@ func fixtureWorld(t *testing.T) string {
 
 // GDAL itself (not our reader) must find the tile value at a vertex's position, at every level.
 func TestGeoTIFFAgreesWithTilesAtVertices(t *testing.T) {
+	if testing.Short() {
+		t.Skip("slow (seconds to tens of seconds): runs in the integration tier, i.e. without -short")
+	}
 	dir := fixtureWorld(t)
 	w, err := oceanworld.Open(dir)
 	if err != nil {
