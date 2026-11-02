@@ -4,7 +4,7 @@
 
 See [docs/release-0.5.0-rc1.md](docs/release-0.5.0-rc1.md). Release candidate: no hosted CI has run (no remote), Windows and Linux are unverified.
 
-- Unity runtime LOD: `OceanLodStreamer` (distance cut with hysteresis, 2:1 balance, multi-viewer, async load/unload with retry, cancel and unload delay, cover-until-loaded), loader abstraction with an Addressables loader, importer skirts that hide mixed-level cracks (measured by rendering: 4317 background pixels without, 0 with), 6634 pure-C# property checks, Editor PlayMode tests and a macOS player run on two worlds ([docs/unity-lod.md](docs/unity-lod.md), [ADR 0011](docs/decisions/0011-unity-runtime-lod.md)).
+- Unity runtime LOD: `OceanLodStreamer` (distance cut with hysteresis, 2:1 balance, multi-viewer, async load/unload with retry, cancel and unload delay, cover-until-loaded), loader abstraction with an Addressables loader, importer skirts that hide mixed-level cracks (measured by rendering: 4317 background pixels without, 0 with), 6635 pure-C# property checks, Editor PlayMode tests and a macOS player run on two worlds ([docs/unity-lod.md](docs/unity-lod.md), [ADR 0011](docs/decisions/0011-unity-runtime-lod.md)).
 - Format: level 0 is always complete (all-nodata level-0 tiles are written; validator `empty-tile`). Earlier builds dropped them silently.
 - Fixed: Overpass answers were cached per mirror, so a warm build waited out a dead mirror and could switch data between builds; downloads used a shared `.part` name that two builds on one cache could corrupt.
 - `ocean version` prints commit, Go, GDAL and platform; the build checks GDAL tools and free disk space (estimates measured on seven regions) before downloading; `-no-disk-check`; `OCEAN_CPUPROFILE`.

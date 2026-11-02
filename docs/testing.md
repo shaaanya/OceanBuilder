@@ -8,7 +8,7 @@ Hosted CI is **prepared but has never run**: the repository has no git remote (n
 | full (integration) | everything offline, incl. resume at every stage, golden tile hashes, GeoTIFF agreement, LibreTerrain (runs the real app if `../LibreTerrain/libreterrain-mcp` exists) | `scripts/verify-local.sh full` | Go, GDAL | about 3.2 min | `offline` job, 3 OSes |
 | cross | vet and compile every package and test binary for linux/windows/darwin x amd64/arm64 (does not run them) | `scripts/verify-local.sh cross` | Go | about 1 min | `cross-vet` |
 | scripts | real processes: SIGINT/SIGKILL resume, 3 concurrent builds, Python reference reader against `ocean sample` | `scripts/verify-local.sh scripts` | Go, GDAL, Python 3 | about 2 min | `posix-scripts` |
-| lod | 6634 property checks of the Unity LOD code, no Unity | `scripts/verify-local.sh lod` | .NET SDK 10 | 10 s | `unity-lod-logic` |
+| lod | 6635 property checks of the Unity LOD code, no Unity | `scripts/verify-local.sh lod` | .NET SDK 10 | 10 s | `unity-lod-logic` |
 | smoke | real GMRT/ETOPO/GEBCO/CUDEM/Overpass | `scripts/verify-local.sh smoke` | network | minutes, may flake | schedule / dispatch |
 | expensive | region ladder with real downloads (timings, memory, disk) | `python3 scripts/ladder.py bin/ocean <scratch> examples/regions/*.world.json` | network, GDAL, POSIX | 15-30 min | no |
 | unity | PlayMode tests and a standalone player run | below | licensed Unity 6000.4 | 5-10 min | no |

@@ -67,7 +67,7 @@ Decimation keeps coarse samples equal to level-0 samples, so coastlines move at 
 
 ## Verification (what was actually run)
 
-- `dotnet run --project tools/lodtests -c Release`: 6634 checks (pure C#, property tests with random walks; mutation-checked for the 2:1 balance rule).
+- `dotnet run --project tools/lodtests -c Release`: 6635 checks (pure C#, property tests with random walks; mutation-checked for the 2:1 balance rule).
 - Editor PlayMode, `OceanLodSmokeTests` (2 tests) and the older runtime tests: pass (Unity 6000.4.0f1, macOS arm64).
 - Standalone macOS arm64 player, 5-level world (25 level-0 tiles + 14 coarse), graphics enabled: `OCEAN_PLAYER_RESULT failures=0`. Scenarios: calm (12 of 39 tiles loaded, 3 levels drawn), move (7 unloads), 150 rapid teleports (no duplicate load, max 2 in flight, no leaks), interruption, failure injection with retry, corrupt address, missing levels, release, seam.
 
