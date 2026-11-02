@@ -1,0 +1,14 @@
+/Users/shaaaanya/Documents/projects/GameDev/Tools/OceanBuilder/tools/lodtests/bin/Release/net10.0/LodTests
+/Users/shaaaanya/Documents/projects/GameDev/Tools/OceanBuilder/tools/lodtests/bin/Release/net10.0/LodTests.deps.json
+/Users/shaaaanya/Documents/projects/GameDev/Tools/OceanBuilder/tools/lodtests/bin/Release/net10.0/LodTests.runtimeconfig.json
+/Users/shaaaanya/Documents/projects/GameDev/Tools/OceanBuilder/tools/lodtests/bin/Release/net10.0/LodTests.dll
+/Users/shaaaanya/Documents/projects/GameDev/Tools/OceanBuilder/tools/lodtests/bin/Release/net10.0/LodTests.pdb
+/Users/shaaaanya/Documents/projects/GameDev/Tools/OceanBuilder/tools/lodtests/obj/Release/net10.0/LodTests.GeneratedMSBuildEditorConfig.editorconfig
+/Users/shaaaanya/Documents/projects/GameDev/Tools/OceanBuilder/tools/lodtests/obj/Release/net10.0/LodTests.AssemblyInfoInputs.cache
+/Users/shaaaanya/Documents/projects/GameDev/Tools/OceanBuilder/tools/lodtests/obj/Release/net10.0/LodTests.AssemblyInfo.cs
+/Users/shaaaanya/Documents/projects/GameDev/Tools/OceanBuilder/tools/lodtests/obj/Release/net10.0/LodTests.csproj.CoreCompileInputs.cache
+/Users/shaaaanya/Documents/projects/GameDev/Tools/OceanBuilder/tools/lodtests/obj/Release/net10.0/LodTests.dll
+/Users/shaaaanya/Documents/projects/GameDev/Tools/OceanBuilder/tools/lodtests/obj/Release/net10.0/refint/LodTests.dll
+/Users/shaaaanya/Documents/projects/GameDev/Tools/OceanBuilder/tools/lodtests/obj/Release/net10.0/LodTests.pdb
+/Users/shaaaanya/Documents/projects/GameDev/Tools/OceanBuilder/tools/lodtests/obj/Release/net10.0/LodTests.genruntimeconfig.cache
+/Users/shaaaanya/Documents/projects/GameDev/Tools/OceanBuilder/tools/lodtests/obj/Release/net10.0/ref/LodTests.dll

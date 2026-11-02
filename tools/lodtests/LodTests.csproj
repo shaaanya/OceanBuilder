@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Runs the pure LOD logic of the Unity package (Runtime/OceanLod.cs) without Unity: run: dotnet run (project tools/lodtests) -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <LangVersion>9.0</LangVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../internal/export/unitypkg/Runtime/OceanLod.cs" Link="OceanLod.cs" />
+  </ItemGroup>
+</Project>
