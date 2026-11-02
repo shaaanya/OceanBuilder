@@ -155,17 +155,19 @@ func TestValidMaxKeepsHighCellsOutOfFallbackDataset(t *testing.T) {
 	if testing.Short() {
 		t.Skip("slow: integration tier")
 	}
+	cache := t.TempDir() // shared: the second build must not reuse the first one's composite
 	for _, limited := range []bool{false, true} {
 		cfg, _ := twoSourceCfg(t, []string{"fine", "coarse"}, "")
 		// coarse becomes a +100 m "land spike" source; fine keeps its nodata hole
-		dir := filepath.Dir(cfg.Sources[1].Path)
 		mkTif(t, cfg.Sources[1].Path, -5.125, 50.14, -5.075, 50.18, 50, 40, 100, "")
-		_ = dir
 		if limited {
 			zero := 0.0
 			cfg.Sources[1].ValidMax = &zero
 		}
-		m, _ := buildIt(t, cfg)
+		m, err := world.Build(cfg, world.Options{CacheDir: cache, OutDir: filepath.Join(t.TempDir(), "w")})
+		if err != nil {
+			t.Fatal(err)
+		}
 		if got := use(m, "coarse").Selected; limited && got != 0 || !limited && got == 0 {
 			t.Fatalf("valid_max set=%v: coarse supplied %d cells", limited, got)
 		}

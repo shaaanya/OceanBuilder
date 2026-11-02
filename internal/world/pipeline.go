@@ -665,6 +665,9 @@ func (b *bctx) composeKey(ordered []*dataset) string {
 	parts := []any{"compose-1", b.W, b.H}
 	for _, d := range ordered {
 		parts = append(parts, d.spec.ID, d.idx, d.spec.Part, d.spec.Quality, d.offsetM, d.valSHA, d.maskSHA)
+		if d.spec.ValidMax != nil { // only when set: keys of existing caches stay valid
+			parts = append(parts, "valid_max", *d.spec.ValidMax)
+		}
 	}
 	return stageKey(parts...)
 }
