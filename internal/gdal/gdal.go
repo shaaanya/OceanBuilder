@@ -148,3 +148,21 @@ func ReadU8(path string, w, h int) ([]uint8, error) {
 	}
 	return b, nil
 }
+
+// RequiredTools are the GDAL command-line programs a build runs.
+var RequiredTools = []string{"gdalwarp", "gdal_translate", "gdaltransform", "ogr2ogr", "gdalinfo"}
+
+// CheckTools reports every required program missing from PATH in one error, with the way to install GDAL, instead of
+// letting the build fail at the first exec.
+func CheckTools() error {
+	var missing []string
+	for _, t := range RequiredTools {
+		if _, err := exec.LookPath(t); err != nil {
+			missing = append(missing, t)
+		}
+	}
+	if len(missing) == 0 {
+		return nil
+	}
+	return fmt.Errorf("GDAL command-line tools not found on PATH: %s. Install GDAL 3.9 or newer (macOS: brew install gdal; Debian/Ubuntu: apt install gdal-bin; any OS: conda install -c conda-forge gdal proj-data) and run `ocean version` to check", strings.Join(missing, ", "))
+}

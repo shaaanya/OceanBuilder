@@ -58,6 +58,9 @@ func Build(cfg *Config, opt Options) (*Manifest, error) {
 	if err := cfg.Normalize(); err != nil {
 		return nil, err
 	}
+	if err := gdal.CheckTools(); err != nil {
+		return nil, err
+	}
 	final := filepath.Clean(opt.OutDir)
 	parent := filepath.Dir(final)
 	if err := os.MkdirAll(parent, 0o755); err != nil {

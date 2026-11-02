@@ -9,7 +9,11 @@ About 15 minutes, most of it downloading. You need Go 1.22 or newer (the `go` li
 git clone <this repository> && cd OceanBuilder
 go build -o bin/ocean ./cmd/ocean
 export PATH="$PWD/bin:$PATH"
-ocean version        # ocean 0.3.0 (world format schema 2; 3 for worlds on a local transverse Mercator grid)
+ocean version
+# ocean 0.4.0-rc1 (world format schema 2)
+# commit 2dd608fc9273... (uncommitted changes)       <- the commit it was built from, when built in a git checkout
+# go go1.26.1 darwin/arm64
+# gdal GDAL 3.13.0 "Iowa City", released 2026/05/04
 gdalinfo --version   # any recent GDAL; tested with 3.13
 ```
 
@@ -35,8 +39,10 @@ Check it before downloading anything:
 ocean world check falmouth.world.json
 # falmouth: valid
 #   EPSG:32630, 4 x 4 tiles of 6144 m (513 x 513 samples, 0.3 M cells)
-#   working memory about 6 MiB, tile data about 3 MiB before PNG compression
+#   peak memory about 105 MiB (fit to seven measured builds up to 1.4 M cells), disk about 28 MiB for stages and output plus downloads (GMRT is fetched at the service's finest cell whatever cell_m is; the build checks the free space once it knows the size: docs/performance.md), tile data about 3 MiB before PNG compression
 #   UTM point scale 0.99984..0.99990
+#   sources (listed order)
+#     1 gmrt           gmrt       compiled  datum GMRT-mosaic    -> identity
 ```
 
 A bounding box that is too wide for one UTM zone is refused here with advice (split it, or set `utm_epsg`).
@@ -65,7 +71,7 @@ Ask the data questions directly (no GDAL, no engine):
 
 ```bash
 ocean sample output/falmouth -lonlat -5.05,50.14
-# -5.05000,50.14000  water, depth 10.5 m      elevation   -10.55 m  class 2  source survey (measured)  tile L0_57_904
+# -5.05000,50.14000  water, depth 10.5 m      elevation   -10.55 m  class 2  source survey (measured) dataset gmrt  tile L0_57_904
 ocean sample output/falmouth -line=-5.08,50.12:-5.02,50.18 -steps 12     # a depth profile: one such line per step
 ```
 
@@ -77,14 +83,16 @@ ocean sample output/falmouth -line=-5.08,50.12:-5.02,50.18 -steps 12     # a dep
 
 ## 6. Change something, rebuild only what changed
 
-Edit `falmouth.world.json`: add `"depth_bands": [3, 10, 40]`, rebuild. The log shows `stage cache hit: dem`, so nothing is re-warped; compare the result with the previous build:
+Edit `falmouth.world.json`: add `"depth_bands": [3, 10, 40]`, rebuild. The log shows `stage cache hit: gmrt dem` and `stage compose: reusing verified artifact`, so nothing is re-warped or re-downloaded (2 s instead of 46 s here); compare the result with the previous build:
 
 ```bash
 cp -r output/falmouth /tmp/before
 ocean build falmouth.world.json
 ocean diff /tmp/before output/falmouth
 # config (1):  depth_bands: [5 20 50 200] -> [3 10 40]
-# tiles changed (22): L0_57_905 ...      (tiles with no water are byte-identical)
+# tiles changed (22):
+#    L0_57_905
+#    L0_58_905 ...      (tiles with no water are byte-identical)
 ```
 
 Add `"coast_conform": "osm"`, `"seamarks": true` or `"regional_bathymetry": "emodnet"` (Europe, 115 m) the same way; each is documented in the README with what it does and does not establish.

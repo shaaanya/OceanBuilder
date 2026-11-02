@@ -278,8 +278,8 @@ func checkWorld(path string, asJSON bool) error {
 	if asJSON {
 		return writeJSONOut(est)
 	}
-	fmt.Printf("%s: valid\n  %s, %d x %d tiles of %.0f m (%d x %d samples, %.1f M cells)\n  peak memory %s, disk about %.0f MiB for stages and output plus downloads (GMRT is fetched at the service's finest cell whatever cell_m is: see docs/performance.md), tile data about %.0f MiB before PNG compression\n  UTM point scale %.5f..%.5f\n",
-		cfg.Name, p.SRS, p.Grid.TilesX, p.Grid.TilesY, p.Grid.TileSpanM, p.W, p.H, cells/1e6, memNote(cells, est["memory_estimate_mib"].(float64)), est["disk_estimate_mib"], est["tile_data_estimate_mib"], p.ScaleMin, p.ScaleMax)
+	fmt.Printf("%s: valid\n  %s, %d x %d tiles of %.0f m (%d x %d samples, %.1f M cells)\n  peak memory %s, disk about %.0f MiB for stages and output%s, tile data about %.0f MiB before PNG compression\n  UTM point scale %.5f..%.5f\n",
+		cfg.Name, p.SRS, p.Grid.TilesX, p.Grid.TilesY, p.Grid.TileSpanM, p.W, p.H, cells/1e6, memNote(cells, est["memory_estimate_mib"].(float64)), est["disk_estimate_mib"], gmrtNote(cfg), est["tile_data_estimate_mib"], p.ScaleMin, p.ScaleMax)
 	if p.Note != "" {
 		fmt.Println("  WARNING:", p.Note)
 	}
@@ -326,4 +326,19 @@ func memNote(cells, fit float64) string {
 		return fmt.Sprintf("about %.0f MiB (fit to seven measured builds up to 1.4 M cells)", fit)
 	}
 	return "not measured above 1.4 M cells; processing is windowed to the -mem budget (default 1024 MB)"
+}
+
+// gmrtNote warns that a GMRT source is downloaded at the service's finest cell whatever cell_m is, so the download can
+// dwarf the output (a 4 x 1.7 degree region at 250 m downloaded 383 MiB for 8 MiB of output).
+func gmrtNote(cfg *world.Config) string {
+	if len(cfg.Sources) > 0 {
+		found := false
+		for _, s := range cfg.Sources {
+			found = found || s.Type == "gmrt"
+		}
+		if !found {
+			return ""
+		}
+	}
+	return " plus downloads (GMRT is fetched at the service's finest cell whatever cell_m is; the build checks the free space once it knows the size: docs/performance.md)"
 }
