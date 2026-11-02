@@ -447,7 +447,7 @@ func TestSchema3RefusedByUncheckedAdapters(t *testing.T) {
 	_, out := buildIt(t, cfg)
 	proj := filepath.Join(t.TempDir(), "proj")
 	os.MkdirAll(filepath.Join(proj, "Assets"), 0o755)
-	if _, err := export.Unity(out, proj); err == nil || !strings.Contains(err.Error(), "local transverse Mercator") {
+	if _, err := export.Unity(out, proj, 0); err == nil || !strings.Contains(err.Error(), "local transverse Mercator") {
 		t.Errorf("unity: %v", err)
 	}
 	if _, err := libreterrain.Export(out, filepath.Join(t.TempDir(), "x"), libreterrain.ExportOptions{}); err == nil || !strings.Contains(err.Error(), "local transverse Mercator") {

@@ -1,8 +1,6 @@
 package world
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"math"
 	"os"
@@ -136,16 +134,29 @@ func (b *bctx) warpDataset(d *dataset) error {
 	if d.vapplied != nil && d.vapplied.Kind == "proj-grid" {
 		vkey = d.vapplied.key()
 	}
-	warp := func(files, hashes []string, kind, method string) (string, error) {
+	warp := func(files, hashes []string, kind, method string) (string, string, error) {
 		if err := gdal.Ctx.Err(); err != nil {
-			return "", err
+			return "", "", err
 		}
-		h := sha256.New()
-		fmt.Fprint(h, hashes, "|", kind, "|", method, "|", b.te, "|", b.W, "x", b.H, "|", b.srs, "|", b.gver, "|", vkey, "|", d.spec.Nodata, "|", d.srcSRS)
-		path := filepath.Join(b.opt.CacheDir, "stages", hex.EncodeToString(h.Sum(nil)[:12])+"-"+kind+".bin")
+		srcNodata := "-" // a pointer would hash as an address: print the value
+		if d.spec.Nodata != nil {
+			srcNodata = fmt.Sprint(*d.spec.Nodata)
+		}
+		key := stageKey("warp-1", hashes, kind, method, b.te, b.W, b.H, b.srs, b.gver, vkey, srcNodata, d.srcSRS)
+		name := "warp:" + d.spec.ID + ":" + kind
+		path := filepath.Join(b.opt.CacheDir, "stages", key[:24]+"-"+kind+".bin")
+		if err := hook("start:" + name); err != nil {
+			return "", "", err
+		}
 		if fi, err := os.Stat(path); err == nil && fi.Size() == int64(b.W)*int64(b.H)*4 {
-			b.opt.logf("stage cache hit: %s %s", d.spec.ID, kind)
-			return path, nil
+			if sum := b.reuseSealed(path, name); sum != "" {
+				b.opt.logf("stage cache hit: %s %s", d.spec.ID, kind)
+				return path, sum, nil
+			}
+		} else if err == nil {
+			b.opt.logf("WARNING: stage %s: cached file %s has %d bytes, want %d; rebuilding", name, filepath.Base(path), fi.Size(), int64(b.W)*int64(b.H)*4)
+			os.Remove(path)
+			os.Remove(path + ".seal")
 		}
 		tmp := filepath.Join(b.work, fmt.Sprintf("%s-%s.bin", d.spec.ID, kind))
 		args := []string{"-overwrite", "-q", "-t_srs", b.srs, "-te", b.te[0], b.te[1], b.te[2], b.te[3],
@@ -157,19 +168,30 @@ func (b *bctx) warpDataset(d *dataset) error {
 			args = append(args, "-srcnodata", fmt.Sprint(*d.spec.Nodata))
 		}
 		if _, err := gdal.Run("gdalwarp", append(append(args, files...), tmp)...); err != nil {
-			return "", err
+			return "", "", err
+		}
+		if err := hook("mid:" + name); err != nil {
+			return "", "", err
 		}
 		if os.MkdirAll(filepath.Dir(path), 0o755) == nil && os.Rename(tmp, path) == nil {
-			return path, nil
+			sum, err := sealFile(path)
+			if err != nil {
+				return "", "", err
+			}
+			if err := hook("done:" + name); err != nil {
+				return "", "", err
+			}
+			return path, sum, nil
 		}
-		return tmp, nil
+		sum, _, err := hashFile(tmp) // cache directory not writable: use the private copy, uncached
+		return tmp, sum, err
 	}
 	var hashes []string
 	for _, p := range d.vals {
 		hashes = append(hashes, p.SHA256)
 	}
 	var err error
-	if d.valPath, err = warp(d.valSrc, hashes, "dem", method); err != nil {
+	if d.valPath, d.valSHA, err = warp(d.valSrc, hashes, "dem", method); err != nil {
 		return err
 	}
 	if len(d.masks) > 0 {
@@ -178,7 +200,7 @@ func (b *bctx) warpDataset(d *dataset) error {
 			mf, mh = append(mf, p.File), append(mh, p.SHA256)
 		}
 		// nearest neighbour keeps the survey mask binary
-		if d.maskPath, err = warp(mf, mh, "mask", "near"); err != nil {
+		if d.maskPath, d.maskSHA, err = warp(mf, mh, "mask", "near"); err != nil {
 			return err
 		}
 	}

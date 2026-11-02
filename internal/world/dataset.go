@@ -163,6 +163,8 @@ type dataset struct {
 	srcSRS     string // explicit horizontal source CRS when the file embeds a vertical one
 	valPath    string // warped full-grid values (float32, nodata -9999)
 	maskPath   string // warped survey mask, nil-equivalent when ""
+	valSHA     string // sha256 of valPath as sealed in the stage cache ("" when not cached)
+	maskSHA    string
 }
 
 func (d *dataset) datumName() string {

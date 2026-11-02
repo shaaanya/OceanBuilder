@@ -381,6 +381,16 @@ func resolveVerticalSet(cfg *Config, dss []*dataset, opt Options) (VerticalInfo,
 					return info, err
 				}
 				dst := filepath.Join(opt.CacheDir, "stages", "vshift-"+p.SHA256[:16]+"-"+ap.key()+".tif")
+				if err := hook("start:vshift:" + d.spec.ID); err != nil {
+					return info, err
+				}
+				if _, err := os.Stat(dst); err == nil {
+					if _, verr := verifySealed(dst); verr != nil {
+						opt.logf("WARNING: stage vshift:%s: cached file %s failed verification (%v); rebuilding", d.spec.ID, filepath.Base(dst), verr)
+						os.Remove(dst)
+						os.Remove(dst + ".seal")
+					}
+				}
 				if _, err := os.Stat(dst); err != nil {
 					if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 						return info, err
@@ -388,7 +398,14 @@ func resolveVerticalSet(cfg *Config, dss []*dataset, opt Options) (VerticalInfo,
 					if err := ap.shiftRaster(p.File, dst+".tmp.tif", g); err != nil {
 						return info, fmt.Errorf("source %s: %w", d.spec.ID, err)
 					}
+					if err := hook("mid:vshift:" + d.spec.ID); err != nil {
+						os.Remove(dst + ".tmp.tif")
+						return info, err
+					}
 					if err := os.Rename(dst+".tmp.tif", dst); err != nil {
+						return info, err
+					}
+					if _, err := sealFile(dst); err != nil {
 						return info, err
 					}
 				}

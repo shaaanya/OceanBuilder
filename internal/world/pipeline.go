@@ -2,6 +2,7 @@ package world
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"math"
 	"os"
@@ -157,10 +158,24 @@ func build(cfg *Config, opt Options) (*Manifest, bool, error) {
 		}
 	}
 
-	// 3. Composition into the level-0 layer files.
-	lay0 := &layerFiles{W: W, H: H, demPath: filepath.Join(work, "l0.dem"), kindPath: filepath.Join(work, "l0.kind"), provPath: filepath.Join(work, "l0.prov")}
-	comp, err := b.composeLevel0(ordered, lay0)
+	// 3. Composition into the level-0 layer files (a stage: reused when its inputs are byte-identical).
+	sweepStages(opt.CacheDir)
+	ckey := b.composeKey(ordered)
+	var comp *CompositionStats
+	lay0 := &layerFiles{W: W, H: H, id: ckey}
+	cdir, _, err := b.stage("compose", ckey, func(dir string) error {
+		l := &layerFiles{W: W, H: H, demPath: filepath.Join(dir, "l0.dem"), kindPath: filepath.Join(dir, "l0.kind"), provPath: filepath.Join(dir, "l0.prov")}
+		cs, err := b.composeLevel0(ordered, l)
+		if err != nil {
+			return err
+		}
+		return writeJSON(filepath.Join(dir, "composition.json"), cs)
+	})
 	if err != nil {
+		return nil, false, err
+	}
+	lay0.demPath, lay0.kindPath, lay0.provPath = filepath.Join(cdir, "l0.dem"), filepath.Join(cdir, "l0.kind"), filepath.Join(cdir, "l0.prov")
+	if comp, err = readComposition(filepath.Join(cdir, "composition.json")); err != nil {
 		return nil, false, err
 	}
 	m.Stats.Composition = comp
@@ -282,9 +297,15 @@ func build(cfg *Config, opt Options) (*Manifest, bool, error) {
 			opt.logf("refinement %s: %d land cells changed (max %.2f m), %d clamped at sea level, %d edits on water ignored",
 				ref.Editor, st.CellsChanged, st.MaxAbsChangeM, st.ClampedLandCells, st.IgnoredWaterCells)
 		}
-		if err := writeLayerFromMemory(lay0, dem.Data, kind, prov); err != nil {
+		// The cached compose layer is read-only: the edited grid goes to a private layer in the work directory.
+		edited := &layerFiles{W: W, H: H, demPath: filepath.Join(work, "g0.dem"), kindPath: filepath.Join(work, "g0.kind"), provPath: filepath.Join(work, "g0.prov")}
+		if err := writeLayerFromMemory(edited, dem.Data, kind, prov); err != nil {
 			return nil, false, err
 		}
+		if edited.id, err = layerHash(edited); err != nil {
+			return nil, false, err
+		}
+		lay0 = edited
 	}
 
 	// 4. World statistics from the final level-0 layer (streamed), then tiles for level 0 and every LOD level.
@@ -343,11 +364,15 @@ func build(cfg *Config, opt Options) (*Manifest, bool, error) {
 	for k := 0; k <= nLOD; k++ {
 		lay := lay0
 		if k > 0 {
-			lay = &layerFiles{W: plans[k].W, H: plans[k].H, demPath: filepath.Join(work, fmt.Sprintf("l%d.dem", k)),
-				kindPath: filepath.Join(work, fmt.Sprintf("l%d.kind", k)), provPath: filepath.Join(work, fmt.Sprintf("l%d.prov", k))}
-			if err := b.decimateLayer(prev, plans[k-1], plans[k], lay); err != nil {
+			lkey := stageKey("lod-1", prev.id, plans[k-1], plans[k], cfg.TileCells, cfg.LODMethod)
+			ldir, _, err := b.stage(fmt.Sprintf("lod%d", k), lkey, func(dir string) error {
+				return b.decimateLayer(prev, plans[k-1], plans[k], &layerFiles{W: plans[k].W, H: plans[k].H,
+					demPath: filepath.Join(dir, "l.dem"), kindPath: filepath.Join(dir, "l.kind"), provPath: filepath.Join(dir, "l.prov")})
+			})
+			if err != nil {
 				return nil, false, err
 			}
+			lay = &layerFiles{W: plans[k].W, H: plans[k].H, id: lkey, demPath: filepath.Join(ldir, "l.dem"), kindPath: filepath.Join(ldir, "l.kind"), provPath: filepath.Join(ldir, "l.prov")}
 		}
 		tl, shores, err := b.writeLevel(lay, plans[k], slots[k])
 		if err != nil {
@@ -632,4 +657,26 @@ func fetchBoxes(w, s, e, n, dLon, dLat float64) []gmrt.BBox {
 		{W: math.Max(w-dLon, -180), S: S, E: 180, N: N},
 		{W: -180, S: S, E: math.Min(e+dLon-360, 180), N: N},
 	}
+}
+
+// composeKey identifies the level-0 composition: the sealed content hash of every warped input, in rank order, with
+// everything else composeLevel0 reads from the dataset specs.
+func (b *bctx) composeKey(ordered []*dataset) string {
+	parts := []any{"compose-1", b.W, b.H}
+	for _, d := range ordered {
+		parts = append(parts, d.spec.ID, d.idx, d.spec.Part, d.spec.Quality, d.offsetM, d.valSHA, d.maskSHA)
+	}
+	return stageKey(parts...)
+}
+
+func readComposition(path string) (*CompositionStats, error) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var cs CompositionStats
+	if err := json.Unmarshal(b, &cs); err != nil {
+		return nil, fmt.Errorf("%s: %w", path, err)
+	}
+	return &cs, nil
 }

@@ -116,6 +116,7 @@ func (r *rawU8) rect(r0, c0, h, w int, fill uint8) ([]uint8, error) {
 type layerFiles struct {
 	W, H                        int
 	demPath, kindPath, provPath string
+	id                          string // content identity: the stage key (cached layers) or a hash of the files
 	dem                         *rawF32
 	kind, prov                  *rawU8
 }

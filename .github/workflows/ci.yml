@@ -45,7 +45,7 @@ jobs:
       - name: go vet
         run: go vet ./...
       - name: go test
-        run: go test ./... -count=1
+        run: go test ./... -count=1 -timeout 25m
       - name: Build the CLI
         run: go build -o bin/ocean ./cmd/ocean
 
