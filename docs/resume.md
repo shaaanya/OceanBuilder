@@ -31,7 +31,8 @@ hash seeds the LOD keys, so LOD stages are still reused when the edit is byte-id
   directories, `GOMAXPROCS=1`, and any `-mem` budget (tests compare a hash of every output file).
 - **Output is never partial.** The world is assembled in a `.building-` directory and swapped in only when complete;
   a failed or interrupted build leaves the previous output untouched.
-- **Concurrent builds** may share a cache: the loser of a rename race verifies and uses the winner's artifact.
+- **Concurrent builds** may share a cache: temporary names are unique per process, the loser of a rename race verifies and uses the winner's artifact, and a data file that has no seal yet is never deleted (it may be another build's, between rename and seal; the rebuild replaces it atomically). Tested with real processes: 15 rounds of 3 simultaneous builds on one fresh cache, all successful and byte-identical (`scripts/concurrent_builds.py`). The first version of this code failed 2 of 6 such rounds on a shared `.seal.tmp` name; that is fixed.
+- **Real signals** (`scripts/interrupt_resume.py`, POSIX): SIGINT (exit 130, "cancelled") and SIGKILL sent the moment a warp, compose, lod1 or lod2 artifact appeared; the rebuild on the same cache was byte-identical in all 9 cases that fired, and one SIGKILL left a half-written `compose-*.tmp-*` directory that the rebuild ignored. The two-hour sweep of such directories is implemented but not exercised by a test (it needs an old modification time). Windows signals are not tested.
 - **Cancellation** (Ctrl-C, context cancel) stops GDAL children and the row loops; temporary stage directories are
   removed on the way out. Directories left by a killed process (`kill -9`, power loss) are swept at the next build once
   older than two hours.

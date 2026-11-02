@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -30,6 +31,10 @@ import (
 // PNGs, the manifest. See docs/resume.md.
 
 const stageSeal = "STAGE.json"
+
+// errNoSeal: the file has no seal yet. It may be another build's artifact between rename and seal, so it is never
+// deleted for this reason; the rebuild replaces it atomically.
+var errNoSeal = errors.New("no seal (interrupted write, or another build is sealing it)")
 
 // StageHook, when set (tests), is called at the points where a build can be interrupted:
 // "start:<stage>" before the stage is looked up, "mid:<stage>" after its data is written but before it is sealed,
@@ -178,18 +183,32 @@ func sealFile(path string) (string, error) {
 		return "", err
 	}
 	b, _ := json.Marshal(sealedFile{SHA256: sum, Bytes: n})
-	tmp := path + ".seal.tmp"
-	if err := os.WriteFile(tmp, b, 0o644); err != nil {
+	// A unique temporary name: builds sharing a cache may seal the same artifact at the same time.
+	tmp, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".seal.tmp-")
+	if err != nil {
 		return "", err
 	}
-	return sum, os.Rename(tmp, path+".seal")
+	if _, err := tmp.Write(b); err != nil {
+		tmp.Close()
+		os.Remove(tmp.Name())
+		return "", err
+	}
+	if err := tmp.Close(); err != nil {
+		os.Remove(tmp.Name())
+		return "", err
+	}
+	if err := os.Rename(tmp.Name(), path+".seal"); err != nil {
+		os.Remove(tmp.Name())
+		return "", err
+	}
+	return sum, nil
 }
 
 // verifySealed checks a single-file artifact against its seal and returns its sha256.
 func verifySealed(path string) (string, error) {
 	b, err := os.ReadFile(path + ".seal")
 	if err != nil {
-		return "", fmt.Errorf("no seal (interrupted write?)")
+		return "", errNoSeal
 	}
 	var s sealedFile
 	if err := json.Unmarshal(b, &s); err != nil {
@@ -216,8 +235,10 @@ func (b *bctx) reuseSealed(path, what string) string {
 		return sum
 	}
 	b.opt.logf("WARNING: stage %s: cached file %s failed verification (%v); rebuilding", what, filepath.Base(path), err)
-	os.Remove(path)
-	os.Remove(path + ".seal")
+	if !errors.Is(err, errNoSeal) {
+		os.Remove(path)
+		os.Remove(path + ".seal")
+	}
 	return ""
 }
 

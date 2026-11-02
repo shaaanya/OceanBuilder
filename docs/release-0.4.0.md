@@ -17,18 +17,18 @@ the evidence listed here.
 | EGM96 0.4 m discrepancy | **resolved, bounded** | installed grid = independent spherical-harmonic synthesis to 0.1 mm; PROJ gie expectation unexplained and not reproduced; residual 6 cm interpolation. [research/egm96-discrepancy.md](research/egm96-discrepancy.md); old 0.5 m test replaced by 2 mm / 0.10 m tests |
 | Large real build | **one measured: 4 x 3 degrees** | Hawaii, GMRT, 6 pieces, 656 s of which 652 s download, Go RSS 285 MB, cache 581 MB, stages 37 MB, output 30 MB, validate 2.4 s / 134 MB. A 6 x 5 degree run was stopped for disk. No ETOPO/GEBCO large ladder (see deferred) |
 | Source metadata reflects the actual download | **verified** | `datasets[].delivery` (reference cell, pieces, finest/coarsest cell, coarsened pieces); `source_res_m` = coarsest piece; validator `source-coarsened`; fake service that coarsens oversized requests |
-| Resume across several stages, corrupt-cache detection, determinism | **verified** | warp, vertical shift, compose and every LOD level are sealed, hash-verified stages; tests cut a build at every stage boundary, damage every artifact kind, and compare all output bytes across cache/output dirs, GOMAXPROCS=1 and memory budgets; verification mutation-checked. [resume.md](resume.md). Found and fixed a cache-key bug (pointer printed as an address) |
+| Resume across several stages, corrupt-cache detection, determinism | **verified** | warp, vertical shift, compose and every LOD level are sealed, hash-verified stages; tests cut a build at every stage boundary, damage every artifact kind, and compare all output bytes across cache/output dirs, GOMAXPROCS=1 and memory budgets; verification mutation-checked (with the hash comparisons disabled the four `flip-*` cases fail). Real processes: SIGINT and SIGKILL on a running `ocean build` at 9 stage points resumed byte-identically; 15 rounds of 3 concurrent builds on one cache succeeded (this found and fixed a shared-temp-name race). [resume.md](resume.md), `scripts/interrupt_resume.py`, `scripts/concurrent_builds.py`. Found and fixed a cache-key bug (pointer printed as an address) |
 | LOD quality: measured, thresholds, trade-offs | **implemented, measured on one real fixture + one synthetic scene** | [lod-quality.md](lod-quality.md); `ocean lod-report -max-*` |
 | Source transparency | **implemented** | `ocean sources explain <id>` (datum, resolution, measured/interpolated, antimeridian, last live check, limits); NOAA mosaic rejected with live evidence ([ADR 0009](decisions/0009-noaa-dem-mosaic-not-adopted.md)); Seascape and direct GEBCO decided ([ADR 0010](decisions/0010-seascape-and-direct-gebco.md)); a validator message that printed "0 m resolution" now says what is known |
 | CI for Linux / Windows / macOS | **written, never run** | `ci.yml`: offline matrix, cross-target vet and `test -c` for 5 targets, scheduled network tier. Locally: `GOOS=windows|linux go vet`, per-package `go test -c`, and the whole suite as `GOARCH=amd64` under Rosetta pass |
-| `go vet ./...` and `go test ./...` | **pass** locally | see the final line of this document |
+| `go vet ./...` and `go test ./...` | **pass** locally (macOS arm64, 2026-11-02, `-timeout 30m`, world package 237 s on a lightly loaded machine) | every package `ok`, no FAIL; commit hash in the last line of this document |
 
 ## Format and compatibility
 
 - Additive: `datasets[].delivery`; `resampling.source_res_m` is now the coarsest delivered piece (a coarsened GMRT request now reports a larger value than 0.3.0 did; that is the correction); validator code `source-coarsened`.
 - Behaviour: a world with east > 180 that uses GMRT, ETOPO or GEBCO is now fetched as two boxes (0.3.0 would have clamped at 180). The tool version is part of the build id, so every 0.3.0 world rebuilds once.
 - CLI: `export unity` `-level N` also selects the highest LOD level copied; `lod-report` flags; `sources explain`. No removed flags.
-- Cache: stage files gain `.seal` sidecars and `stages/<name>-<key>/` directories; 0.3.0 stage files without a seal are ignored and rebuilt. `ocean cache clean -stages` clears everything rebuildable.
+- Cache: stage files gain `.seal` sidecars and `stages/<name>-<key>/` directories. On the first build with a 0.3.0 cache, the 0.3.0 vertical-shift files (`vshift-*.tif`, same names, no seal) are logged as `failed verification (no seal)` and rebuilt: that is the upgrade, not corruption. 0.3.0 warp files (`<12-byte key>-dem.bin`) are never read again and are not removed; `ocean cache clean -stages` clears all of them.
 - Breaking: none known. Output bytes change only through the version in the build id and the items above.
 
 ## Reproduce
@@ -41,7 +41,7 @@ bin/ocean build <world.json> && bin/ocean validate <out> && bin/ocean lod-report
 python3 scripts/verify_geo.py <world dir> <gmrt cache dir>      # needs pyproj, numpy
 ```
 
-Hawaii: `bbox [-157,18.5,-153,21.5], cell_m 200, tile_cells 256, coastline none`, `/usr/bin/time -l bin/ocean build`.
+Hawaii figures come from a binary built before the stage cache existed (the work tree at or just before commit 91446b6); the stage cache adds hashing of each reused artifact (one sequential read) and was not re-measured on Hawaii. Config: `bbox [-157,18.5,-153,21.5], cell_m 200, tile_cells 256, coastline none`, `/usr/bin/time -l bin/ocean build`.
 
 ## Deferred, with reasons
 
@@ -51,6 +51,7 @@ Hawaii: `bbox [-157,18.5,-153,21.5], cell_m 200, tile_cells 256, coastline none`
 | Large ladder with ETOPO / GEBCO and a region above 4 x 3 degrees | disk budget on this machine (the 6 x 5 degree GMRT attempt filled it); the one measurement shows download time dominates |
 | Sub-stage checkpoints; resume of tile writing and of the whole-grid steps | every stage that dominates cost on measured builds is cached; the rest is seconds (4.2 s after the last download on Hawaii) |
 | Progress / ETA on large grids | not started |
+| UX and documentation review of every error message (what failed, why, which stage, whether the output is still valid, next step) and regenerating the tutorials from real output | not done in this cycle; the new messages (stage verification, `source-coarsened`, `background-fill`, antimeridian refusals, LOD threshold failures) were written to that standard, older ones were not audited |
 | Unity runtime LOD selector, crack hiding between levels, schema 3 in Unity | outside this cycle's verification scope; the player smoke proves loading and consistency only |
 | NOAA multibeam / BAG ImageServers | each has its own datum story; needs the same live probing as ADR 0009 |
 | NAVD88 / MHW / tidal-datum transformations | no verified PROJ operation here; sources in those datums stay refusable or `allow_mixed` |
