@@ -64,6 +64,9 @@ namespace OceanCompiler.World.Editor
                 }
                 smoke.lodPrefabs = prefabs.ToArray();
                 if (phase != null && builder != null) go.AddComponent(phase);
+                // The runtime LOD streaming scenarios (Streaming assembly), only when coarser levels were imported.
+                var lodPhase = Type.GetType("OceanCompiler.World.OceanLodSmoke, OceanCompiler.World.Streaming");
+                if (lodPhase != null && builder != null && index.maxLevelImported > 0) { go.AddComponent(lodPhase); smoke.watchdogSeconds = 300; }
                 if (!EditorSceneManager.SaveScene(scene, TempScene, true)) { Debug.LogError("OCEAN_BUILD_FAIL cannot save " + TempScene); return false; }
                 var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
                 {

@@ -72,7 +72,8 @@ namespace OceanCompiler.World.Tests
                 var centre = focus.position + new Vector3(focus.size.x / 2, 0, focus.size.z / 2);
                 var cam = new GameObject("OceanProbeCamera").AddComponent<Camera>();
                 cam.clearFlags = CameraClearFlags.SolidColor; cam.backgroundColor = Color.black; cam.farClipPlane = 30000;
-                cam.transform.position = centre + new Vector3(0, 3500, -3500); cam.transform.LookAt(centre);
+                float off = index.tileSpanM * 0.57f; // beyond basemapDistance for any tile size
+                cam.transform.position = centre + new Vector3(0, off, -off); cam.transform.LookAt(centre);
                 yield return null; yield return null;
                 var rt = new RenderTexture(256, 256, 24); cam.targetTexture = rt; cam.Render(); cam.Render();
                 RenderTexture.active = rt;

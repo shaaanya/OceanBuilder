@@ -112,8 +112,8 @@ func (b *bctx) writeLevel(lay *layerFiles, p levelPlan, slots []tileSlot) ([]Til
 }
 
 // writeTile writes one tile's files and fills its index entry. offR/offC locate the tile's first sample inside the
-// window. It reports false (and writes nothing) when the tile holds no valid sample, which only happens in padded
-// upper-level tiles.
+// window. It reports false (and writes nothing) when a tile above level 0 holds no valid sample (padded or empty upper-level
+// tiles); level 0 tiles are always written, an empty one as all nodata.
 func (b *bctx) writeTile(t *Tile, s *tileSlot, r *raster, offR, offC int, dir string) (bool, error) {
 	N := b.cfg.TileCells
 	S := N + 1
@@ -147,7 +147,12 @@ func (b *bctx) writeTile(t *Tile, s *tileSlot, r *raster, offR, offC int, dir st
 		}
 	}
 	if nd == S*S {
-		return false, nil
+		if p.Level > 0 {
+			return false, nil // a coarse tile with no valid sample (past the world's edge, or inside a gap) is omitted
+		}
+		// Level 0 always has the whole grid: a tile without data is written as all nodata so the gap is explicit, and the
+		// validator reports it ("empty-tile"). Its elevation range is undefined; 0..0 is recorded.
+		mn, mx = 0, 0
 	}
 	*t = Tile{ID: id, Level: p.Level, X: s.x, Y: s.y, Col: s.col, Row: s.row,
 		Height: dir + "/" + id + ".height.f32", Depth: dir + "/" + id + ".depth.png",

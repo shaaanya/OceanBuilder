@@ -59,10 +59,32 @@ namespace OceanCompiler.World
         public OceanCheckpoint[] checkpoints;
         public OceanSeamark[] seamarks = new OceanSeamark[0];
 
+        [NonSerialized] System.Collections.Generic.Dictionary<string, OceanTileEntry> byId;
+
+        /// <summary>A tile of any imported level by id, or null.</summary>
         public OceanTileEntry Get(string id)
         {
-            foreach (var t in tiles) if (t.id == id) return t;
-            return null;
+            if (string.IsNullOrEmpty(id)) return null;
+            if (byId == null || byId.Count != tiles.Length + lodTiles.Length)
+            {
+                byId = new System.Collections.Generic.Dictionary<string, OceanTileEntry>();
+                foreach (var t in tiles) byId[t.id] = t;
+                foreach (var t in lodTiles) byId[t.id] = t;
+            }
+            return byId.TryGetValue(id, out var e) ? e : null;
+        }
+
+        /// <summary>All imported tiles (every level) as the quadtree OceanLodSelector works on. Tiles whose id does not parse are skipped.</summary>
+        public OceanLodTree BuildLodTree()
+        {
+            var list = new System.Collections.Generic.List<OceanLodTile>(tiles.Length + lodTiles.Length);
+            foreach (var arr in new[] { tiles, lodTiles })
+                foreach (var t in arr)
+                {
+                    if (!OceanLodTile.TryParseId(t.id, out var level, out var gx, out var gy)) { Debug.LogWarning("OceanWorldIndex: tile id " + t.id + " is not L<level>_<x>_<y>; skipped by the LOD tree"); continue; }
+                    list.Add(new OceanLodTile(t.id, level, gx, gy, t.position.x, t.position.z, t.position.x + t.size.x, t.position.z + t.size.z));
+                }
+            return new OceanLodTree(list);
         }
 
         /// <summary>Coarse tiles of one level (1 = twice the cell size); empty when that level was not imported.</summary>
@@ -91,17 +113,18 @@ namespace OceanCompiler.World
             return null;
         }
 
-        /// <summary>Link a freshly loaded terrain to whichever neighbours are loaded, and the neighbours back to it, so tile edges stay seamless.</summary>
+        /// <summary>Link a freshly loaded terrain (pass terrain = null after it unloaded to clear the neighbours' references to it) to whichever neighbours are loaded, and the neighbours back to it, so tile edges stay seamless.</summary>
         public void LinkNeighbours(OceanTileEntry e, Terrain terrain, Func<string, Terrain> loaded)
         {
             Terrain Find(string id) => string.IsNullOrEmpty(id) ? null : loaded(id);
             Terrain w = Find(e.west), n = Find(e.north), ea = Find(e.east), s = Find(e.south);
-            terrain.SetNeighbors(w, n, ea, s);
-            // Terrain neighbours are set per terrain; refresh the ones that already exist.
-            if (w != null) w.SetNeighbors(Find(Get(e.west).west), Find(Get(e.west).north), terrain, Find(Get(e.west).south));
-            if (ea != null) ea.SetNeighbors(terrain, Find(Get(e.east).north), Find(Get(e.east).east), Find(Get(e.east).south));
-            if (n != null) n.SetNeighbors(Find(Get(e.north).west), Find(Get(e.north).north), Find(Get(e.north).east), terrain);
-            if (s != null) s.SetNeighbors(Find(Get(e.south).west), terrain, Find(Get(e.south).east), Find(Get(e.south).south));
+            if (terrain != null) terrain.SetNeighbors(w, n, ea, s);
+            // Terrain neighbours are set per terrain; refresh the ones that already exist. Neighbour ids are of the same level as the tile.
+            OceanTileEntry we = Get(e.west), ne = Get(e.north), ee = Get(e.east), se = Get(e.south);
+            if (w != null && we != null) w.SetNeighbors(Find(we.west), Find(we.north), terrain, Find(we.south));
+            if (ea != null && ee != null) ea.SetNeighbors(terrain, Find(ee.north), Find(ee.east), Find(ee.south));
+            if (n != null && ne != null) n.SetNeighbors(Find(ne.west), Find(ne.north), Find(ne.east), terrain);
+            if (s != null && se != null) s.SetNeighbors(Find(se.west), terrain, Find(se.east), Find(se.south));
         }
     }
 }

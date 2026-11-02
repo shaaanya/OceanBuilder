@@ -68,6 +68,10 @@ public static class OceanWorldImporter
     /// OceanWorldIndex.lodTiles and the Addressables groups; the scene and the streamer keep using level 0.</summary>
     public static int MaxLevel = 0;
 
+    /// <summary>Skirts (crack hiding strips on tile edges) are built when coarser levels are imported. They reach this many metres above the edge samples
+    /// (batch: -oceanSkirtUp). 0.5 m closed every crack in the seam experiment (docs/unity-lod.md); raise it if cracks show at your view distances.</summary>
+    public static float SkirtUpM = 0.5f;
+
     public static void ImportFromCommandLine()
     {
         try
@@ -75,6 +79,8 @@ public static class OceanWorldImporter
             var cl = Environment.GetCommandLineArgs();
             int ml = Array.IndexOf(cl, "-oceanMaxLevel");
             if (ml >= 0 && ml + 1 < cl.Length) MaxLevel = int.Parse(cl[ml + 1]);
+            int su = Array.IndexOf(cl, "-oceanSkirtUp");
+            if (su >= 0 && su + 1 < cl.Length) SkirtUpM = float.Parse(cl[su + 1], System.Globalization.CultureInfo.InvariantCulture);
             ImportMenu();
             var args = Environment.GetCommandLineArgs();
             int i = Array.IndexOf(args, "-oceanShot");
@@ -120,6 +126,34 @@ public static class OceanWorldImporter
             }
         }
         return layers;
+    }
+
+    static Material SkirtMaterial(string gen)
+    {
+        var shader = Shader.Find("Universal Render Pipeline/Lit") ?? throw new Exception("URP Lit shader not found: this package supports URP only");
+        var fresh = new Material(shader);
+        fresh.SetColor("_BaseColor", LayerColors[2]); // shallow-water tone: the strip is seen only where a crack would be
+        fresh.SetFloat("_Cull", 0); // both faces: a crack is seen from either side
+        fresh.SetFloat("_Smoothness", 0f);
+        var mat = AssetDatabase.LoadAssetAtPath<Material>(gen + "/Skirt.mat");
+        if (mat == null) { AssetDatabase.CreateAsset(fresh, gen + "/Skirt.mat"); return fresh; }
+        EditorUtility.CopySerialized(fresh, mat); EditorUtility.SetDirty(mat);
+        UnityEngine.Object.DestroyImmediate(fresh);
+        return mat;
+    }
+
+    /// <summary>
+    /// Builds the tile's four skirts (OceanSkirtBuilder) and adds them to the terrain object, with the meshes saved as one asset file.
+    /// h is the tile's heightmap as imported (h[z, x], 0..1 of range, z grows north).
+    /// </summary>
+    static void AddSkirts(GameObject terrainGo, float[,] h, int S, float cell, float range, float up, Material mat, string meshAssetPath)
+    {
+        var meshes = OceanSkirtBuilder.BuildMeshes(h, S, cell, range, up);
+        // one asset file holds the four meshes; it is recreated on every import (the prefab that references them is re-saved too)
+        if (AssetDatabase.LoadMainAssetAtPath(meshAssetPath) != null) AssetDatabase.DeleteAsset(meshAssetPath);
+        AssetDatabase.CreateAsset(meshes[0], meshAssetPath);
+        for (int side = 1; side < 4; side++) AssetDatabase.AddObjectToAsset(meshes[side], meshAssetPath);
+        OceanSkirtBuilder.Attach(terrainGo, meshes, mat);
     }
 
     // 8-bit grey PNG read back exactly; returned as [z * S + x] with z growing north.
@@ -198,9 +232,10 @@ public static class OceanWorldImporter
         // AssetReferences, scene links and VCS history) stay stable across re-imports of the same tile ids.
         string gen = dir + "/Generated";
         if (!AssetDatabase.IsValidFolder(gen)) AssetDatabase.CreateFolder(dir, "Generated");
-        foreach (var f in new[] { "Terrains", "Prefabs", "Layers" }) if (!AssetDatabase.IsValidFolder(gen + "/" + f)) AssetDatabase.CreateFolder(gen, f);
+        foreach (var f in new[] { "Terrains", "Prefabs", "Layers", "Skirts" }) if (!AssetDatabase.IsValidFolder(gen + "/" + f)) AssetDatabase.CreateFolder(gen, f);
 
         var layers = MakeLayers(gen);
+        Material skirtMat = maxLevel > 0 ? SkirtMaterial(gen) : null;
         // No terrain material template: the active render pipeline's default terrain material is used, so the
         // same TerrainData renders with whatever URP terrain shader the project uses. (A hand-made URP Terrain/Lit template rendered magenta beyond basemapDistance.)
         var index = ScriptableObject.CreateInstance<OceanWorldIndex>();
@@ -252,6 +287,7 @@ public static class OceanWorldImporter
             var go = Terrain.CreateTerrainGameObject(td);
             go.name = t.id;
             go.transform.position = pos;
+            if (skirtMat != null) AddSkirts(go, h, S, tspan / (S - 1), range, SkirtUpM, skirtMat, gen + "/Skirts/" + t.id + ".asset");
             string prefab = gen + "/Prefabs/" + t.id + ".prefab";
             PrefabUtility.SaveAsPrefabAsset(go, prefab);
             UnityEngine.Object.DestroyImmediate(go);
@@ -281,7 +317,7 @@ public static class OceanWorldImporter
         else { EditorUtility.CopySerialized(index, oldIndex); UnityEngine.Object.DestroyImmediate(index); EditorUtility.SetDirty(oldIndex); }
         // Tiles that left the manifest (bbox shrank) are removed; the rest keep their assets.
         var keep = new HashSet<string>(prefabPaths.Keys);
-        foreach (var sub in new[] { "Terrains", "Prefabs" })
+        foreach (var sub in new[] { "Terrains", "Prefabs", "Skirts" })
             foreach (var guid in AssetDatabase.FindAssets("", new[] { gen + "/" + sub }))
             {
                 string path = AssetDatabase.GUIDToAssetPath(guid);
