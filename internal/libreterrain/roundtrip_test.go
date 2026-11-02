@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ocean-compiler/ocean/internal/gdal"
 	"github.com/ocean-compiler/ocean/internal/validate"
 	"github.com/ocean-compiler/ocean/internal/world"
 )
@@ -74,7 +75,17 @@ func exportFixture(t *testing.T) (string, *world.Manifest, string, *Exchange, []
 	return exportFixtureCfg(t, fixtureCfg(wideBBox))
 }
 
+// requireEXR skips the test when GDAL was built without OpenEXR (the conda-forge packages are).
+func requireEXR(t *testing.T) {
+	t.Helper()
+	out, err := gdal.Run("gdalinfo", "--formats")
+	if err != nil || !strings.Contains(out, "EXR") {
+		t.Skip("GDAL has no EXR driver")
+	}
+}
+
 func exportFixtureCfg(t *testing.T, cfg *world.Config) (string, *world.Manifest, string, *Exchange, []float32) {
+	requireEXR(t)
 	wdir, m := buildWorld(t, cfg)
 	xdir := filepath.Join(t.TempDir(), "x")
 	x, err := Export(wdir, xdir, ExportOptions{})

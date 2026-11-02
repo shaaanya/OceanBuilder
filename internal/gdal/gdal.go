@@ -10,6 +10,7 @@ import (
 	"math"
 	"os"
 	"os/exec"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -35,8 +36,16 @@ func Env() []string {
 // A GDAL_CACHEMAX the user already exported is overridden. Pass it per command if that ever matters.
 var CacheMB int
 
-// Run executes a GDAL tool and returns stdout.
+// Run executes a GDAL tool and returns stdout. Python tools (gdal_calc.py) are not directly executable on Windows,
+// so they run through the interpreter.
 func Run(name string, args ...string) (string, error) {
+	if runtime.GOOS == "windows" && strings.HasSuffix(name, ".py") {
+		path, err := exec.LookPath(name)
+		if err != nil {
+			return "", err
+		}
+		args, name = append([]string{path}, args...), "python"
+	}
 	cmd := exec.CommandContext(Ctx, name, args...)
 	cmd.Env = Env()
 	var out, errb bytes.Buffer
