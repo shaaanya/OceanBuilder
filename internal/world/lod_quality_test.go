@@ -82,4 +82,37 @@ func TestLODMethodsOnHardFeatures(t *testing.T) {
 			t.Errorf("decimation level %d too_deep_max %.3f m: scene does not exercise the shoal", d.Level, d.TooDeepMaxM)
 		}
 	}
+	// the waterline split adds up, and the decimated pyramid shows the loss the scene was built to cause:
+	// the 25 x 35 m islet and the 30 m channel do not survive 80 m cells.
+	var lost bool
+	for method, r := range res {
+		for _, h := range r {
+			if h.LandLost+h.WaterLost != h.Flips {
+				t.Errorf("%s level %d: land lost %d + water lost %d != flips %d", method, h.Level, h.LandLost, h.WaterLost, h.Flips)
+			}
+			if h.ShallowCells == 0 || h.SlopeRMS <= 0 {
+				t.Errorf("%s level %d: shallow/slope not measured: %+v", method, h.Level, h)
+			}
+			if method == "decimate" && h.LandLost > 0 && h.WaterLost > 0 {
+				lost = true
+			}
+		}
+	}
+	if !lost {
+		t.Error("decimation reports neither a lost islet nor a closed channel on a scene made to lose both")
+	}
+	// thresholds: tiny limits are broken at the coarsest level, huge limits are not, zero means unchecked
+	r := res["decimate"]
+	if got := validate.LODCheck(r, validate.LODThresholds{MaxRMSM: 1e-9, MaxClassDisagree: 1e-9}); len(got) < 2 {
+		t.Errorf("tiny limits must be exceeded, got %v", got)
+	}
+	if got := validate.LODCheck(r, validate.LODThresholds{MaxRMSM: 1e6, MaxTooDeepM: 1e6, MaxShallowRMSM: 1e6, MaxFlipFraction: 1, MaxClassDisagree: 1}); len(got) != 0 {
+		t.Errorf("huge limits must pass, got %v", got)
+	}
+	if got := validate.LODCheck(r, validate.LODThresholds{}); len(got) != 0 {
+		t.Errorf("no limits means no check, got %v", got)
+	}
+	if got := validate.LODCheck(r, validate.LODThresholds{MaxRMSM: 1e-9, MaxLevel: 0}); len(got) != len(r) {
+		t.Errorf("one violation per level expected, got %v", got)
+	}
 }
