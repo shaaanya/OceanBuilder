@@ -12,7 +12,7 @@ Status: 0.5.0-rc1. The offline tests pass in CI on Linux, Windows and macOS; the
 
 ## Quick start
 
-You need Go 1.22+ and the GDAL command-line tools (`gdalwarp`, `gdal_translate`, `gdaltransform`, `ogr2ogr`, `gdalinfo`) on `PATH`. Tested with GDAL 3.13.
+You need Go 1.22+ (CI uses 1.26; see [install](docs/install.md)) and the GDAL command-line tools (`gdalwarp`, `gdal_translate`, `gdaltransform`, `ogr2ogr`, `gdalinfo`) on `PATH`. Tested with GDAL 3.13.
 
 ```bash
 go build -o bin/ocean ./cmd/ocean
@@ -114,7 +114,7 @@ ocean libreterrain import output/falmouth-libreterrain <libreterrain output dir>
 ocean build refined/falmouth/falmouth-refined.world.json
 ```
 
-Import writes an edit layer, not a replacement. Only cells that are land in the original build change. Sea floor and coastline stay as sourced, and the manifest records the layer. Flipped, resampled or resized output is refused. Measured behaviour is in [docs/research/libreterrain.md](docs/research/libreterrain.md).
+Export writes EXR through GDAL, so it needs a GDAL built with the EXR driver. Import writes an edit layer, not a replacement. Only cells that are land in the original build change. Sea floor and coastline stay as sourced, and the manifest records the layer. Flipped, resampled or resized output is refused. Measured behaviour is in [docs/research/libreterrain.md](docs/research/libreterrain.md).
 
 ## Limits
 

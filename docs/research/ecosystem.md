@@ -8,7 +8,7 @@ Context: OceanBuilder is a Go CLI that shells out to GDAL, uses GMRT GridServer 
 
 ## 1. LibreTerrain
 
-**Correction (2026-10-30, later):** web/GitHub searches found nothing, but the user has LibreTerrain locally at `../LibreTerrain/` (a macOS app bundle plus `libreterrain-mcp`, dual MIT/Apache-2.0: `LICENSE-MIT`, `LICENSE-APACHE`). The agent's "no standalone project" finding (searches: `gh search repos/code`, `npm view`, WebSearch; only an unrelated `cismet/carma` map widget) was about public availability only. No source tree is present, so the facts below come from the binary's embedded strings and the bundle layout, **not from running it or reading docs**; treat them as unverified until exercised.
+**Correction (2026-10-30, later):** web/GitHub searches found nothing, but LibreTerrain is installed locally at `../LibreTerrain/` (a macOS app bundle plus `libreterrain-mcp`, dual MIT/Apache-2.0: `LICENSE-MIT`, `LICENSE-APACHE`). The agent's "no standalone project" finding (searches: `gh search repos/code`, `npm view`, WebSearch; only an unrelated `cismet/carma` map widget) was about public availability only. No source tree is present, so the facts below come from the binary's embedded strings and the bundle layout, **not from running it or reading docs**; treat them as unverified until exercised.
 
 What the binary indicates:
 - Rust node-graph terrain editor (`crates/terrain-core`, `terrain-nodes`); project file `.lterrain` with world size and `height_range_m`; CPU builds; GPU preview.
@@ -79,7 +79,7 @@ Sources: https://github.com/CesiumGS/cesium-unity , https://github.com/CesiumGS/
 | Item | Answer |
 |---|---|
 | Solves / Reuse / Integration | Unknown: project not found. |
-| Verdict | **Unverified; ask the user for a URL.** Closest real comparator is vazgriz/Mapper (Mapbox-based, land only, per search summary); worth a look as prior art for tile stitching but license not checked. |
+| Verdict | **Unverified; no source URL was supplied.** Closest real comparator is vazgriz/Mapper (Mapbox-based, land only, per search summary); worth a look as prior art for tile stitching but license not checked. |
 
 ---
 

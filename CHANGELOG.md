@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- CI: first hosted run (2026-11-02) found three problems, now fixed: Go 1.22.0 test binaries abort on the macOS runner (CI pins Go 1.26; `go.mod` still declares 1.22 as the minimum), `gdal_calc.py` could not be launched on Windows (GEBCO measured mask; `gdal.Run` now goes through `python`), and the LibreTerrain round-trip tests failed instead of skipping where GDAL has no EXR driver.
+- CI: first hosted run (2026-11-02) found three problems, now fixed: Go 1.22.12 test binaries abort on the macOS runner (CI pins Go 1.26; `go.mod` still declares 1.22 as the minimum), `gdal_calc.py` could not be launched on Windows (GEBCO measured mask; `gdal.Run` now goes through `python`), and the LibreTerrain round-trip tests failed instead of skipping where GDAL has no EXR driver.
 - Repository: IDE settings, the generated root `*.world.json` files and an unused wheel are no longer tracked; unused helpers removed; the release reports moved to `docs/releases/`, `docs/resume.md` is now `docs/stage-cache.md`.
 - Source option `valid_max`: a dataset supplies only cells at or below it (after the vertical offset); higher cells fall through to the next dataset. `valid_max: 0` on a bathymetry source ranked below a land DEM stops GMRT's land artefacts (isolated cells of 5-7 km found over Cape Verde, present in the raw GMRT download) from landing on cells the land DEM calls sea. Recorded per dataset in the manifest. Test: `TestValidMaxKeepsHighCellsOutOfFallbackDataset`.
 - Documented: a land DEM with sea cells stored as 0 (Copernicus GLO-30) works as a `geotiff` source with `"nodata": 0`, ranked above `gmrt` ([options.md](docs/options.md#land-dem-over-gmrt)).

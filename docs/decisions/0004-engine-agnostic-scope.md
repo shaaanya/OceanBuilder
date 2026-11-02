@@ -4,7 +4,7 @@ Date: 2026-11-01. Status: accepted.
 
 ## Context
 
-An earlier session audited one particular game and drew up an integration plan (game-frame grid export, conforming to the game's coastline, a runtime depth sampler for its code). The plan shaped the roadmap. The product goal is a tool any game developer can adopt; designing the core around one game's coordinate frame, terrain system or coastline would make it worse for everyone else and would couple the tool to a project it cannot test against.
+An earlier plan was drawn up from an audit of one particular game and drew up an integration plan (game-frame grid export, conforming to the game's coastline, a runtime depth sampler for its code). The plan shaped the roadmap. The product goal is a tool any game developer can adopt; designing the core around one game's coordinate frame, terrain system or coastline would make it worse for everyone else and would couple the tool to a project it cannot test against.
 
 ## Decision
 

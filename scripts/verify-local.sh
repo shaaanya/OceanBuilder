@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Local verification procedure, for machines without hosted CI. usage: scripts/verify-local.sh <tier>...
+# Local verification procedure, same tiers as hosted CI, runnable on a developer machine. usage: scripts/verify-local.sh <tier>...
 #   fast       go vet + go test -short                 (about 1.5 min; no network; needs GDAL on PATH)
 #   full       go vet + go test (adds the slow offline tests: resume at every stage, golden tiles, GeoTIFF agreement)
 #   cross      go vet and test-binary compile for linux/windows/darwin on amd64 and arm64 (no GDAL needed; does NOT run tests)

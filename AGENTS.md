@@ -10,7 +10,7 @@ go test ./internal/validate -bench . -run x   # benchmarks
 go build -o bin/ocean ./cmd/ocean
 ```
 
-GDAL CLI tools must be on `PATH` (gdalwarp, gdal_translate, gdaltransform, ogr2ogr, gdalinfo). Tests never touch the network. Network runs: `bin/ocean build falmouth.world.json`.
+GDAL CLI tools must be on `PATH` (gdalwarp, gdal_translate, gdaltransform, ogr2ogr, gdalinfo). Tests never touch the network. Network runs: `bin/ocean world init falmouth && bin/ocean build falmouth.world.json`.
 
 ## Layout
 
