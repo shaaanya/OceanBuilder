@@ -1,21 +1,43 @@
+# Build and test output
 /bin/
+/dist/
+*.test
+*.prof
+
+# Build cache and generated worlds (`ocean build` defaults)
 /.ocean-cache/
 /output/
-*.test
+
+# `ocean world init` writes configs and locks into the working directory
+/*.world.json
+/*.world.lock.json
+*.world.json.bak
+
+# Python
+__pycache__/
+.ruff_cache/
+
+# Editors and OS
+.idea/
+.vscode/
+.DS_Store
+
+# tools/lodtests (dotnet)
+tools/lodtests/bin/
+tools/lodtests/obj/
+
+# examples/unity-demo: Unity-generated state, and the package copy written by `ocean export -target unity`
 /examples/unity-demo/Library/
 /examples/unity-demo/Logs/
-/examples/unity-demo/UserSettings/
 /examples/unity-demo/Temp/
+/examples/unity-demo/Obj/
+/examples/unity-demo/Build/
+/examples/unity-demo/UserSettings/
+/examples/unity-demo/*.csproj
+/examples/unity-demo/*.sln
 /examples/unity-demo/Assets/OceanWorld/
 /examples/unity-demo/Assets/Editor/
-*.world.json.bak
 /examples/unity-demo/Packages/com.oceancompiler.world/
 /examples/unity-demo/Assets/AddressableAssetsData/
 /examples/unity-demo/Assets/AddressableAssetsData.meta
 /examples/unity-demo/ServerData/
-
-# build outputs
-tools/lodtests/bin/
-tools/lodtests/obj/
-__pycache__/
-/dist/
