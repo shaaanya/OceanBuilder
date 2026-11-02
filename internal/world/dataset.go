@@ -155,7 +155,8 @@ type dataset struct {
 	vals       []*fetch.Provenance // value raster(s): more than one only when a request had to be split
 	masks      []*fetch.Provenance // survey mask raster(s)
 	valSrc     []string            // files fed to gdalwarp (the provenance file, or its vertically shifted copy)
-	nativeResM float64
+	nativeResM float64             // coarsest ground cell of the received rasters
+	delivery   *gmrt.Delivery
 	vref       VerticalRef
 	vapplied   *VerticalApplied
 	offsetM    float64
@@ -182,6 +183,7 @@ type DatasetInfo struct {
 	Year         int              `json:"year,omitempty"`
 	AccuracyM    float64          `json:"accuracy_m,omitempty"`
 	NativeResM   float64          `json:"native_res_m,omitempty"`
+	Delivery     *gmrt.Delivery   `json:"delivery,omitempty"` // what the service actually returned (GMRT)
 	Vertical     *VerticalApplied `json:"vertical,omitempty"`
 	DeclaredDtm  string           `json:"declared_datum,omitempty"`
 	Sources      []string         `json:"sources,omitempty"` // provenance source names in sources[]
@@ -199,6 +201,7 @@ var splitFetch = map[string]bool{"gmrt": true, "etopo2022": true, "gebco": true}
 func resolveDatasets(cfg *Config, boxes []gmrt.BBox, opt Options) ([]*dataset, error) {
 	var out []*dataset
 	cache := map[string][2][]*fetch.Provenance{} // one fetch serves every entry of the same gmrt / masked source
+	var gmrtDelivery *gmrt.Delivery
 	for i, sp := range cfg.effectiveSources() {
 		d := &dataset{idx: i, spec: sp}
 		if len(boxes) > 1 && sp.Type != "geotiff" && !splitFetch[sp.Type] {
@@ -209,20 +212,41 @@ func resolveDatasets(cfg *Config, boxes []gmrt.BBox, opt Options) ([]*dataset, e
 		case "gmrt":
 			v, ok := cache["gmrt"]
 			if !ok {
-				for _, bx := range boxes {
-					opt.logf("fetching GMRT topo+mask for %.4f,%.4f,%.4f,%.4f", bx.W, bx.S, bx.E, bx.N)
-					topo, err := gmrt.Fetch(opt.CacheDir, bx, gmrt.LayerTopo)
+				dl := &gmrt.Delivery{}
+				for bi, bx := range boxes {
+					pieces, ref, err := gmrt.Plan(opt.CacheDir, bx)
 					if err != nil {
 						return nil, err
 					}
-					mask, err := gmrt.Fetch(opt.CacheDir, bx, gmrt.LayerMask)
-					if err != nil {
-						return nil, err
+					if bi == 0 || ref.ReferenceCellM < dl.ReferenceCellM {
+						dl.Request, dl.ReferenceCellM = ref.Request, ref.ReferenceCellM
 					}
-					v[0], v[1] = append(v[0], topo), append(v[1], mask)
+					for _, pc := range pieces {
+						opt.logf("fetching GMRT topo+mask for %.4f,%.4f,%.4f,%.4f", pc.W, pc.S, pc.E, pc.N)
+						topo, err := gmrt.Fetch(opt.CacheDir, pc, gmrt.LayerTopo)
+						if err != nil {
+							return nil, err
+						}
+						mask, err := gmrt.Fetch(opt.CacheDir, pc, gmrt.LayerMask)
+						if err != nil {
+							return nil, err
+						}
+						dx, dy, _, _, err := gmrt.CellDeg(topo.File)
+						if err != nil {
+							return nil, err
+						}
+						dl.Add(gmrt.CellM(dx, dy, (pc.S+pc.N)/2))
+						v[0], v[1] = append(v[0], topo), append(v[1], mask)
+					}
 				}
+				if dl.Coarsened > 0 {
+					dl.Note = fmt.Sprintf("%d of %d GMRT pieces came back more than 25%% coarser (%.0f m) than the finest cell the service offered at the centre of the area (%.0f m): the service reduced the resolution of those requests. source_res_m reports the coarsest piece.", dl.Coarsened, dl.Pieces, dl.CellMMax, dl.ReferenceCellM)
+					opt.logf("WARNING: %s", dl.Note)
+				}
+				gmrtDelivery = dl
 				cache["gmrt"] = v
 			}
+			d.delivery = gmrtDelivery
 			d.vals, d.masks = v[0], v[1]
 			d.vref = VerticalRef{Datum: "GMRT-mosaic"}
 		case "emodnet":

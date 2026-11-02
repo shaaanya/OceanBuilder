@@ -394,6 +394,11 @@ func Run(dir string) (*Report, error) {
 	if m.Resampling.Upsampled {
 		r.add(Warn, "upsampled", "output cell %.0f m is finer than the delivered source cell (≈%.0f m): the extra detail is interpolation, not data", m.Resampling.OutputCellM, m.Resampling.SourceResM)
 	}
+	for _, d := range m.Datasets {
+		if d.Delivery != nil && d.Delivery.Coarsened > 0 {
+			r.add(Warn, "source-coarsened", "dataset %s: %s", d.ID, d.Delivery.Note)
+		}
+	}
 	if water > 0 && m.Config.Local == nil {
 		if fill := 1 - measured/water; fill > 0.05 {
 			r.Metrics["background_water_fraction"] = fill

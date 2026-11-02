@@ -100,8 +100,12 @@ func build(cfg *Config, opt Options) (*Manifest, bool, error) {
 		m.Sources = append(m.Sources, *coastProv)
 	}
 	for _, d := range dss {
-		if d.nativeResM, err = groundSize(d.vals[0].File, clat); err != nil {
-			return nil, false, err
+		for _, v := range d.vals { // the coarsest piece decides: never label the world with a finer source than it received
+			r, err := groundSize(v.File, clat)
+			if err != nil {
+				return nil, false, err
+			}
+			d.nativeResM = math.Max(d.nativeResM, r)
 		}
 	}
 	vinfo, err := resolveVerticalSet(cfg, dss, opt)
@@ -166,7 +170,7 @@ func build(cfg *Config, opt Options) (*Manifest, bool, error) {
 	infos := make([]DatasetInfo, 0, len(dss)+3)
 	for _, d := range dss {
 		di := DatasetInfo{Index: d.idx + 1, ID: d.spec.ID, Type: d.spec.Type, Role: "elevation", Part: d.spec.Part, Quality: d.spec.Quality,
-			Year: d.spec.Year, AccuracyM: d.spec.AccuracyM, NativeResM: round2(d.nativeResM), Vertical: d.vapplied, DeclaredDtm: d.datumName()}
+			Year: d.spec.Year, AccuracyM: d.spec.AccuracyM, NativeResM: round2(d.nativeResM), Vertical: d.vapplied, DeclaredDtm: d.datumName(), Delivery: d.delivery}
 		for _, p := range append(append([]*fetch.Provenance(nil), d.vals...), d.masks...) {
 			di.Sources, di.SourceSHA256 = append(di.Sources, p.Source), append(di.SourceSHA256, p.SHA256)
 		}

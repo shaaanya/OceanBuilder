@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 
@@ -24,7 +25,7 @@ import (
 // requested west edge and extends one pixel past the east edge (the real service does the same, observed 2026-11-02).
 // wrap360 labels the pieces west of 180 with longitudes above 180, which is what the real service did for a request in
 // -180..-179 on that date; without it they keep their -180..180 labels. It records every requested box.
-func fakeGMRT(t *testing.T, wrap360 bool) (url string, boxes func() [][4]float64) {
+func fakeGMRT(t *testing.T, wrap360 bool, limit int) (url string, boxes func() [][4]float64) {
 	var mu sync.Mutex
 	var got [][4]float64
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -34,8 +35,12 @@ func fakeGMRT(t *testing.T, wrap360 bool) (url string, boxes func() [][4]float64
 		mu.Lock()
 		got = append(got, [4]float64{west, south, east, north})
 		mu.Unlock()
-		const px = 0.001
+		px := 0.001
 		cols, rows := int(math.Ceil((east-west)/px))+1, int(math.Ceil((north-south)/px))+1
+		for limit > 0 && cols*rows > limit { // the real service answers an oversized request at a coarser level, silently
+			px *= 2
+			cols, rows = int(math.Ceil((east-west)/px))+1, int(math.Ceil((north-south)/px))+1
+		}
 		label := func(lon float64) float64 {
 			if wrap360 && lon < 0 {
 				return lon + 360
@@ -79,13 +84,18 @@ func fakeGMRT(t *testing.T, wrap360 bool) (url string, boxes func() [][4]float64
 func TestAntimeridianGMRTSplit(t *testing.T) {
 	for _, wrap := range []bool{true, false} {
 		t.Run(fmt.Sprintf("wrap360=%v", wrap), func(t *testing.T) {
-			url, boxes := fakeGMRT(t, wrap)
+			url, boxes := fakeGMRT(t, wrap, 0)
 			old := gmrt.Endpoint
 			gmrt.Endpoint = url
 			t.Cleanup(func() { gmrt.Endpoint = old })
 			cfg := &world.Config{Name: "am-gmrt", BBox: [4]float64{179.7, -17, 180.3, -16.6}, CellM: 200, TileCells: 32, Coastline: "none"}
 			m, out := buildIt(t, cfg)
-			bx := boxes()
+			var bx [][4]float64
+			for _, b := range boxes() {
+				if b[2]-b[0] > 0.021 { // the 0.02 degree resolution probes are not data requests
+					bx = append(bx, b)
+				}
+			}
 			if len(bx) != 4 { // topo and mask for each of the two boxes
 				t.Fatalf("expected 4 requests (topo+mask x 2 boxes), got %v", bx)
 			}
@@ -121,3 +131,47 @@ func TestAntimeridianGMRTSplit(t *testing.T) {
 		})
 	}
 }
+
+// A request that fits the service's size limit is one download; a larger one is split so that each piece stays at the
+// finest resolution. When the service coarsens anyway the manifest and the validator say so, and source_res_m is the
+// coarsest piece actually received, never the requested resolution.
+func TestGMRTDeliveryAndSplitting(t *testing.T) {
+	old, oldBudget := gmrt.Endpoint, gmrt.NodeBudget
+	t.Cleanup(func() { gmrt.Endpoint, gmrt.NodeBudget = old, oldBudget })
+	cfg := func() *world.Config {
+		return &world.Config{Name: "split", BBox: [4]float64{10, 40, 10.5, 40.3}, CellM: 200, TileCells: 32, Coastline: "none"}
+	}
+	run := func(budget float64, limit int) (*world.Manifest, string, [][4]float64) {
+		url, boxes := fakeGMRT(t, false, limit)
+		gmrt.Endpoint, gmrt.NodeBudget = url, budget
+		m, out := buildIt(t, cfg())
+		return m, out, boxes()
+	}
+	// 1. budget under the service limit: several pieces, all at the finest cell.
+	m, out, bx := run(60_000, 100_000)
+	d := m.Datasets[0].Delivery
+	if d == nil || d.Pieces < 3 || d.Coarsened != 0 || math.Abs(d.CellMMax-d.CellMMin) > 1 {
+		t.Fatalf("split delivery: %+v (%d requests)", d, len(bx))
+	}
+	if math.Abs(m.Resampling.SourceResM-d.CellMMax) > 1 || m.Resampling.SourceResM > 130 {
+		t.Errorf("source_res_m %v does not match the delivered cell %v", m.Resampling.SourceResM, d.CellMMax)
+	}
+	if rep, err := validate.Run(out); err != nil || rep.Result == "FAILED" || hasCode(rep.Format(), "source-coarsened") {
+		t.Fatalf("validate: %v\n%s", err, rep.Format())
+	}
+	// 2. no splitting but a service limit: the pieces come back coarser; this must be reported.
+	m, out, _ = run(1e12, 100_000)
+	d = m.Datasets[0].Delivery
+	if d == nil || d.Coarsened == 0 || d.Note == "" || d.CellMMax < 1.9*d.ReferenceCellM {
+		t.Fatalf("coarsened delivery not detected: %+v", d)
+	}
+	if m.Resampling.SourceResM < 1.9*d.ReferenceCellM {
+		t.Errorf("source_res_m %v must be the coarse cell (reference %v)", m.Resampling.SourceResM, d.ReferenceCellM)
+	}
+	rep, err := validate.Run(out)
+	if err != nil || !hasCode(rep.Format(), "source-coarsened") {
+		t.Fatalf("validator must warn: %v\n%s", err, rep.Format())
+	}
+}
+
+func hasCode(report, code string) bool { return strings.Contains(report, "["+code+"]") }
