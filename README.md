@@ -2,7 +2,7 @@
 
 A standalone Go CLI that turns a geographic bounding box into a tiled, multi-resolution, validated maritime world. It fetches (or imports) bathymetry, elevation and coastline data, puts them on one metric grid, cuts crack-free tiles with an LOD pyramid, records for every sample where it came from, and checks the result against the data it was built from. The output is a documented, engine-independent format ([docs/formats/world-v2.md](docs/formats/world-v2.md)); a Go reader, GeoTIFF export and a Unity (URP) adapter consume it. No game engine is needed to build, inspect or use a world.
 
-Status: **0.3.0** ([release report](docs/release-0.3.0.md): what was verified, what is partial or deferred). Sources: GMRT (bathymetry+topography) or your own GeoTIFFs, OpenStreetMap coastline and OpenSeaMap marks, optional EMODnet regional fill. Several elevation datasets per world with explicit precedence and recorded vertical datums; UTM or, for wide boxes, a local transverse Mercator grid. See [docs/roadmap.md](docs/roadmap.md) for what is missing and [docs/development-log.md](docs/development-log.md) for what was measured.
+Status: **0.4.0-rc1** ([release report](docs/release-0.4.0.md): what was verified, what is partial or deferred; CI for Linux/Windows is written but has not run). Run `ocean sources explain <id>` for any source's datum, resolution, measured-vs-interpolated flag and last live check. Sources: GMRT (bathymetry+topography) or your own GeoTIFFs, OpenStreetMap coastline and OpenSeaMap marks, optional EMODnet regional fill. Several elevation datasets per world with explicit precedence and recorded vertical datums; UTM or, for wide boxes, a local transverse Mercator grid. See [docs/roadmap.md](docs/roadmap.md) for what is missing and [docs/development-log.md](docs/development-log.md) for what was measured.
 
 New here? [Tutorial: from an empty directory to an inspected world](docs/tutorials/first-world.md). Several sources: [multi-source tutorial](docs/tutorials/multi-source.md).
 
@@ -152,7 +152,7 @@ Import writes an edit layer, not a replacement: only cells that are land in the 
 
 ## Docs
 
-[Tutorial](docs/tutorials/first-world.md) · [Multi-source](docs/tutorials/multi-source.md) · [Data sources (verified)](docs/sources.md) · [World format](docs/formats/world-v2.md) · [Architecture](docs/architecture/overview.md) · [Decisions](docs/decisions/) · [Data sources](docs/research/data-sources.md) · [Ecosystem research](docs/research/ecosystem.md) · [Roadmap](docs/roadmap.md) · [Development log](docs/development-log.md) · [Contributing](CONTRIBUTING.md)
+[Tutorial](docs/tutorials/first-world.md) · [Multi-source](docs/tutorials/multi-source.md) · [Data sources (verified)](docs/sources.md) · [Resume and the stage cache](docs/resume.md) · [LOD quality](docs/lod-quality.md) · [World format](docs/formats/world-v2.md) · [Architecture](docs/architecture/overview.md) · [Decisions](docs/decisions/) · [Data sources](docs/research/data-sources.md) · [Ecosystem research](docs/research/ecosystem.md) · [Roadmap](docs/roadmap.md) · [Development log](docs/development-log.md) · [Contributing](CONTRIBUTING.md)
 
 ## Licence
 
