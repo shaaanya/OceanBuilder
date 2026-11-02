@@ -40,4 +40,4 @@ go build -o bin/ocean ./cmd/ocean
 python3 scripts/ladder.py bin/ocean /path/to/scratch examples/regions/*.world.json   # stops below 2 GiB free
 ```
 
-Go test timings (macOS arm64): `go test ./...` about 2.5 min (`internal/world` 160 s of it), `-short` about 75 s ([testing.md](testing.md)).
+Go test timings (macOS arm64): `go test ./...` about 3.2 min (`internal/world` 187 s of it), `-short` about 75 s ([testing.md](testing.md)).

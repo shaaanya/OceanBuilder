@@ -14,9 +14,9 @@ No release has been published: there is no remote, so the checksums come from lo
 
 ## Releases and reproducibility
 
-`scripts/release.sh [outdir]` cross-compiles six targets with `CGO_ENABLED=0 -trimpath -ldflags "-s -w"`, writes archives (binary, README, LICENSE, CHANGELOG, format spec, integration guide) and `SHA256SUMS`, then builds linux/amd64 twice and compares: the two binaries are byte-identical (checked 2026-11-02 on macOS arm64, Go 1.26.1). What that does not show: the same bytes on another machine or another Go version (the Go toolchain version is part of the binary), or from a dirty tree (the commit is embedded, with a `modified` flag). Tar archives are only byte-stable with GNU tar; compare the binaries, not the archives.
+`scripts/release.sh [outdir]` cross-compiles six targets with `CGO_ENABLED=0 -trimpath -ldflags "-s -w"`, writes archives (binary, README, LICENSE, CHANGELOG, format spec, integration guide) and `SHA256SUMS`, then builds linux/amd64 twice from the same warm Go build cache and compares: the two binaries are byte-identical (checked 2026-11-02 on macOS arm64, Go 1.26.1). What that does not show: the same bytes on another machine or another Go version (the Go toolchain version is part of the binary), or from a dirty tree (the commit is embedded, with a `modified` flag). Tar archives are only byte-stable with GNU tar; compare the binaries, not the archives.
 
-Worlds are reproducible independently of the binary: `manifest.build_id` hashes the config, tool version, algorithm versions, source hashes and the GDAL version; two builds with the same `input_key` give byte-identical files (tested: `TestStageCacheDeterministic`, `TestDeterministicBuild`, the golden tile hashes on arm64 and amd64 through CI).
+Worlds are reproducible independently of the binary: `manifest.build_id` hashes the config, tool version, algorithm versions, source hashes and the GDAL version; two builds with the same `input_key` give byte-identical files (tested: `TestStageCacheDeterministic`, `TestDeterministicBuild`, the golden tile hashes, which also pass for darwin/amd64 under Rosetta on an arm64 Mac — `go test -short`, 2026-11-02 — while hosted CI on linux/windows amd64 has not run).
 
 ## Pin a world's inputs
 

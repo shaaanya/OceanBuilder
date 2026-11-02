@@ -32,15 +32,16 @@ macOS 27 (Darwin 27.0.0) arm64, 10 cores, Go 1.26.1 (`go.mod` says 1.22; `go vet
 
 | What | Result |
 |---|---|
-| `go vet ./...` and `go test ./... -count=1 -timeout 30m` at 0.5.0-rc1 (macOS arm64) | pass, 15 packages (about 190 s; `internal/world` 187 s) |
-| `go test -short ./...` | pass, about 75 s |
-| cross-compile (vet + build + test binaries) linux/windows/darwin x amd64/arm64 | pass, **tests not run** on those |
-| `dotnet run --project tools/lodtests -c Release` | 6634 checks, 0 failures |
+| `go vet ./...` and `go test ./... -count=1 -timeout 30m` at 0.5.0-rc1 (macOS arm64) | pass, 15 packages (about 3.2 min; `internal/world` 187 s) |
+| `go test -short ./...` | pass, about 75 s; also pass for darwin/amd64 under Rosetta (golden tile hashes included) |
+| cross-compile (vet + build + test binaries) linux/windows/darwin x amd64/arm64 | pass; tests executed only on darwin/arm64 and (short tier) darwin/amd64 under Rosetta |
+| `dotnet run --project tools/lodtests -c Release` | 6635 checks, 0 failures; steady-state Select+Cover allocates 40 bytes per step |
 | Python reader `--check` on 7 real worlds + 2 offline worlds (UTM and local tmerc, schema 2 and 3) | all OK (hashes, checkpoints, shared edges, parent samples) |
-| Python reader vs `ocean sample`, 40 points x levels 0 and 2 per world | worst difference 9.9e-4 m (steep geiranger; others below 3e-4 m), nodata agrees |
+| Python reader vs `ocean sample`, 40 points x levels 0 and 2 per world (same rounded coordinates to both) | worst difference 2.3e-9 m over 7 real + 2 offline worlds, nodata agrees (an earlier run with unrounded coordinates showed 9.9e-4 m on steep geiranger: the test, not the reader) |
 | Python tmerc projection vs `gdaltransform` | below 1e-8 m at 3 points |
 | Interrupt/resume (SIGINT, SIGKILL) and 3 concurrent builds, `scripts/verify-local.sh scripts` | pass |
 | Unity Editor PlayMode (`OceanLodSmokeTests`, runtime tests) on a Falmouth-derived 5-level world and on kona (real, levels 0-3) | pass, exit 0 |
+| Unity package version 0.5.0-rc1 loaded by Unity 6000.4 (re-exported, imported, PlayMode and player re-run after the version and the allocation changes, kona) | pass |
 | Unity standalone macOS arm64 player, graphics on, same two worlds | `OCEAN_PLAYER_RESULT failures=0`; synthetic seam 4317 -> 0 background pixels with skirts |
 | Region ladder, 7 regions, cold and warm | all built and validated; numbers in [performance.md](performance.md) |
 | Disk preflight with a 400 M-cell config on 1.9 GiB free | refused immediately (before any download), nothing written |
@@ -56,6 +57,20 @@ macOS 27 (Darwin 27.0.0) arm64, 10 cores, Go 1.26.1 (`go.mod` says 1.22; `go vet
 | mindelo | harbour | exit 0 | background-fill, coast-misaligned, low-res-bathymetry, upsampled | complete | yes | exit 0 | OK, agrees | byte-identical |
 | azores-regional | large regional, 1.4 M cells | exit 0 | background-fill, low-res-bathymetry | complete | yes | exit 0 | OK, agrees | byte-identical |
 | taveuni-180 | antimeridian (UTM 1S, 179.75 to 180.35 E) | exit 0 | background-fill, low-res-bathymetry, no-coastline | complete | yes | exit 0 | OK, agrees (points on both sides) | byte-identical |
+
+LOD quality of the same worlds (`ocean lod-report -json`, vertex-decimation; level 1 doubles the cell; "flip" = a sample whose land/water class differs from level 0 at the same place):
+
+| Region | Cell | L1 rms (m) | L1 shallow-water rms (m) | L1 land/water flips | L1 depth-class disagreement | L2 rms (m) | L2 flips |
+|---|---|---|---|---|---|---|---|
+| geiranger | 32 | 7.5 | 7.0 | 0.03 % | 0.10 % | 17.6 | 0.09 % |
+| kona | 100 | 2.9 | 7.4 | 0.17 % | 0.53 % | 6.3 | 0.40 % |
+| moorea | 48 | 3.3 | 2.4 | 0.11 % | 0.27 % | 9.2 | 0.45 % |
+| bahamas-bank | 100 | 2.2 | 1.3 | 0.28 % | 0.83 % | 4.9 | 0.63 % |
+| mindelo | 48 | 2.6 | 1.0 | 0.08 % | 0.24 % | 6.7 | 0.27 % |
+| azores-regional | 250 | 6.4 | 8.5 | 0.02 % | 0.09 % | 16.0 | 0.05 % |
+| taveuni-180 | 100 | 12.3 | 4.5 | 0.53 % | 1.04 % | 22.7 | 1.30 % |
+
+These are the costs of coarse levels, not pass/fail results: no threshold was set. Coarse samples are exact level-0 samples, so the errors come from aliasing of steep relief (geiranger, taveuni, azores slopes); shallow-water rms of 7-8 m at level 1 on kona and azores means coarse tiles can show water deeper than the fine ones near shoals (`lod_method: "shoal"` trades that, see [lod-quality.md](lod-quality.md)).
 
 "Rebuild" = two further builds from the cache; their trees are identical to each other and to the first build. "LOD report exit 0" only means `ocean lod-report` ran: no `-max-*` threshold was set, so this column is **not** a quality gate; the numbers are in the report. Unity (runtime LOD) was run on **two** of these worlds' kind only: kona (volcanic coast, 9 level-0 tiles) and a Falmouth-derived world. The fjord, coral island, shallow bank, large regional and antimeridian worlds were **not** imported into Unity. Schema 3 cannot be imported at all.
 

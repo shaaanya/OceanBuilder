@@ -43,7 +43,7 @@ Several viewers: a tile splits if **any** viewer is within its distance. A world
 - **No duplicate loads, no churn.** One load per tile id; a load for a tile that stops being wanted is cancelled (flagged, released on completion); if it is wanted again before it completes the cancel is withdrawn. Unloads wait `unloadDelaySeconds`.
 - **Failures.** A failed load raises `TileFailed(entry, message, final)`, is retried with doubling delay up to `maxRetries`, then marked unavailable. `Retry()` clears the state.
 - **Addressables lifecycle.** Instances are created with `InstantiateAsync` and released with `ReleaseInstance` (or `Release` of a failed handle); destroying the streamer releases everything. A synchronous failure (unknown address) is reported from the next tick so callers never see a callback inside `Begin`.
-- **GC.** Selection reuses its buffers; steady state allocates nothing per step in the pure code (not profiled in a player; see limits).
+- **GC.** `Select` + `Cover.Compute` reuse their buffers: measured 40 bytes per step in steady state (dotnet, 142 leaves of a 341-tile tree, 2 viewers; `tools/lodtests` asserts under 256 bytes). The streamer's own per-step allocations (events, dictionaries on load/unload) and the player's GC were **not** measured.
 
 ## Seams (cracks)
 
@@ -78,4 +78,4 @@ Decimation keeps coarse samples equal to level-0 samples, so coastlines move at 
 - Colliders only at level `<= collidersMaxLevel`.
 - No floating origin. Large worlds lose float precision far from the origin.
 - Windows, Linux, IL2CPP, mobile, HDRP/Built-in (not supported by design) and schema 3 worlds are not covered.
-- Frame time and GC were not profiled in a player.
+- Frame time and GC were not profiled in a player (only the pure selection code was measured, see Behaviour).

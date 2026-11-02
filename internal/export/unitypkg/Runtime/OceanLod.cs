@@ -175,10 +175,14 @@ namespace OceanCompiler.World
             return false;
         }
 
+        // Scratch reused by every call so a steady-state step does not allocate them. Not thread-safe: the selector is called from the main thread.
+        static readonly HashSet<OceanLodTree.Node> balanceSet = new HashSet<OceanLodTree.Node>();
+        static readonly List<OceanLodTree.Node> balanceWork = new List<OceanLodTree.Node>();
+
         static void Balance(OceanLodTree tree, int maxDelta, List<OceanLodTree.Node> leaves, ICollection<OceanLodTree.Node> unavailable)
         {
-            var set = new HashSet<OceanLodTree.Node>(leaves);
-            var work = new List<OceanLodTree.Node>();
+            var set = balanceSet; set.Clear(); foreach (var l in leaves) set.Add(l);
+            var work = balanceWork; work.Clear();
             bool changed = true;
             while (changed)
             {
@@ -228,11 +232,13 @@ namespace OceanCompiler.World
                 if (!AddLoadedBelow(d, loaded, visible)) uncovered?.Add(d);
             }
             // an ancestor hides everything below it
-            var drop = new List<OceanLodTree.Node>();
+            var drop = dropScratch; drop.Clear();
             foreach (var v in visible)
                 for (var p = v.parent; p != null; p = p.parent) if (visible.Contains(p)) { drop.Add(v); break; }
             foreach (var v in drop) visible.Remove(v);
         }
+
+        static readonly List<OceanLodTree.Node> dropScratch = new List<OceanLodTree.Node>(); // reused; main thread only
 
         static bool AddLoadedBelow(OceanLodTree.Node n, ISet<OceanLodTree.Node> loaded, ICollection<OceanLodTree.Node> visible)
         {

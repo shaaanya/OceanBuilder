@@ -1,6 +1,6 @@
 # Integration guide: consuming a world without OceanBuilder, Go or Unity
 
-A world is a directory of JSON, PNG and little-endian float32 files. [docs/formats/world-v2.md](formats/world-v2.md) is the contract; this guide is the checklist for writing a reader in any language. A complete non-Go reader, standard library only, is [examples/python-reader/ocean_reader.py](../examples/python-reader/ocean_reader.py) (about 200 lines, includes the projection and a PNG decoder). It was checked against `ocean sample` (40 random points on levels 0 and 2, UTM and local-tmerc worlds: worst difference 1.1e-4 m, float32 rounding) and its projection against `gdaltransform` (< 1e-8 m) — `scripts/verify-local.sh scripts` repeats it.
+A world is a directory of JSON, PNG and little-endian float32 files. [docs/formats/world-v2.md](formats/world-v2.md) is the contract; this guide is the checklist for writing a reader in any language. A complete non-Go reader, standard library only, is [examples/python-reader/ocean_reader.py](../examples/python-reader/ocean_reader.py) (about 200 lines, includes the projection and a PNG decoder). It was checked against `ocean sample` (40 random points on levels 0 and 2 of seven real worlds, one of them across 180, plus a UTM and a local-tmerc offline world, both programs given the same rounded coordinates: worst difference 2.3e-9 m) and its projection against `gdaltransform` (< 1e-8 m) — `scripts/verify-local.sh scripts` repeats it.
 
 ## 1. Open and gate
 

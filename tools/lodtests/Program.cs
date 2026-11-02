@@ -38,6 +38,7 @@ static class T
         var rnd = new Random(1234);
         Ids();
         Cut(rnd);
+        Allocation();
         Hysteresis();
         Missing();
         MultiCamera();
@@ -54,6 +55,31 @@ static class T
         var tree = World(8, 8, 100, 4, null, -8, -8); // negative grid coordinates: x >> 1 must floor
         Check(tree.roots.Count == 1 && tree.roots[0].Level == 3, "negative grid builds one root, got " + tree.roots.Count);
         Check(tree.Nodes.All(n => n.Level == 3 || n.parent != null && n.parent.Level == n.Level + 1), "every non-root has a parent");
+    }
+
+    // Steady state: the same camera, previous cut and loaded set every step, as the streamer calls it. Reports bytes allocated per
+    // Select + Cover.Compute step on the calling thread after a warm-up; the streamer runs these at most every updateIntervalSeconds (0.1).
+    static void Allocation()
+    {
+        var tree = World(16, 16, 256, 5);
+        var s = new OceanLodSettings { splitFactor = 1.5f };
+        var cams = new[] { new OceanPoint(2000, 0, 2000), new OceanPoint(500, 0, 3500) };
+        var sel = new List<OceanLodTree.Node>(); var prev = new HashSet<OceanLodTree.Node>(); var loaded = new HashSet<OceanLodTree.Node>();
+        var vis = new HashSet<OceanLodTree.Node>(); var unc = new List<OceanLodTree.Node>();
+        void Step()
+        {
+            OceanLodSelector.Select(tree, cams, s, prev, sel);
+            prev.Clear(); foreach (var n in sel) prev.Add(n);
+            loaded.Clear(); foreach (var n in sel) loaded.Add(n);
+            OceanLodCover.Compute(tree, sel, loaded, vis, unc);
+        }
+        for (int i = 0; i < 300; i++) Step();
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        const int N = 2000;
+        for (int i = 0; i < N; i++) Step();
+        double per = (GC.GetAllocatedBytesForCurrentThread() - before) / (double)N;
+        Console.WriteLine("steady-state allocation: " + per.ToString("F0") + " bytes per Select+Cover step (" + sel.Count + " leaves, " + tree.Count + " tiles)");
+        Check(per < 256, "steady-state step allocates under 256 bytes, got " + per.ToString("F0"));
     }
 
     static void Cut(Random rnd)

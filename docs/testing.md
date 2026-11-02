@@ -1,11 +1,11 @@
 # Testing tiers and the local verification procedure
 
-Hosted CI is **prepared but has never run**: the repository has no git remote (none was created or assumed). `.github/workflows/ci.yml` runs the offline tier on ubuntu, windows and macos, the POSIX scripts on ubuntu and macos, the Unity LOD logic on ubuntu, and a cross-compile check; the real-service tier runs on a schedule. Until it has run, the only platform with executed tests is macOS arm64. `scripts/verify-local.sh` is the same procedure for a developer machine.
+Hosted CI is **prepared but has never run**: the repository has no git remote (none was created or assumed). `.github/workflows/ci.yml` runs the offline tier on ubuntu, windows and macos, the POSIX scripts on ubuntu and macos, the Unity LOD logic on ubuntu, and a cross-compile check; the real-service tier runs on a schedule. Until it has run, the only platforms with executed tests are macOS arm64 and, for `go test -short`, darwin/amd64 under Rosetta (`CGO_ENABLED=0 GOARCH=amd64 go test -short ./...`: pass, including the golden tile hashes, which is the arm64/amd64 floating-point check the CI matrix is meant to repeat). `scripts/verify-local.sh` is the same procedure for a developer machine.
 
 | Tier | What | Command | Needs | Time (macOS arm64) | In CI |
 |---|---|---|---|---|---|
 | fast | vet + unit and small integration tests; the ~10 slowest tests skip under `-short` | `scripts/verify-local.sh fast` | Go, GDAL | about 75 s | optional |
-| full (integration) | everything offline, incl. resume at every stage, golden tile hashes, GeoTIFF agreement, LibreTerrain (runs the real app if `../LibreTerrain/libreterrain-mcp` exists) | `scripts/verify-local.sh full` | Go, GDAL | about 2.5 min | `offline` job, 3 OSes |
+| full (integration) | everything offline, incl. resume at every stage, golden tile hashes, GeoTIFF agreement, LibreTerrain (runs the real app if `../LibreTerrain/libreterrain-mcp` exists) | `scripts/verify-local.sh full` | Go, GDAL | about 3.2 min | `offline` job, 3 OSes |
 | cross | vet and compile every package and test binary for linux/windows/darwin x amd64/arm64 (does not run them) | `scripts/verify-local.sh cross` | Go | about 1 min | `cross-vet` |
 | scripts | real processes: SIGINT/SIGKILL resume, 3 concurrent builds, Python reference reader against `ocean sample` | `scripts/verify-local.sh scripts` | Go, GDAL, Python 3 | about 2 min | `posix-scripts` |
 | lod | 6634 property checks of the Unity LOD code, no Unity | `scripts/verify-local.sh lod` | .NET SDK 10 | 10 s | `unity-lod-logic` |
