@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace OceanCompiler.World
+namespace OceanBuilder.World
 {
     /// <summary>Which tiles to load and unload around a position. Pure function of the index: no Addressables, no scene state.</summary>
     public static class OceanStreamingPlan

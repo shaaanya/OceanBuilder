@@ -1,7 +1,7 @@
 {
   "dependencies": {
-    "com.oceancompiler.world": {
-      "version": "file:com.oceancompiler.world",
+    "com.oceanbuilder.world": {
+      "version": "file:com.oceanbuilder.world",
       "depth": 0,
       "source": "embedded",
       "dependencies": {

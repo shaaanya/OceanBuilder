@@ -1,10 +1,10 @@
-// Runtime tile index for a world built by the Ocean Compiler. It carries no
+// Runtime tile index for a world built by the OceanBuilder. It carries no
 // geometry: tile terrain lives in separate prefabs (one per tile) that the game
 // loads however it likes, typically through Addressables using Entry.address.
 using System;
 using UnityEngine;
 
-namespace OceanCompiler.World
+namespace OceanBuilder.World
 {
     /// <summary>One tile. Unity space: x = east, z = north, y = metres above sea level; the world's south-west corner is (0,0).</summary>
     [Serializable]

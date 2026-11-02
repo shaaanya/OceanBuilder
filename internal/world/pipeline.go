@@ -498,7 +498,7 @@ func build(cfg *Config, opt Options) (*Manifest, bool, error) {
 		return nil, false, err
 	}
 	var att bytes.Buffer
-	fmt.Fprintf(&att, "World %q built by Ocean Compiler %s (build %s)\n\nThis output derives from the following sources; respect their licenses when redistributing.\n\n", m.Name, ToolVersion, m.BuildID[:12])
+	fmt.Fprintf(&att, "World %q built by OceanBuilder %s (build %s)\n\nThis output derives from the following sources; respect their licenses when redistributing.\n\n", m.Name, ToolVersion, m.BuildID[:12])
 	for _, a := range m.Attribution {
 		fmt.Fprintln(&att, "- "+a)
 	}

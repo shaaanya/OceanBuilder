@@ -40,6 +40,6 @@
     "com.unity.render-pipelines.universal": "17.4.0"
   },
   "testables": [
-    "com.oceancompiler.world"
+    "com.oceanbuilder.world"
   ]
 }

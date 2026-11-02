@@ -11,7 +11,7 @@ using System.Collections.Generic;
 using System.Text;
 using UnityEngine;
 
-namespace OceanCompiler.World
+namespace OceanBuilder.World
 {
     /// <summary>Collects failures of a smoke run; each phase adds to it.</summary>
     public class OceanSmokeReport

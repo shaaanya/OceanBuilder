@@ -1,7 +1,7 @@
 {
-  "name": "OceanCompiler.World.Streaming",
-  "rootNamespace": "OceanCompiler.World",
-  "references": ["OceanCompiler.World", "Unity.Addressables", "Unity.ResourceManager"],
+  "name": "OceanBuilder.World.Streaming",
+  "rootNamespace": "OceanBuilder.World",
+  "references": ["OceanBuilder.World", "Unity.Addressables", "Unity.ResourceManager"],
   "includePlatforms": [],
   "excludePlatforms": [],
   "defineConstraints": ["OCEAN_ADDRESSABLES"],

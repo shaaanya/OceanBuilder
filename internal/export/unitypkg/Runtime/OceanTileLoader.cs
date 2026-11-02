@@ -5,7 +5,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace OceanCompiler.World
+namespace OceanBuilder.World
 {
     /// <summary>One request to load a tile. Filled in by the loader.</summary>
     public sealed class OceanTileLoad

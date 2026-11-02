@@ -1,9 +1,9 @@
 {
-  "name": "OceanCompiler.World.Tests",
-  "rootNamespace": "OceanCompiler.World.Tests",
+  "name": "OceanBuilder.World.Tests",
+  "rootNamespace": "OceanBuilder.World.Tests",
   "references": [
-    "OceanCompiler.World",
-    "OceanCompiler.World.Streaming",
+    "OceanBuilder.World",
+    "OceanBuilder.World.Streaming",
     "Unity.Addressables",
     "Unity.ResourceManager",
     "UnityEngine.TestRunner"

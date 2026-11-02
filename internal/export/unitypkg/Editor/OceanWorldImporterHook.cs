@@ -1,9 +1,9 @@
 // Lets optional modules (Addressables) subscribe to import completion without the importer referencing them.
 using System;
 using System.Collections.Generic;
-using OceanCompiler.World;
+using OceanBuilder.World;
 
-namespace OceanCompiler.World.Editor
+namespace OceanBuilder.World.Editor
 {
     public static class OceanWorldImporterHook
     {

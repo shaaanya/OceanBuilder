@@ -6,7 +6,7 @@ using System.Collections;
 using System.Text;
 using UnityEngine;
 
-namespace OceanCompiler.World
+namespace OceanBuilder.World
 {
     public static class OceanSeamProbe
     {

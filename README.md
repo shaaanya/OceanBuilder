@@ -93,7 +93,7 @@ Mindelo (Cabo Verde) is the opposite case. Only 3.7% of its water cells are surv
 
 ## Unity
 
-`ocean export <world> -target unity -dest <project>` copies the world into `Assets/OceanWorld/<name>/` and installs the UPM package `Packages/com.oceancompiler.world`, which is embedded in the binary. `Ocean > Import World` (or batchmode) then generates terrains, prefabs, an index asset with neighbour links, and a scene with every tile under a translucent sea plane.
+`ocean export <world> -target unity -dest <project>` copies the world into `Assets/OceanWorld/<name>/` and installs the UPM package `Packages/com.oceanbuilder.world`, which is embedded in the binary. `Ocean > Import World` (or batchmode) then generates terrains, prefabs, an index asset with neighbour links, and a scene with every tile under a translucent sea plane.
 
 ```bash
 Unity -batchmode -projectPath <project> -executeMethod OceanWorldImporter.ImportFromCommandLine -quit

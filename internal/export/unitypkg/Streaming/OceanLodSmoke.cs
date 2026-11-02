@@ -17,7 +17,7 @@ using System.Text;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
 
-namespace OceanCompiler.World
+namespace OceanBuilder.World
 {
     /// <summary>Wraps a loader: counts what the streamer asks for and can make chosen tiles fail.</summary>
     public sealed class OceanCountingLoader : IOceanTileLoader

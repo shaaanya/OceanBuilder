@@ -1,9 +1,9 @@
 {
-  "name": "com.oceancompiler.world",
-  "displayName": "Ocean Compiler World Importer",
+  "name": "com.oceanbuilder.world",
+  "displayName": "OceanBuilder World Importer",
   "version": "0.5.0-rc1",
   "unity": "6000.0",
-  "description": "Imports worlds built by the Ocean Compiler CLI: one Terrain per tile, a tile index for runtime streaming, optional Addressables registration. Installed by `ocean export -target unity`.",
+  "description": "Imports worlds built by the OceanBuilder CLI: one Terrain per tile, a tile index for runtime streaming, optional Addressables registration. Installed by `ocean export -target unity`.",
   "keywords": [
     "terrain",
     "bathymetry",

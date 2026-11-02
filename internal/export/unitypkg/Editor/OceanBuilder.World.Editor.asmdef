@@ -1,0 +1,9 @@
+{
+  "name": "OceanBuilder.World.Editor",
+  "rootNamespace": "OceanBuilder.World.Editor",
+  "references": ["OceanBuilder.World", "Unity.RenderPipelines.Universal.Runtime"],
+  "includePlatforms": ["Editor"],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "autoReferenced": true
+}

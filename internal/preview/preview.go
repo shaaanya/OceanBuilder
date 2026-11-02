@@ -158,7 +158,7 @@ func drawCoast(img *image.RGBA, geojson string, m *world.Manifest, scale, W, H i
 
 func page(m *world.Manifest, rep *validate.Report) string {
 	var b strings.Builder
-	b.WriteString(`<!doctype html><meta charset=utf-8><title>` + html.EscapeString(m.Name) + ` — Ocean Compiler preview</title>
+	b.WriteString(`<!doctype html><meta charset=utf-8><title>` + html.EscapeString(m.Name) + ` — OceanBuilder preview</title>
 <style>body{font:14px/1.5 system-ui,sans-serif;margin:0;background:#0d1b26;color:#dbe7ee}main{max-width:1500px;margin:auto;padding:16px}
 img{max-width:100%;border:1px solid #345}pre{background:#091218;padding:12px;overflow:auto}h1{font-weight:600}
 .leg span{display:inline-block;width:14px;height:14px;margin:0 4px -2px 12px}</style><main>`)

@@ -1,10 +1,10 @@
-// Ocean Compiler Unity importer. Thin adapter: all processing happens in the Go core.
+// OceanBuilder Unity importer. Thin adapter: all processing happens in the Go core.
 // Reads world.manifest.json, the 16-bit tile heightmaps, depth-class and shore masks and creates
 //   Generated/Terrains/<id>.asset   TerrainData (heights + depth-class painted layers)
 //   Generated/Prefabs/<id>.prefab   Terrain + TerrainCollider per tile, positioned in world space
 //   Generated/OceanWorldIndex.asset tile index for runtime loading (ids, bounds, neighbours, addresses)
 //   <world>.unity                   a scene with every tile and a translucent sea plane
-// Addressables registration is done by OceanCompiler.World.Editor.Addressables when that package is installed.
+// Addressables registration is done by OceanBuilder.World.Editor.Addressables when that package is installed.
 //
 // Batchmode:  Unity -batchmode -projectPath <p> -executeMethod OceanWorldImporter.ImportFromCommandLine [-oceanMaxLevel N] -quit
 // Screenshot (needs a GPU; do not pass -nographics):  ... -oceanShot <path.png> [-oceanHideSea]
@@ -12,7 +12,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using OceanCompiler.World;
+using OceanBuilder.World;
 using UnityEditor;
 using UnityEngine;
 

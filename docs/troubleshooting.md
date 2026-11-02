@@ -45,7 +45,7 @@ A build with identical inputs prints *up to date* and touches nothing; add `-for
 | Coarse tiles never appear | The world was imported with level 0 only (`-oceanMaxLevel 0`), or the world has `lod_levels: -1`. |
 | Cracks between tiles of different size | Skirts are built when `-oceanMaxLevel` is above 0. Check that `Generated/Skirts` exists and the streamer's `skirts` is true. See [unity-lod.md](unity-lod.md). |
 | Pink terrain | Not URP. The package supports URP only and refuses another pipeline. |
-| Code edited in `internal/export/unitypkg` has no effect | The demo project embeds a copy in `Packages/com.oceancompiler.world`; re-export. |
+| Code edited in `internal/export/unitypkg` has no effect | The demo project embeds a copy in `Packages/com.oceanbuilder.world`; re-export. |
 | Player log shows `OCEAN_PLAYER_RESULT failures=N` | The detail follows on the same line. Re-run with graphics (the seam probe needs a GPU; `-nographics` skips it). |
 
 ## Reading a world in your own code

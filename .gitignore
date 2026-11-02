@@ -37,7 +37,7 @@ tools/lodtests/obj/
 /examples/unity-demo/*.sln
 /examples/unity-demo/Assets/OceanWorld/
 /examples/unity-demo/Assets/Editor/
-/examples/unity-demo/Packages/com.oceancompiler.world/
+/examples/unity-demo/Packages/com.oceanbuilder.world/
 /examples/unity-demo/Assets/AddressableAssetsData/
 /examples/unity-demo/Assets/AddressableAssetsData.meta
 /examples/unity-demo/ServerData/

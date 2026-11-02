@@ -1,6 +1,6 @@
 # Unity import and streaming
 
-`ocean export <world> -target unity -dest <project>` copies the world into `Assets/OceanWorld/<name>/` and installs the UPM package `Packages/com.oceancompiler.world` (embedded in the binary). `Ocean > Import World`, or batchmode, generates this under `Generated/`:
+`ocean export <world> -target unity -dest <project>` copies the world into `Assets/OceanWorld/<name>/` and installs the UPM package `Packages/com.oceanbuilder.world` (embedded in the binary). `Ocean > Import World`, or batchmode, generates this under `Generated/`:
 
 - `Terrains/<tile id>.asset`: TerrainData per tile with 5 flat-colour layers (land, shore, shallow, mid, deep) painted from the depth-class and shore masks. No texture assets are needed, so the data has no render-pipeline dependency.
 - `Prefabs/<tile id>.prefab`: Terrain plus TerrainCollider, already positioned in world space.
@@ -46,7 +46,7 @@ At runtime, load the index, pick tiles near the ship with `TileAt`, call `Addres
 `Ocean > Addressables > Build And Check` builds the bundles and verifies every address and label. In batchmode:
 
 ```bash
--executeMethod OceanCompiler.World.Editor.OceanAddressables.BuildAndCheckFromCommandLine
+-executeMethod OceanBuilder.World.Editor.OceanAddressables.BuildAndCheckFromCommandLine
 ```
 
 ## Streaming

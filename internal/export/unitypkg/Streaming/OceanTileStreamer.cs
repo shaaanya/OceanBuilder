@@ -9,7 +9,7 @@ using UnityEngine;
 using UnityEngine.AddressableAssets;
 using UnityEngine.ResourceManagement.AsyncOperations;
 
-namespace OceanCompiler.World
+namespace OceanBuilder.World
 {
     public class OceanTileStreamer : MonoBehaviour
     {

@@ -5,13 +5,13 @@
 //   address  ocean/<world>/index       the OceanWorldIndex asset
 //   labels   ocean-tile, ocean-<world>  (index: ocean-index, ocean-<world>)
 using System.Collections.Generic;
-using OceanCompiler.World;
+using OceanBuilder.World;
 using UnityEditor;
 using UnityEditor.AddressableAssets;
 using UnityEditor.AddressableAssets.Settings;
 using UnityEditor.AddressableAssets.Settings.GroupSchemas;
 
-namespace OceanCompiler.World.Editor
+namespace OceanBuilder.World.Editor
 {
     static class OceanAddressables
     {
@@ -33,7 +33,7 @@ namespace OceanCompiler.World.Editor
         }
 
         /// <summary>Builds Addressables content and checks every tile address of every imported world resolves to a prefab with a Terrain.
-        /// Batchmode: -executeMethod OceanCompiler.World.Editor.OceanAddressables.BuildAndCheckFromCommandLine</summary>
+        /// Batchmode: -executeMethod OceanBuilder.World.Editor.OceanAddressables.BuildAndCheckFromCommandLine</summary>
         [MenuItem("Ocean/Addressables/Build And Check")]
         public static void BuildAndCheck()
         {

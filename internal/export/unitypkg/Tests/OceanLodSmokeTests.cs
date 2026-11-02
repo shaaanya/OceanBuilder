@@ -4,7 +4,7 @@ using UnityEngine;
 using UnityEngine.AddressableAssets;
 using UnityEngine.TestTools;
 
-namespace OceanCompiler.World.Tests
+namespace OceanBuilder.World.Tests
 {
     /// <summary>
     /// The runtime LOD scenarios (OceanLodSmoke) in the Editor's play mode, against the imported world's Addressables content

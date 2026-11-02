@@ -1,6 +1,6 @@
 {
-  "name": "OceanCompiler.World",
-  "rootNamespace": "OceanCompiler.World",
+  "name": "OceanBuilder.World",
+  "rootNamespace": "OceanBuilder.World",
   "references": [],
   "includePlatforms": [],
   "excludePlatforms": [],

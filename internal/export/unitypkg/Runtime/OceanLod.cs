@@ -1,4 +1,4 @@
-// Level-of-detail selection for a world built by the Ocean Compiler. Pure C#: no UnityEngine types, so the same code is
+// Level-of-detail selection for a world built by the OceanBuilder. Pure C#: no UnityEngine types, so the same code is
 // unit-tested outside Unity (tools/lodtests). The Unity glue (OceanLodStreamer) only converts positions and loads tiles.
 //
 // Model: the tiles form a quadtree. Tile (L, x, y) is covered by the four tiles (L-1, 2x..2x+1, 2y..2y+1); x grows east,
@@ -10,7 +10,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace OceanCompiler.World
+namespace OceanBuilder.World
 {
     /// <summary>A position in Unity space (x east, y up, z north), metres.</summary>
     public readonly struct OceanPoint

@@ -1,6 +1,6 @@
 // Builds a standalone player of an imported world and prepares a headless smoke run.
 //   Menu:   Ocean > Build Standalone Player (asks for the world's scene)
-//   Batch:  Unity -batchmode -projectPath <proj> -executeMethod OceanCompiler.World.Editor.OceanStandaloneBuild.BuildFromCommandLine
+//   Batch:  Unity -batchmode -projectPath <proj> -executeMethod OceanBuilder.World.Editor.OceanStandaloneBuild.BuildFromCommandLine
 //                 -oceanScene Assets/OceanWorld/<name>/<name>.unity -oceanOut <path to .app> -quit
 // The scene is saved as a temporary copy that gets an OceanPlayerSmoke component pointing at the world's index; the
 // player logs OCEAN_PLAYER_SMOKE and exits (code 0 when every sampled terrain height lies inside its tile's range).
@@ -11,7 +11,7 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 
-namespace OceanCompiler.World.Editor
+namespace OceanBuilder.World.Editor
 {
     public static class OceanStandaloneBuild
     {
@@ -43,8 +43,8 @@ namespace OceanCompiler.World.Editor
                 if (index == null) { Debug.LogError("OCEAN_BUILD_FAIL no OceanWorldIndex at " + dir + "/Generated"); return false; }
                 // Optional Addressables phase (the types exist only when com.unity.addressables is installed). The content is
                 // built first: the build touches scenes and would destroy objects created before it.
-                var phase = Type.GetType("OceanCompiler.World.OceanPlayerSmokeAddressables, OceanCompiler.World.Streaming");
-                var builder = Type.GetType("OceanCompiler.World.Editor.OceanAddressables, OceanCompiler.World.Editor.Addressables");
+                var phase = Type.GetType("OceanBuilder.World.OceanPlayerSmokeAddressables, OceanBuilder.World.Streaming");
+                var builder = Type.GetType("OceanBuilder.World.Editor.OceanAddressables, OceanBuilder.World.Editor.Addressables");
                 if (phase != null && builder != null)
                 {
                     builder.GetMethod("BuildContent").Invoke(null, null);
@@ -65,7 +65,7 @@ namespace OceanCompiler.World.Editor
                 smoke.lodPrefabs = prefabs.ToArray();
                 if (phase != null && builder != null) go.AddComponent(phase);
                 // The runtime LOD streaming scenarios (Streaming assembly), only when coarser levels were imported.
-                var lodPhase = Type.GetType("OceanCompiler.World.OceanLodSmoke, OceanCompiler.World.Streaming");
+                var lodPhase = Type.GetType("OceanBuilder.World.OceanLodSmoke, OceanBuilder.World.Streaming");
                 if (lodPhase != null && builder != null && index.maxLevelImported > 0) { go.AddComponent(lodPhase); smoke.watchdogSeconds = 300; }
                 if (!EditorSceneManager.SaveScene(scene, TempScene, true)) { Debug.LogError("OCEAN_BUILD_FAIL cannot save " + TempScene); return false; }
                 var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions

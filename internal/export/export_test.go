@@ -30,8 +30,8 @@ func TestUnityInstallsPackageAndRemovesLegacyScript(t *testing.T) {
 		t.Fatal("legacy importer script must be removed: it clashes with the package class")
 	}
 	pkg := filepath.Join(proj, "Packages", UnityPackageName)
-	for _, f := range []string{"package.json", "Runtime/OceanWorldIndex.cs", "Runtime/OceanCompiler.World.asmdef", "Editor/OceanWorldImporter.cs",
-		"Editor/OceanCompiler.World.Editor.asmdef", "EditorAddressables/OceanAddressables.cs"} {
+	for _, f := range []string{"package.json", "Runtime/OceanWorldIndex.cs", "Runtime/OceanBuilder.World.asmdef", "Editor/OceanWorldImporter.cs",
+		"Editor/OceanBuilder.World.Editor.asmdef", "EditorAddressables/OceanAddressables.cs"} {
 		if _, err := os.Stat(filepath.Join(pkg, f)); err != nil {
 			t.Errorf("package file %s missing: %v", f, err)
 		}
@@ -40,7 +40,7 @@ func TestUnityInstallsPackageAndRemovesLegacyScript(t *testing.T) {
 	var asm struct {
 		DefineConstraints []string `json:"defineConstraints"`
 	}
-	b, _ := os.ReadFile(filepath.Join(pkg, "EditorAddressables", "OceanCompiler.World.Editor.Addressables.asmdef"))
+	b, _ := os.ReadFile(filepath.Join(pkg, "EditorAddressables", "OceanBuilder.World.Editor.Addressables.asmdef"))
 	if err := json.Unmarshal(b, &asm); err != nil || len(asm.DefineConstraints) != 1 || asm.DefineConstraints[0] != "OCEAN_ADDRESSABLES" {
 		t.Errorf("addressables asmdef must be gated by OCEAN_ADDRESSABLES: %v %s", err, b)
 	}

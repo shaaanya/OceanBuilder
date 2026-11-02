@@ -2,7 +2,7 @@
 // assets) and the tests (which build skirts for synthetic terrains). Pure geometry from a heightmap; no asset access.
 using UnityEngine;
 
-namespace OceanCompiler.World
+namespace OceanBuilder.World
 {
     public static class OceanSkirtBuilder
     {

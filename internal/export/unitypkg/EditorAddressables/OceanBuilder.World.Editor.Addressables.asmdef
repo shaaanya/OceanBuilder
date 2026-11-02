@@ -1,7 +1,7 @@
 {
-  "name": "OceanCompiler.World.Editor.Addressables",
-  "rootNamespace": "OceanCompiler.World.Editor",
-  "references": ["OceanCompiler.World", "OceanCompiler.World.Editor", "Unity.Addressables", "Unity.Addressables.Editor"],
+  "name": "OceanBuilder.World.Editor.Addressables",
+  "rootNamespace": "OceanBuilder.World.Editor",
+  "references": ["OceanBuilder.World", "OceanBuilder.World.Editor", "Unity.Addressables", "Unity.Addressables.Editor"],
   "includePlatforms": ["Editor"],
   "excludePlatforms": [],
   "defineConstraints": ["OCEAN_ADDRESSABLES"],

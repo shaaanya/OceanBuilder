@@ -22,13 +22,13 @@ ocean build lodw.world.json                       # a world with lod_levels >= 3
 ocean export <world> -target unity -level 3 -dest examples/unity-demo
 UNITY=/Applications/Unity/Hub/Editor/6000.4.0f1/Unity.app/Contents/MacOS/Unity
 $UNITY -batchmode -projectPath examples/unity-demo -executeMethod OceanWorldImporter.ImportFromCommandLine -oceanMaxLevel 3 -quit
-$UNITY -batchmode -projectPath examples/unity-demo -executeMethod OceanCompiler.World.Editor.OceanAddressables.BuildAndCheckFromCommandLine -quit   # or menu: Ocean > Addressables > Build And Check
+$UNITY -batchmode -projectPath examples/unity-demo -executeMethod OceanBuilder.World.Editor.OceanAddressables.BuildAndCheckFromCommandLine -quit   # or menu: Ocean > Addressables > Build And Check
 $UNITY -batchmode -projectPath examples/unity-demo -runTests -testPlatform PlayMode -testResults results.xml
-$UNITY -batchmode -projectPath examples/unity-demo -executeMethod OceanCompiler.World.Editor.OceanStandaloneBuild.BuildFromCommandLine -oceanScene Assets/OceanWorld/<name>/<name>.unity -oceanOut player/<name>.app -quit
+$UNITY -batchmode -projectPath examples/unity-demo -executeMethod OceanBuilder.World.Editor.OceanStandaloneBuild.BuildFromCommandLine -oceanScene Assets/OceanWorld/<name>/<name>.unity -oceanOut player/<name>.app -quit
 player/<name>.app/Contents/MacOS/<exe> -batchmode      # with graphics: the seam probe renders; exit 0 and OCEAN_PLAYER_RESULT failures=0
 ```
 
-The demo project embeds a **copy** of the package in `Packages/com.oceancompiler.world` (git-ignored, written by `ocean export -target unity`). After editing `internal/export/unitypkg` re-export, or the project keeps building the old code (this cost one wrong player run).
+The demo project embeds a **copy** of the package in `Packages/com.oceanbuilder.world` (git-ignored, written by `ocean export -target unity`). After editing `internal/export/unitypkg` re-export, or the project keeps building the old code (this cost one wrong player run).
 
 ## Windows
 

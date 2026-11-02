@@ -6,7 +6,7 @@ using UnityEngine.AddressableAssets;
 using UnityEngine.ResourceManagement.AsyncOperations;
 using UnityEngine.TestTools;
 
-namespace OceanCompiler.World.Tests
+namespace OceanBuilder.World.Tests
 {
     public class OceanStreamerTests
     {

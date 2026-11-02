@@ -15,14 +15,14 @@ import (
 	"github.com/shaaanya/OceanBuilder/internal/world"
 )
 
-// unityPkg is the UPM package com.oceancompiler.world (runtime tile index, editor importer,
+// unityPkg is the UPM package com.oceanbuilder.world (runtime tile index, editor importer,
 // optional Addressables module), installed as an embedded package under Packages/.
 //
 //go:embed all:unitypkg
 var unityPkg embed.FS
 
 // UnityPackageName is the folder name under Packages/.
-const UnityPackageName = "com.oceancompiler.world"
+const UnityPackageName = "com.oceanbuilder.world"
 
 // Unity copies a built world into a Unity project and installs the editor
 // importer. Run `Ocean/Import World` in the editor, or in batchmode:

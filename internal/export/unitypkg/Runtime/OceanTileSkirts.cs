@@ -4,7 +4,7 @@
 // size, not a tile beside one twice its size; the skirt hides the gap that opens there (measured: docs/unity-lod.md).
 using UnityEngine;
 
-namespace OceanCompiler.World
+namespace OceanBuilder.World
 {
     public class OceanTileSkirts : MonoBehaviour
     {
