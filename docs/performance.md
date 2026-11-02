@@ -12,7 +12,7 @@ Measured 2026-11-02 on one machine (macOS 27 arm64, 10 cores, Go 1.26.1, GDAL 3.
 | bahamas-bank | shallow bank | 100 m | 0.33 M | 36 (5) | 81 s | 2.0 s | 68 MiB | 22 MiB | 11.8 MiB | 2.8 MiB | <0.1 s |
 | azores-regional | large regional, 4 x 1.7 degrees | 250 m | 1.38 M | 123 (6) | 1659 s (27.6 min) | 46 s (5.6 s on a re-run) | 320 MiB | 410 MiB | 383 MiB | 8.1 MiB | 0.1 s |
 
-All seven built, validated (exit 0, "BUILT WITH WARNINGS": the usual `nodata`, `low-res-bathymetry` and `upsampled` notes, see each world's report) and, for the regions that were also checked in earlier sessions, matched the earlier figures (development log). The 6 x 5 degree Hawaii attempt that filled the disk was **not** repeated.
+All seven built, validated (exit 0, "BUILT WITH WARNINGS": the usual `nodata`, `low-res-bathymetry` and `upsampled` notes, see each world's report). The 6 x 5 degree Hawaii attempt that filled the disk was **not** repeated.
 
 ## What the numbers say
 
